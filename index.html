@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#181b26">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Aftermath">
+  <meta name="description" content="Canavar savaşından sonra şehri temizleyen şirketi yönet.">
+  <title>Aftermath</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="hud">
+      <div class="hud-row">
+        <div class="stat" id="hud-money">💰 <b>0</b></div>
+        <div class="stat" id="hud-rep">⭐ <b>50</b></div>
+        <div class="stat" id="hud-income">🏙️ <b>+0/sn</b></div>
+      </div>
+      <div id="status"><span id="status-pill" class="calm">SAKİN</span><span id="status-text"></span></div>
+      <div id="ticker"></div>
+    </header>
+    <div id="stage">
+      <canvas id="city"></canvas>
+      <div id="hint"></div>
+    </div>
+    <main id="panel"></main>
+    <nav id="tabs">
+      <button data-tab="city" class="active">🏙️<span>Şehir</span></button>
+      <button data-tab="depot">📦<span>Depo</span></button>
+      <button data-tab="factory">🏭<span>Fabrika</span></button>
+      <button data-tab="company">🏢<span>Şirket</span></button>
+    </nav>
+    <div id="toasts"></div>
+    <div id="modal-root"></div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
