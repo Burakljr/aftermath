@@ -30,6 +30,18 @@ const STATES = [
   ['tender', 'phase=tender&chain=0,3', 6],
   ['rival', 'phase=rival&chain=4,2', 6],
   ['result-city', 'phase=calm&result=1&chain=1,2', 6],
+  ['promenade-zoom', 'phase=calm&frame=district:0&zoom=district', 0],
+];
+// juice moments: [name, query, setTime, script run in the page (then steps of 0.05 s and one render)]
+const SCRIPTED = [
+  ['juice-clean-wave', 'phase=cleanup&chain=2&stage=carve&carve=0.01&frame=district:2&zoom=district', 6,
+    'const s = lab.state.sectors[2]; s.corpse = 0; s.damaged = false; lab.emit("clean", { sectorId: 2 }); for (let i = 0; i < 9; i++) lab.scene.update(lab.state, 0.05);'],
+  ['juice-fire-out', 'phase=cleanup&chain=2&fire=0.3&frame=district:2&zoom=district', 6,
+    'lab.state.sectors[2].fire = 0; for (let i = 0; i < 14; i++) lab.scene.update(lab.state, 0.05);'],
+  ['juice-spread', 'phase=cleanup&chain=2&warn=2,4', 6,
+    'const t = lab.state.sectors[4]; t.damaged = true; t.fire = 35; t.fire0 = 35; lab.state.sectors[2].warnTo = null; lab.state.sectors[2].warnT = 0; lab.emit("spread", { from: 2, to: 4 }); for (let i = 0; i < 7; i++) lab.scene.update(lab.state, 0.05);'],
+  ['juice-impact-0.4', 'phase=attack&chain=1,5', 2.4,
+    'lab.state.attack.t = 2.6; lab.state.attack.hit = true; for (const id of lab.state.attack.sectors) { const s = lab.state.sectors[id]; s.damaged = true; s.fire0 = s.fire = 60; s.rubbleMax = s.rubble = 40; s.corpseMax = s.corpse = 40; } for (let i = 0; i < 8; i++) lab.scene.update(lab.state, 0.05);'],
 ];
 
 async function waitServer(url, ms = 8000) {
@@ -65,6 +77,21 @@ async function waitServer(url, ms = 8000) {
     const file = path.join(OUT, `${name}.png`);
     await page.screenshot({ path: file });
     report.push({ name, drawCalls: st.drawCalls, triangles: st.triangles, quality: st.quality, programs: st.programs, errors: errs.length });
+    if (errs.length) { failed++; console.log(name, 'ERRORS', errs.slice(0, 3)); }
+    console.log(`${name.padEnd(20)} calls ${String(st.drawCalls).padStart(4)}  tris ${String(Math.round(st.triangles / 1000)).padStart(4)}k  ${st.quality}`);
+    await page.close();
+  }
+  for (const [name, q, t, script] of SCRIPTED) {
+    if (FILTER && !name.includes(FILTER)) continue;
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', (e) => errs.push(e.message));
+    await page.goto(`${base}?${q}&ui=0`);
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
+    await page.evaluate((tt) => window.__setTime(tt), t);
+    const st = await page.evaluate(`(() => { ${script} return window.lab.scene.stats(); })()`);
+    await page.screenshot({ path: path.join(OUT, `${name}.png`) });
+    report.push({ name, drawCalls: st.drawCalls, triangles: st.triangles, quality: st.quality, errors: errs.length });
     if (errs.length) { failed++; console.log(name, 'ERRORS', errs.slice(0, 3)); }
     console.log(`${name.padEnd(20)} calls ${String(st.drawCalls).padStart(4)}  tris ${String(Math.round(st.triangles / 1000)).padStart(4)}k  ${st.quality}`);
     await page.close();

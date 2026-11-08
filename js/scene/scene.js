@@ -50,7 +50,7 @@ export function createScene(canvas, opts = {}) {
   let ctx = null, intact = [];
   let vt = 0, timeScale = 1, slowUntil = -1, readyFlag = false;
   let attackN = null, placement = null, hitApplied = false, lastPhase = null, lastResult = null, lastAttackT = -99;
-  let lastState = null;
+  let lastState = null, corpseCleared = false;
   const dmg = Array.from({ length: 6 }, () => ({ plan: null, ready: false, applied: false, touched: [], props: null }));
   const stat = { drawCalls: 0, triangles: 0 };
 
@@ -232,7 +232,7 @@ export function createScene(canvas, opts = {}) {
     updateGroundCaps();
   }
   function startAttack(a) {
-    attackN = a.n; hitApplied = !!a.hit;
+    attackN = a.n; hitApplied = !!a.hit; corpseCleared = false;
     placement = layout.corpsePlacement(a);
     layout.setBlocked(placement ? placement.capsules : null);
     traffic.setCorpse(placement ? placement.capsules : null);
@@ -292,6 +292,10 @@ export function createScene(canvas, opts = {}) {
         rubble.setCones(did, sec.rubbleMax > 0 && sec.rubble > 0, juice);
       }
     }
+    // the carcass is gone once every chain district is clean: reopen the roads and the traffic
+    if (placement && hitApplied && placement.parts.every((p) => !dmg[p.districtId].applied && !(secs[p.districtId] && secs[p.districtId].damaged))) {
+      if (!corpseCleared) { corpseCleared = true; layout.setBlocked(null); traffic.setCorpse(null); spotVersion++; spotCache.clear(); }
+    } else if (placement && hitApplied && corpseCleared) { corpseCleared = false; layout.setBlocked(placement.capsules); traffic.setCorpse(placement.capsules); }
     districts.sync(secs, dt, vt, { juice, upkeepOn: !!(s.progress && s.progress.unlocked && s.progress.unlocked.upkeep) });
     if (s.inv) yard.setInventory(s.inv);
     yard.setJobs(s.jobs, s.clock || 0);
@@ -379,8 +383,8 @@ export function createScene(canvas, opts = {}) {
     fx = createFx(scene, renderer);
     world.fx = { dust: fx.dust, steam: fx.steam, sparks: fx.sparks, embers: fx.embers, debris: fx.debris, flash: fx.flash, ring: fx.ring, water: fx.water };
     const chunkGeo = chunkProtos()[3].clone(); chunkGeo.computeVertexNormals();
-    const rubMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
-    ctx = { matD: city.matD, rubMat, chunkGeo, chunkMat: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), particleScale: 1 };
+    const rubMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true, emissive: new THREE.Color(0x15130f) });
+    ctx = { matD: city.matD, rubMat, chunkGeo, chunkMat: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true, emissive: new THREE.Color(0x15130f) }), particleScale: 1 };
     rubble = createRubble(scene, { fx, quality });
     yard = createYard(scene, { matI: city.matI, fx });
     traffic = createTraffic(scene, { city, vehicleMat: shared.vehicle });

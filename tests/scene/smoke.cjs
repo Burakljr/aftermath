@@ -38,7 +38,7 @@ async function open(ctx, base, q) {
   const perf = {};
 
   // 1. phases + budgets (high and low)
-  for (const q of ['high', 'low']) for (const [ph, extra, t] of [['calm', '', 0], ['attack', '&chain=1,2&extra=5', 1.2], ['impact', '&chain=1,2&extra=5', 3.3], ['cleanup', '&chain=1,2&extra=5&sel=2', 6], ['tender', '&chain=0,3', 6], ['rival', '&chain=4,2', 6]]) {
+  if (!process.env.ONLY) for (const q of ['high', 'low']) for (const [ph, extra, t] of [['calm', '', 0], ['attack', '&chain=1,2&extra=5', 1.2], ['impact', '&chain=1,2&extra=5', 3.3], ['cleanup', '&chain=1,2&extra=5&sel=2', 6], ['tender', '&chain=0,3', 6], ['rival', '&chain=4,2', 6]]) {
     const { page, errs } = await open(ctx, base, `phase=${ph === 'impact' ? 'attack' : ph}${extra}&q=${q}`);
     const st = await page.evaluate((tt) => window.__setTime(tt), t);
     perf[`${ph}-${q}`] = { calls: st.drawCalls, tris: st.triangles };
@@ -48,7 +48,7 @@ async function open(ctx, base, q) {
   }
 
   // 2. picking + projection round trip (calm, city framing)
-  {
+  if (!process.env.ONLY) {
     const { page } = await open(ctx, base, 'phase=calm');
     const res = await page.evaluate(() => {
       const sc = window.lab.scene, L = sc._debug.layout, out = [];

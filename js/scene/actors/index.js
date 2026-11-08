@@ -1,20 +1,68 @@
-// Scene-actors hook (ARCH 5.3). scene-world ships this no-op stub with the full shape so the lab runs;
-// scene-actors replaces it (fleet, work loops, corpse, attack director, buyer van).
-// `world` is built by js/scene/scene.js; see ARCH 5.3 for its members.
+// Scene-actors hook (ARCH 5.3): fleet + rival vehicles, route lines, work loops, Magmadon (alive in the
+// attack, corpse + carving after the hit), KALKAN-07 and the attack director, buyer van / drive-ins.
+// `world` is built by js/scene/scene.js. Nothing here reads game rules: only the state subset of ARCH 5.2.
+import * as THREE from 'three';
+import { createFleet } from './fleet.js';
+import { createRoutes } from './route.js';
+import { createWork } from './work.js';
+import { createCorpse } from './corpse.js';
+import { createAttack } from './attack.js';
+import { createBuyer } from './buyer.js';
+
 export function createActors(world) {
-  void world;
+  const routes = createRoutes(world);
+  const work = createWork(world);
+  const fleet = createFleet(world, { work, route: routes });
+  const corpse = createCorpse(world);
+  work.setCorpse(corpse);
+  const attack = createAttack(world, { corpse });
+  const buyer = createBuyer(world, { fleet });
+  const _v = new THREE.Vector3(), _c = new THREE.Vector3();
+  let lastT = 0, lastState = null;
+
   return {
-    update(state, dt, t) {},          // after world sync, before render
-    event(type, payload) {},          // forwarded bus events
-    attackPose(attack, t) { return null; }, // pure: monster/robot/camera pose for state.attack at t
-    previewAttack(desc) {             // for scene.playAttack: { skip(), done, t }
-      const h = { t: 0, skip() {}, done: Promise.resolve() };
-      return h;
+    drawsCorpse: true,                   // the lab hides its placeholder carcass
+    update(state, dt, t) {
+      lastT = t; if (state) lastState = state;
+      const s = state || lastState;
+      work.setState(s);
+      attack.update(s, t, dt);
+      corpse.update(s, t, dt, attack);
+      fleet.update(s, t, dt);
+      buyer.update(s, t, dt);
     },
-    pickVehicle(x, y) { return null; },  // CSS px -> vehicleId | null
-    anchor(name, out) { return null; },  // 'vehicle:<id>' | 'corpse:head' -> THREE.Vector3 | null
-    setQuality(q) {},
-    stats() { return { vehicles: 0, particles: 0 }; },
-    dispose() {},
+    event(type, p) {
+      p = p || {};
+      corpse.event(type, p, lastT);
+      attack.event(type, p, lastT);
+      buyer.event(type, p, lastT);
+    },
+    attackPose(a, t) { return attack.pose(a, t); },
+    previewAttack(desc) { return attack.preview(desc || {}); },
+    pickVehicle(x, y) {
+      const cam = world.camera, el = world.renderer.domElement;
+      const w = el.clientWidth || 390, h = el.clientHeight || 844;
+      let best = null, bd = 28;
+      fleet.each((u) => {
+        if (u.rival || !u.main.visible) return;
+        fleet.anchor(u.id, _v);
+        _v.y -= 3;
+        _c.copy(_v).project(cam);
+        if (_c.z > 1) return;
+        const sx = (_c.x * 0.5 + 0.5) * w, sy = (1 - (_c.y * 0.5 + 0.5)) * h;
+        const d = Math.hypot(sx - x, sy - y);
+        if (d < bd) { bd = d; best = u.id; }
+      });
+      return best;
+    },
+    anchor(name, out) {
+      if (name.startsWith('vehicle:')) return fleet.anchor(name.slice(8), out);
+      if (name === 'corpse:head') return corpse.anchor('head', out);
+      return null;
+    },
+    setQuality(q) { corpse.setQuality(q); attack.setQuality(q); },
+    stats() { return { vehicles: fleet.count() + buyer.count(), particles: attack.particles() }; },
+    dispose() { fleet.dispose(); routes.dispose(); work.dispose(); corpse.dispose(); attack.dispose(); buyer.dispose(); },
+    _debug: { fleet, routes, work, corpse, attack, buyer },
   };
 }

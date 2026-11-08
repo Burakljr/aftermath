@@ -26,7 +26,10 @@ export function buzz(name) {
   const p = MAP[name];
   if (p == null) return;
   try {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(p);
+    if (typeof navigator === 'undefined' || !navigator.vibrate) return;
+    // Chrome logs an intervention when vibrate runs before the first user tap
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+    navigator.vibrate(p);
   } catch {
     /* ignore */
   }

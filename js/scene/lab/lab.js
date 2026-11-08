@@ -25,6 +25,7 @@ const sim = createFakeSim((type, payload) => { events.push([type, payload]); sce
 let live = Q.get('live') === '1';
 let sel = opts.sel;
 const errors = [];
+let ghost = null, ghostKey = '';
 addEventListener('error', (e) => errors.push(String(e.message)));
 
 function emit(type, payload) { events.push([type, payload]); scene.event(type, payload); }
@@ -108,9 +109,8 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 // placeholder carcass (lab only, until scene-actors draws Magmadon): a low dark body where corpsePlacement says
-let ghost = null, ghostKey = '';
 function syncGhost() {
-  if (Q.get('ghost') === '0') return;
+  if (Q.get('ghost') === '0' || (scene.world.actors && scene.world.actors.drawsCorpse)) return;   // scene-actors draws Magmadon
   const P = scene.world.placement();
   const show = P && state.attack && state.attack.hit && state.sectors.some((s) => s.damaged && s.corpse > 0);
   const key = P ? `${P.x},${P.z},${P.length}` : '';

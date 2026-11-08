@@ -85,7 +85,8 @@ export function S(el, prop, v) {
   }
 }
 export function show(el, on) {
-  if (el.hidden === !!on) el.hidden = !on;
+  // attribute form so it also works on SVG elements (#ui [hidden] { display: none })
+  if (el.hasAttribute('hidden') === !!on) el.toggleAttribute('hidden', !on);
 }
 
 /** bar: <span class="bar fire"><i></i></span>; value 0..1 drives scaleX */

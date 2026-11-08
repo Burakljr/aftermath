@@ -4,12 +4,12 @@
 // Piles are one merged geometry per district with chunks sorted bottom-up, so a step is just a
 // smaller drawRange (no rebuild, no allocation).
 import * as THREE from 'three';
-import { Builder, rng } from './util.js';
+import { Builder, rng, capsDist } from './util.js';
 import { chunkProtos } from './damage.js';
 import { CONCRETE } from './city.js';
 import { DISTRICTS, XR, ZR } from './layout.js';
 
-const LIGHT = [0xb8b2a6, 0xa8a296, 0xc4bcae, 0x9a948a, 0xd0c8b8, 0x8c877e];
+const LIGHT = [0xcac2b2, 0xb8b0a0, 0xd8cfbd, 0xa8a090, 0xe0d6c2, 0x9a9282];
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 
 function coneGeo() {
@@ -26,24 +26,26 @@ function barrierGeo() {
   const g = B.build(); g.scale(2.4, 2.4, 2.4); return g;
 }
 
-// the road point on the district's perimeter nearest to (x, z), with the road axis
-function nearestPerimeterRoad(did, x, z) {
+// a visible road point on the district's perimeter near (x, z), outside the corpse capsules
+function streetPileSpot(did, x, z, caps) {
   const D = DISTRICTS[did];
   const xw = D.col === 0 ? XR.W : XR.A, xe = D.col === 0 ? XR.A : XR.E;
   const zn = [ZR.P, ZR.S1, ZR.S2][D.row], zs = [ZR.S1, ZR.S2, ZR.R][D.row];
-  const cl = (v, a, b) => Math.max(a, Math.min(b, v));
-  const cands = [
-    { x: xw, z: cl(z, D.z0 + 10, D.z1 - 10), axis: 'z' }, { x: xe, z: cl(z, D.z0 + 10, D.z1 - 10), axis: 'z' },
-    { x: cl(x, D.x0 + 10, D.x1 - 10), z: zn, axis: 'x' }, { x: cl(x, D.x0 + 10, D.x1 - 10), z: zs, axis: 'x' },
-  ];
-  // prefer the near side (+z) and side roads: they are visible from the gameplay camera
   let best = null, bd = 1e9;
-  for (const c of cands) { const d = Math.hypot(c.x - x, c.z - z) - (c.z === zs ? 14 : 0) + (c.z === zn ? 10 : 0); if (d < bd) { bd = d; best = c; } }
-  return best;
+  for (let k = 0; k <= 8; k++) {
+    const fz = D.z0 + 10 + (D.z1 - D.z0 - 20) * k / 8, fx = D.x0 + 10 + (D.x1 - D.x0 - 20) * k / 8;
+    for (const c of [{ x: xw, z: fz, axis: 'z' }, { x: xe, z: fz, axis: 'z' }, { x: fx, z: zn, axis: 'x' }, { x: fx, z: zs, axis: 'x' }]) {
+      if (caps && capsDist(c.x, c.z, caps) < 12) continue;
+      // prefer the near side (+z) and side roads: the gameplay camera sees them
+      const d = Math.hypot(c.x - x, c.z - z) - (c.z === zs ? 14 : 0) + (c.z === zn ? 12 : 0);
+      if (d < bd) { bd = d; best = c; }
+    }
+  }
+  return best || { x: xe, z: D.cz, axis: 'z' };
 }
 
 export function createRubble(scene, { fx, quality }) {
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true, emissive: new THREE.Color(0x2c2822) });   // dusty heaps stay readable at blue hour
   const P = chunkProtos();
   const piles = [];            // per district: { mesh, steps:[v1,v2,v3], level, centers }
   const CONES_PER = 10, BARR_PER = 4;
@@ -63,7 +65,7 @@ export function createRubble(scene, { fx, quality }) {
         const a = R() * Math.PI * 2, dd = Math.pow(R(), 0.7);
         const px = x + Math.cos(a) * dd * radius * sx, pz = z + Math.sin(a) * dd * radius * sz;
         const mound = height * Math.pow(Math.max(0, 1 - dd * dd), 0.9);
-        const size = (0.8 + R() * 1.9) * (1 - dd * 0.4) * Math.min(1.7, radius / 4.5);
+        const size = (0.7 + R() * 1.5) * (1 - dd * 0.4) * Math.min(1.25, radius / 6);
         const slab = R() < 0.07;
         const proto = slab ? P[10 + Math.floor(R() * 4)] : P[Math.floor(R() * 10)];
         const s = size * (slab ? 2.6 : 1.6);
@@ -76,7 +78,7 @@ export function createRubble(scene, { fx, quality }) {
     for (const sd of plan.rubble) addPile(sd);
     // one street pile on the perimeter road nearest the source: it visibly blocks the road
     const src = plan.caps[0];
-    const sp = nearestPerimeterRoad(did, (src.ax + src.bx) / 2, (src.az + src.bz) / 2);
+    const sp = streetPileSpot(did, (src.ax + src.bx) / 2, (src.az + src.bz) / 2, plan.caps[0].r > 3 ? plan.caps : null);
     addPile({ x: sp.x, z: sp.z, radius: 7, height: 2.6, count: 46, sx: sp.axis === 'z' ? 0.8 : 1.2, sz: sp.axis === 'z' ? 1.2 : 0.8, color: 0x8a8278 });
     yield;
     items.sort((a, b) => a.h - b.h);

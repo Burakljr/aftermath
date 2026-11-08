@@ -119,7 +119,7 @@ export function planDamage(cd, placement, seed, mode = 'hit') {
   if (!src.soot) {
     for (const t of plan.tiers) {
       const b = t.b;
-      if (t.tier === 'c' || t.tier === 'x') plan.rubble.push({ x: b.x, z: b.z, radius: Math.max(b.w, b.d) * 0.6, height: 3.5 + b.floors * 0.6, count: 22 + b.floors * 3, sx: b.w / Math.max(b.w, b.d) * 1.2, sz: b.d / Math.max(b.w, b.d) * 1.2, color: b.color, d: t.d });
+      if (t.tier === 'c' || t.tier === 'x') plan.rubble.push({ x: b.x, z: b.z, radius: Math.min(10, Math.max(b.w, b.d) * 0.45), height: 4 + Math.min(6, b.floors * 0.7), count: 34 + b.floors * 4, sx: 1, sz: 1, color: b.color, d: t.d });
       else if (t.tier === 'b') plan.rubble.push({ x: t.corner[0] + t.sx * 3, z: t.corner[1] + t.sz * 3, radius: 4.5 + b.floors * 0.4, height: 1.8 + b.floors * 0.3, count: 14 + b.floors * 2, sx: 1, sz: 1, color: b.color, d: t.d });
     }
     // mounds under the corpse would be hidden: push them out of the capsules (+ a margin)

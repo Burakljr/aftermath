@@ -414,7 +414,7 @@ int distAt(vec2 p){
     float cd = corpseDist(p);
     float dustR = 34.0 + 22.0 * fbm(p * 0.035 + 4.0);
     float dust = 1.0 - smoothstep(dustR * 0.55, dustR, cd);
-    vec3 dustC = vec3(0.6, 0.59, 0.57) * (0.88 + 0.24 * n2);
+    vec3 dustC = vec3(0.47, 0.45, 0.42) * (0.88 + 0.24 * n2);
     col = mix(col, dustC, dust * dz * 0.85);
     vec2 cell = floor(p / 0.9);
     float r1 = h21(cell * 1.31), r2 = h21(cell * 2.77 + 4.0);
@@ -515,7 +515,7 @@ export function seaMaterial(fogU) {
         float fw = length(fwidth(vWP.xz));
         vec2 g = wave(vWP.xz, uTime, fw);
         vec3 N = normalize(vec3(-g.x, 1.0, -g.y));
-        float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0) * 0.75 + 0.05;
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0) * 0.7 + 0.22;   // high camera: keep a sky sheen on the bay
         vec3 R = reflect(-V, N);
         vec3 sky = mix(uSkyLo, uSkyHi, smoothstep(0.0, 0.35, R.y));
         vec3 water = mix(uShallow, uDeep, smoothstep(0.0, 60.0, uQuayZ - vWP.z));
@@ -526,6 +526,9 @@ export function seaMaterial(fogU) {
         col += uGlow * (pow(sp, 10.0) * 0.1 + pow(sp, 60.0) * 0.5) * uSunPathI;
         float gl = smoothstep(0.86, 0.98, vn(vWP.xz * vec2(0.9, 2.2) + vec2(uTime * 0.6, -uTime * 0.2))) * (1.0 - smoothstep(0.0, 1.0, fw));
         col += uGlow * gl * pow(sp, 6.0) * 0.6 * uSunPathI;
+        // wind ripples catching the light everywhere (not only along the sun path): small glints
+        float rip = smoothstep(0.78, 0.95, vn(vWP.xz * vec2(0.35, 0.9) + vec2(uTime * 0.25, -uTime * 0.1))) * (1.0 - smoothstep(0.0, 1.2, fw));
+        col += mix(uSkyLo, uGlow, 0.5) * rip * 0.18;
         float foam = (1.0 - smoothstep(0.0, 2.5, uQuayZ - vWP.z)) * smoothstep(0.4, 0.7, vn(vWP.xz * 0.8 + uTime * 0.4));
         col = mix(col, vec3(0.7, 0.68, 0.64), foam * 0.6);
         float fog = heightFog(cameraPosition, vWP, uFogDensity);

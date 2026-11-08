@@ -503,7 +503,7 @@ const scene = createScene(canvas, { quality:'high'|'low', band:{ top, bottom }, 
 | `update(state, dt, { render = true } = {})` | advances the visual clock by dt, syncs everything from state (5.2), runs actors, renders. No allocations |
 | `render()` | render one frame without advancing time |
 | `event(type, payload)` | bus events forwarded by main (one-shot visuals: steam, crate pop, van, ring, swaps) |
-| `setBand({ top, bottom })` | CSS px of the free area between HUD/objective and the bottom panel/sheet; camera uses a view offset so framed targets sit in the band |
+| `setBand({ top, bottom })` | insets in CSS px: `top` = distance from the canvas top to the band (HUD + objective), `bottom` = distance from the canvas bottom to the band (bottom panel / sheet height). Camera uses a view offset so framed targets sit in the band. The lab mock is `{ top: 96, bottom: 260 }` |
 | `setQuality(q)`, `quality()` | 'high' / 'low' (5.5) |
 | `frame(target, { zoom:'city'|'district', duration = 0.7, instant = false })` | target `'city'`, `'district:<id>'`, `'district:<id>+yard'`, `'chain'`, `'yard'`. Eased (cubic in-out), never instant unless asked |
 | `zoomTo(stop)`, `panBy(dxCss, dyCss)` | gestures from main; pan only in 'district' zoom, clamped to map bounds |
@@ -549,16 +549,24 @@ export function createActors(world) {
 world.THREE, world.scene, world.renderer
 world.layout          // section 6 constants (DISTRICTS cells, ROAD nodes/edges, YARD, entries)
 world.path(from, to, out)    // from/to: node id or {x,z}; writes a Float32Array polyline (xz pairs) along roads,
-                              // avoiding edges covered by the current corpse footprint; returns length (m)
+                              // avoiding edges covered by the current corpse footprint; returns length (m).
+                              // world.pathInfo.count = points written (a NaN pair terminates the list when there is room).
+                              // Node ids: 'I.<W|A|E>.<P|S1|S2|R>', 'V.<W|A|E>.<row>', 'H.<col>.<P|S1|S2|R>', 'G', 'Y',
+                              // 'BAY.0'..'BAY.7' (6 m in front of each bay), 'LOAD', 'RIVAL', 'BUYER', 'DUMP.W', 'DUMP.E'.
+                              // A {x,z} endpoint attaches to the nearest (unblocked) road edge at its projection.
 world.districtCenter(id) / world.districtBounds(id)
 world.groundY(x, z)
-world.workSpots(id, kind)     // kind 'fire'|'rubble'|'carve' → [{ x, z, yaw, aim:{x,y,z} }] (≥ 3 spots, stable order)
+world.workSpots(id, kind)     // kind 'fire'|'rubble'|'carve' → [{ x, z, yaw, aim:{x,y,z} }] (≥ 3 spots, stable order, ≥ 18 m apart,
+                              // on road lanes, preferring spots the gameplay camera can see; cached until damage changes)
 world.fireTargets(id)         // flame positions (water aim points)
 world.corpsePlacement(attack) // section 6.4; the single source of truth for where the corpse lies
+world.placement()             // the current placement (or null); world.chainIds(), world.roofHeight(id)
+world.yard.bays               // [{ x, z, yaw }] x 8 (layout.YARD.bays)
 world.fx.{ dust(x,y,z,n,o), steam(...), sparks(...), embers(from,to,n), debris(...), flash(...), ring(...),
            water() → { set(from, to, on), dispose() } }   // pooled; respect quality
 world.materials.{ vehicle, glow, beacon, tarp, rival }    // shared, to keep material/program count low
-world.cam.{ override(fn | null), shake(a), frame(...), band, camera }   // override(fn(camera, t)) owns the camera during the attack
+world.cam.{ override(fn | null), shake(a), frame(...), band, camera, setVisFov(deg) }   // override(fn(camera, t, rig)) owns the camera during the attack;
+                              // setVisFov sets the FOV of the visible band (the view offset is kept); released back to 26° on override(null)
 world.timeScale       // read-only visual slow-mo factor (rare part)
 world.quality         // 'high'|'low'
 ```
@@ -620,7 +628,7 @@ Units: metres. x right, z toward the camera (near), y up. The sea is at −z.
 
 ### 6.3 Damage at attack time (no hitches)
 
-- Each district has one merged **intact** mesh group, built at load.
+- Each district has one merged **intact** mesh group, built at load. Implementation note (W): buildings are not rebuilt; the damaged look of every building is written into the district mesh's `aDmg`/`aBite` vertex attributes (staged arrays, swapped in at the hit together with a double-sided facade material) and the facade shader cuts stumps and corner bites. Exposed floor slabs, rebar, crater slabs and chunk scatter are built time-sliced into per-district props meshes.
 - On `'attack-start'` the scene queues **damaged** builds for every district in `attack.sectors`, time-sliced at ≤ 4 ms per `update` call (one building group per slice). Inputs are deterministic: `(districtId, corpsePlacement(attack), seed = attack.n)`, so a reload rebuilds the same picture (`prime`). Tiers by distance d from the corpse capsules: d < 4 m hidden (crushed), d < 12 m tier c (stump in a rubble mound), d < 30 m tier b (corner bite, slabs, rebar), else tier a (soot + blown windows) for buildings that own fire spots, rest intact. Non-chain districts use one seeded impact point inside the cell with the same radii. Crater rim slabs, scatter chunks, crushed cars and bent lamps are part of the damaged build.
 - At `'hit'` (or `attack.hit` seen in state): toggle intact off / damaged on per district, spawn rubble piles and fires, dust ring per landing point, shake. If the queue is not finished (skip), finish it synchronously right then.
 - `'spread-warn'` queues a soot-only damaged build for the target (5 s ahead); `'spread'` swaps it.
@@ -628,7 +636,7 @@ Units: metres. x right, z toward the camera (near), y up. The sea is at −z.
 
 ### 6.4 Corpse placement (`corpsePlacement(attack)`)
 
-Returns `{ x, z, yaw, length, width, capsules:[{ax,az,bx,bz,r}], parts:[{ districtId, seg, u0, u1 }] }`. `u` runs along the body from the nose (0) to the tail tip (1). The model's carve chunks (≥ 12, A owns them) each carry a `u` centre; a district owns the chunks whose centre lies in its `[u0, u1)` and loses them in 4 steps from its outer end inward.
+Returns `{ x, z, yaw, length, width, dir:{x,z}, nose:{x,z}, capsules:[{ax,az,bx,bz,r}], parts:[{ districtId, seg, u0, u1 }] }`. `dir` points from the tail to the nose and `yaw = atan2(dir.x, dir.z)` (rotation.y of a model whose head faces local +z); `p(u) = nose − dir · u · length`. `u` runs along the body from the nose (0) to the tail tip (1). The model's carve chunks (≥ 12, A owns them) each carry a `u` centre; a district owns the chunks whose centre lies in its `[u0, u1)` and loses them in 4 steps from its outer end inward.
 
 | chain | position | yaw | length | parts |
 |---|---|---|---|---|
@@ -696,6 +704,21 @@ Classes: `.btn`, `.btn.primary` (at most one visible), disabled = `.btn[aria-dis
 ### 7.4 ui-lab.html
 
 Loads `css/*`, the sprite, `js/ui/lab/lab.js`. Fixtures = `game.debugScenario(name)` (real states) plus UI flags (sheet open, tab, reveal step). Background = a proto-B screenshot from `assets/lab/`; `fake-scene.js` implements `project()` with fixed anchor points per district for that background and logs `setHighlight`/`frame`. URL `?screen=<name>`: `calm, call, ftue-fire, cleanup-sheet, spread, attack, title, tender, tender-reveal, receipt, rival, depot, depot-offers, factory, company, settings, notice-offline, notice-buyer`. A "Canlı" mode runs `game.tick` on rAF so the whole FTUE is playable without 3D.
+
+### 7.5 UI decisions (U, phase 2; additive)
+
+- **Layers**: two layers were added to 7.2. `#headline` sits between `#objective` and `#panel` and holds the news swap, laid exactly over the objective bar (fade 200 ms). It is a sibling of `#objective`, so headline text is never counted as a HUD number (rule 9.2 #5 still counts `#hud` + `#objective`). `#fly` sits above `#sheet` and holds coins, part icons, the rare-part card and the income pill. The HUD tip "Altın bölgede bitirirsen %25 prim." and the reward popover render in `#bubble`, not in `#hud`. Headline swaps pause during dimmed FTUE steps (the objective must stay readable).
+- **Objective numbers**: when the objective text already contains a digit ("4. sözleşmeyi tamamla", "Bir alıcıya 5 parça sat"), the bar hides the progress count and the tap popover shows it, so the HUD never shows more than 3 numbers.
+- **Sprite**: `js/ui/sprite.js` (generated from `assets/ui/icons/sprite.svg`, comments stripped) is injected once by `createUI` when the page has no `#t-settings` symbol. `index.html` may still inline the sprite; then nothing is injected. 8 original line glyphs were added (`t-phone t-music t-mute t-news t-trash t-repeat t-gauge t-door`).
+- **createUI deps** (all optional): `scene`, `prefs { get() -> { sfx, music, quality, downgraded }, set(key, value) }` (`downgraded: true` shows "Akıcılık için düşürüldü."), `getState`, `reset()` (settings "Sil"; default: `game.wipe(localStorage)` + `location.reload()`).
+- **ui API additions**: `ui.loading.{ set(p 0..1), hide(), show() }` (the veil is visible from `createUI`; main calls `hide()` after `scene.prime`), `ui.setScene(scene)` (main may create the UI before the scene), `ui.toast(text, kind)`, `ui.refresh()` (prefs changed outside, e.g. auto downgrade), `ui.setReducedMotion(on)`, `ui.view` (UI-only flags: `tab, sel, settings, news, accept, title`), `ui.ctx` (lab/tests only).
+- **Stable hooks for tests**: every actionable element has `data-key` = its action key (`select:1`, `dispatch:fire:1`, `recall`, `acceptCall`, `collectPayment`, `tab:depot`, `sellAll:riza`, `sell:scale`, `acceptOffer:o3`, `buyVehicle:fire`, `buyUpgrade:speed`, `startJob:armor`, `signUpkeep:1`, `selectTenderCell:<price>:<speed>`, `submitTender`, `startWork`, `takeTail`, `releaseTail`, `skipRadar`, `skipAttack`, `settings`, `closeSheet`, `fleet:<type>`, `skip` on the title card). The FTUE target gets `data-ftue-target` and the single `.pulse`; elements with `data-dim` dim to 40 % and ignore taps when the step does not allow them. District chips are tappable (`select:<id>`) as well as the 3D block.
+- **Hold-to-sell preview**: the ticking Rıza unit price comes from a silent dry run of the real `sell` action on `structuredClone(s)` (`silently` imported from `js/game/sim.js`), so the UI never re-implements the elasticity rule; release commits one `act('sell', {item, qty})`.
+- **Static UI labels** kept in `js/ui` (presentation, not gameplay rules): broadcast lines and facts, the hakediş document labels ("Körfezkent Belediyesi", "Fen İşleri Müdürlüğü", "Hakediş belgesi", "Aftermath Temizlik A.Ş.", "Enkaz ve leş kaldırma", "Kontrol mühendisi"), tender document line, settings, tab names, HUD notes ("Teklifini seç", "Belediye arıyor", "Sinyal yok").
+- **Canvas taps during the attack**: the UI ignores them; main calls `act('skipAttack')` (8.3). The broadcast shows its own "Geç" pill only when `!attack.first`.
+- **Title card**: shown once per session when the phase leaves `'attack'` with `attack.first`; `ctx.view.title` holds the call card, notices and the NPC card until it ends (2.3 s or a tap).
+- **ui-lab screens** (`?screen=`): `calm, late, notice-v1, attack-first, attack, impact, title, ftue-call, call, ftue-fire, ftue-fire-sheet, ftue-carve, cleanup, cleanup-sheet, fleet-accept, spread, tender, tender-confirm, tender-reveal, receipt, receipt-ftue, rival, ftue-sell, ftue-sell-depot, ftue-buy, depot, depot-offers, factory, company, upkeep, settings, news, settings-reset, notice-offline, notice-buyer, notice-chapter`; `?screen=new` starts a fresh game in Canlı mode. `?safe=0` drops the faked 47 / 34 px insets, `?rm=1` forces reduced motion, `?bar=1` shows the screen picker.
+- **UI tests**: `node tests/ui/shoot.cjs [filter]` screenshots every lab screen (390 × 844, DPR 3) and checks the DOM rules (no emoji, no "!", ≤ 1 visible primary, every disabled button has a reason, ≤ 3 HUD numbers, both fonts loaded with Turkish glyphs, no console errors; overflow/truncation are printed as warnings). It replaces the planned `tests/ui/rules.cjs`. `node tests/ui/ftue.cjs` plays the whole FTUE in the lab by tapping only `[data-ftue-target]` and asserts money 2417.
 
 ---
 

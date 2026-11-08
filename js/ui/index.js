@@ -125,7 +125,7 @@ export function createUI(root, deps = {}) {
 
   function closeSheet(force) {
     if (ctx.view.sel == null) return;
-    if (!force && !ctx.allows('closeSheet') && ctx.s && ctx.s.progress.ftue !== 'done' && ctx.s.progress.ftue !== 'cold') return;
+    if (!force && !ctx.allows('closeSheet')) return;
     ctx.view.sel = null;
     scene.setHighlight(null, 'select');
     scene.frame('city', { zoom: 'city', duration: 0.7 });
@@ -293,6 +293,8 @@ export function createUI(root, deps = {}) {
       lastPanel = now;
       ctx.modal = notices.isOpen(s) || sheets.tender.confirmOpen() || sheets.settings.confirmOpen();
       C(root, 'modal-open', ctx.modal);
+      const pr = deps.prefs && deps.prefs.get ? deps.prefs.get() : null;
+      C(root, 'low-gfx', !!pr && pr.quality === 'low'); // UI-SPEC §7.4: no backdrop blur on the low preset
       title.update(s, now);
       setSheet(pickSheet(s));
       C(root, 'has-sheet', !!activeSheet);
