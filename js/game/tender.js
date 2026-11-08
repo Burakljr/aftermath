@@ -25,14 +25,25 @@ export function chance(s, bid, speed) {
   return clamp(0.5 + (scoreFor(s.trust, bid, speed) - rivalScore(s)) / 50, 0.03, 0.97);
 }
 
+/**
+ * Promise rows in seconds, derived from the fleet estimate so the fast row is a real risk (playtest M7):
+ * Hızlı sits between the estimate's middle and its upper bound (hatched: shorter than the estimate), Normal = 1.3 × hi,
+ * Rahat = 1.7 × hi. The speed multipliers in BAL.speeds still drive the score.
+ */
+export function deadlinesFor(est) {
+  return [Math.round((est.mid + est.hi) / 2), Math.round(est.hi * 1.3), Math.round(est.hi * 1.7)];
+}
+
+const rowDeadline = (t, si) => (t.deadlines ? t.deadlines[si] : Math.round(t.baseDeadline * BAL.speeds[si]));
+
 /** Terms of grid cell (price index, speed index). */
 export function cellTerms(t, pi, si) {
   const bid = BAL.bids[pi];
   const speed = BAL.speeds[si];
-  return { bid, speed, pay: round10(t.value * bid), deadline: Math.round(t.baseDeadline * speed) };
+  return { bid, speed, pay: round10(t.value * bid), deadline: rowDeadline(t, si) };
 }
 
-export const isHatched = (t, si) => Math.round(t.baseDeadline * BAL.speeds[si]) < t.estimate.hi;
+export const isHatched = (t, si) => rowDeadline(t, si) < t.estimate.hi;
 
 /** Recommended cell for the first tender: highest pay with chance ≥ 0.6 and not hatched. */
 export function recommendedCell(s, t) {
@@ -105,24 +116,37 @@ function cloneWorld(s, damage) {
   return { sectors, fleet, upgrades: s.upgrades };
 }
 
-/**
- * Deterministic dry-run of the greedy dispatcher (no spread, 0.5 s steps, every vehicle starts in the yard).
- * damage: optional [{id, fire, rubble, corpse, seg}] (defaults to the current sectors of the attack).
- * Returns seconds { lo, mid, hi } with lo = 0.9 mid, hi = 1.1 mid.
- */
-export function estimate(s, damage) {
+/** One dry run; overhead > 0 serialises dispatches (a person taps district, sheet, button: one vehicle per overhead s). */
+function dryRun(s, damage, ids, overhead) {
   const w = cloneWorld(s, damage);
-  const ids = damage ? damage.map((d) => d.id) : s.attack ? s.attack.sectors.slice() : [];
   const done = () => ids.every((id) => isClean(w.sectors[id]));
   let t = 0;
+  let busy = overhead;
   const STEP = 0.5;
   while (!done() && t < 3600) {
-    greedyDispatch(w, ids, null);
+    if (overhead > 0) {
+      busy -= STEP;
+      if (busy <= 0 && greedyDispatch(w, ids, null, 1) > 0) busy = overhead;
+    } else greedyDispatch(w, ids, null);
     workStep(w, STEP, null);
     t += STEP;
   }
-  const mid = Math.max(1, Math.round(t));
-  return { lo: Math.round(mid * 0.9), mid, hi: Math.round(mid * 1.1) };
+  return Math.max(1, t);
+}
+
+/**
+ * Deterministic dry-runs of the greedy dispatcher (no spread, 0.5 s steps, every vehicle starts in the yard):
+ * `fast` = instant dispatch (the foreman), `human` = one dispatch per BAL.tapOverhead s (playtest M8: a person who
+ * promises at the upper bound should still deliver on time).
+ * damage: optional [{id, fire, rubble, corpse, seg}] (defaults to the current sectors of the attack).
+ * Returns seconds { lo, mid, hi } with lo = 0.9 fast, mid = human, hi = 1.1 human.
+ */
+export function estimate(s, damage) {
+  const ids = damage ? damage.map((d) => d.id) : s.attack ? s.attack.sectors.slice() : [];
+  const fast = dryRun(s, damage, ids, 0);
+  const human = Math.max(fast, dryRun(s, damage, ids, BAL.tapOverhead));
+  const mid = Math.max(1, Math.round(human));
+  return { lo: Math.round(fast * 0.9), mid, hi: Math.max(Math.round(fast * 1.1), Math.round(human * 1.1)) };
 }
 
 /** Tender value (v1 formula, ARCH §3.3). */

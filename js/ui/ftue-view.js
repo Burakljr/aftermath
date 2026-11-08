@@ -4,6 +4,7 @@
 // Also: the one-shot HUD tip "Altın bölgede bitirirsen %25 prim." and the idle pointer of contracts #2+.
 import { h, icon, T, C, S, tap } from './dom.js';
 import { centre } from './motion.js';
+import { on } from '../bus.js';
 
 export function createFtueView(ctx) {
   const { game } = ctx;
@@ -16,6 +17,13 @@ export function createFtueView(ctx) {
   const tip = h('button.hudtip', { type: 'button' }, tipTxt, icon('t-close', 14));
   ctx.L.bubble.appendChild(tip);
   tap(tip, () => ctx.act('tip', { key: 'zones' }, tip));
+  // one-shot (DESIGN §3): the tip is acknowledged after 4 s on screen or at the first dispatch, so it never returns
+  let tipSince = -1;
+  const ackTip = () => {
+    if (tipSince >= 0 && ctx.s && !ctx.s.progress.tips.zones) ctx.act('tip', { key: 'zones' }, null);
+    tipSince = -1;
+  };
+  on('dispatch', ackTip);
 
   const P = { x: 0, y: 0, visible: false };
   let pulseRef = null;
@@ -101,8 +109,11 @@ export function createFtueView(ctx) {
         C(el, 'is-dim', !!fv && fv.dim && !allowed);
       }
       const ht = s.phase === 'cleanup' && !sheet ? game.hud(s).tip : null;
+      const tipOn = !!ht && !ctx.modal && !fv;
+      if (tipOn && tipSince < 0) tipSince = s.clock;
+      else if (tipOn && s.clock - tipSince >= 4) ackTip();
       T(tipTxt, ht ? ht.text : '');
-      C(tip, 'on', !!ht && !ctx.modal && !fv);
+      C(tip, 'on', tipOn);
     },
     frame() {
       if (!anchor || !bubble.classList.contains('on')) return;

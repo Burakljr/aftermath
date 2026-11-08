@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import { rand, randRange, randInt, pick, shuffle } from './rng.js';
 import { FTUE_COPY, FLOAT, TOAST, NEWS, NPC, TENDER } from './copy.js';
-import { estimate, contractValue, baseDeadlineFor, recommendedCell, rivalTendency } from './tender.js';
+import { estimate, contractValue, baseDeadlineFor, deadlinesFor, recommendedCell, rivalTendency } from './tender.js';
 import { ftueAdvance } from './ftue.js';
 import { checkGoals } from './goals.js';
 
@@ -240,11 +240,12 @@ function stageEnd(s, sec, stage, H) {
  * Greedy dispatcher (v1 autoAssign adapted to the hard sequence): used by the estimate dry-run and
  * Vardiya şefi. Sends every free vehicle that has a legal job. Returns the number sent.
  */
-export function greedyDispatch(s, sectors, H) {
+export function greedyDispatch(s, sectors, H, limit = Infinity) {
   let moved = 0;
   for (const type of CREW_TYPES) {
     const key = workKey(type);
     for (;;) {
+      if (moved >= limit) return moved;
       let best = -1;
       let bestScore = 0;
       for (const id of sectors) {
@@ -556,6 +557,8 @@ export function openOffer(s) {
   };
   if (n >= 3 && s.progress.unlocked.tender) {
     t.kind = 'bid';
+    t.deadlines = deadlinesFor(est);
+    t.baseDeadline = t.deadlines[1];
     const rec = recommendedCell(s, t);
     if (rec) {
       t.rec = rec;

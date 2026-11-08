@@ -33,7 +33,8 @@ export function createHud(ctx) {
   ctx.L.hud.appendChild(root);
 
   tap(gear, () => {
-    ctx.view.settings = true;
+    ctx.view.settings = !ctx.view.settings;
+    if (!ctx.view.settings) ctx.view.news = false;
     ctx.sfx('click');
     ctx.dirty = true;
   });

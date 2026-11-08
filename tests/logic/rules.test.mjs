@@ -338,9 +338,9 @@ test('skip radar after G4 only; skip attack jumps to impact then end', () => {
   assert.equal(t.phase, 'tender');
 });
 
-test('calm lengths: 40 after FTUE, 35 for #2-#4, 45 later, 60 with upkeep + offers', () => {
+test('calm lengths: 15 after FTUE, 35 for #2-#4, 45 later, 60 with upkeep + offers', () => {
   const s = debugScenario('calm');
-  assert.equal(s.timerMax, 40);
+  assert.equal(s.timerMax, 15);
   const d = debugScenario('depot');
   assert.equal(d.timerMax, 35);
   d.progress.contractNo = 5;

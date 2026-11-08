@@ -148,7 +148,7 @@ export function npcCard(s) {
 
 /* ---------------- District ---------------- */
 
-const VALUE = { fire: (sec) => fmtPct(sec.fire / 100), rubble: (sec) => fmtTon(sec.rubble), carve: (sec) => fmtTon(sec.corpse) };
+const VALUE = { fire: (sec) => fmtPct(sec.fire0 > 0 ? Math.min(1, sec.fire / sec.fire0) : 1), rubble: (sec) => fmtTon(sec.rubble), carve: (sec) => fmtTon(sec.corpse) };
 
 export function districtStatus(s, id) {
   const d = D(id);
@@ -284,7 +284,7 @@ export function tenderGrid(s) {
   }
   const e = t.estimate;
   const rows = [0, 1, 2].map((si) => {
-    const dl = Math.round(t.baseDeadline * BAL.speeds[si]);
+    const dl = cellTerms(t, 0, si).deadline;
     return {
       label: TENDER.rows[si], time: fmtTime(dl), deadline: dl,
       cells: [0, 1, 2].map((pi) => {

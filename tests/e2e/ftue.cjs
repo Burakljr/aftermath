@@ -90,7 +90,7 @@ const L = require('./lib.cjs');
     if (fin.ftue !== 'done') problems.push(`FTUE stuck at ${fin.ftue}`);
     else {
       if (Math.round(fin.money) !== 2417) problems.push(`money ${fin.money} != 2417`);
-      if (fin.phase !== 'calm' || fin.timerMax !== 40) problems.push(`radar not 40 s after FTUE: ${fin.phase} ${fin.timerMax}`);
+      if (fin.phase !== 'calm' || fin.timerMax !== 15) problems.push(`radar not 15 s after FTUE: ${fin.phase} ${fin.timerMax}`);
       if (!/Sıradaki saldırıya hazırlan/.test(fin.objective || '')) problems.push(`objective after FTUE: "${fin.objective}"`);
     }
     if (!reloaded) problems.push('reload check did not run');

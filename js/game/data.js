@@ -115,7 +115,7 @@ export const BAL = {
   // grades
   earlyRatio: 0.75, earlyBonus: 0.25, trustEarly: 8, trustOnTime: 4, trustLate: -6, lateFloor: 0.4,
   // calm
-  calmFtue: 40, calmEarly: 35, calmLate: 45, calmFull: 60, firstTimer: 0.5,
+  calmFtue: 15, calmEarly: 35, calmLate: 45, calmFull: 60, firstTimer: 0.5,
   // vehicles
   vehicleMult: 1.5, bays: 8,
   // tender (v1)
@@ -123,7 +123,7 @@ export const BAL = {
   bids: [0.75, 1, 1.25], speeds: [0.7, 1, 1.4],
   rivalBid: 0.98, rivalSpeed: 1.05, rivalBoldBid: 0.9, rivalBoldSpeed: 0.95, pity: 25,
   rivalTime: 25,
-  deadlineMin: 1.15, deadlineCap: 2.5,
+  deadlineMin: 1.15, deadlineCap: 2.5, tapOverhead: 2,
   // market
   rizaFactor: 0.6, rizaDrop: 0.01, rizaRecover: 60, rizaMaxDrop: 0.5,
   driftEvery: 2, histEvery: 10, driftMin: 0.6, driftMax: 1.4, rivalDump: 0.82,

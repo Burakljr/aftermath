@@ -31,7 +31,7 @@ function allowedAction(s) {
   return null;
 }
 
-test('FTUE: only allowed actions, scripted yields, receipt, Rıza 472, money 2417, radar 40 s', () => {
+test('FTUE: only allowed actions, scripted yields, receipt, Rıza 472, money 2417, radar 15 s', () => {
   setSeed(42);
   const s = newState();
   cur = s;
@@ -73,10 +73,10 @@ test('FTUE: only allowed actions, scripted yields, receipt, Rıza 472, money 241
   assert.equal(rizaText, "Hepsini Rıza'ya sat · 472 bin ₺");
   assert.equal(s.money, 2417);
   assert.equal(s.progress.ftue, 'done');
-  assert.equal(s.timerMax, 40);
-  assert.ok(s.timer > 39.5 && s.timer <= 40);
+  assert.equal(s.timerMax, 15);
+  assert.ok(s.timer > 14.5 && s.timer <= 15);
   assert.equal(hud(s).chip.label, 'RADAR');
-  assert.equal(hud(s).chip.time, '0:40');
+  assert.equal(hud(s).chip.time, '0:15');
   assert.equal(objective(s).text, 'Sıradaki saldırıya hazırlan');
   assert.ok(s.progress.unlocked.depot && s.progress.unlocked.company && !s.progress.unlocked.factory);
   assert.ok(firstDispatch <= 15, `first dispatch at ${firstDispatch}`);

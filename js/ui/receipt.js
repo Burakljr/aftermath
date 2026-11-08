@@ -94,13 +94,13 @@ export function createReceipt(ctx) {
             h('div.r-sign', h('div', h('span', { text: 'Kontrol mühendisi' }), h('b', { text: 'Nevin Aksoy' })), signature(), stampSvg(rc.stamp, rc.stampKind))),
           h('div.receipt__after',
             h('div.gains',
-              h('div.gain.glass', icon('g-trust', 24, rc.trustText.startsWith('-') ? 'c-yangin' : 'c-temiz'), h('div', h('b.num', { text: rc.trustText }), h('span', { text: 'İhalede öne geçirir' }))),
+              h('div.gain.glass', icon('g-trust', 24, rc.trustText.startsWith('-') ? 'c-yangin' : 'c-temiz'), h('div', h('b.num', { text: rc.trustText }), h('span', { text: rc.trustText.startsWith('-') ? 'İhalede geri düşürür' : 'İhalede öne geçirir' }))),
               h('div.gain.glass', icon('g-crate', 24, 'c-sinyal'), h('div', h('b.num', { text: `${nParts} parça` }), h('span', { text: 'Depoya kaldırıldı' })))),
             btn));
         box.style.setProperty('--n', String(money.length + 2));
         return { btn };
       });
-      r.btn.set({ label: rc.button, sub: game.fmtMoney(rc.totalValue, true), primary: ctx.primaryOK(), key: 'collectPayment' });
+      r.btn.set({ label: rc.button, sub: game.fmtMoneyExact(rc.totalValue), primary: ctx.primaryOK(), key: 'collectPayment' });
     },
   };
 }

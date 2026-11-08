@@ -227,7 +227,12 @@ export function createUI(root, deps = {}) {
       if (lastPhase !== null) {
         if (ctx.view.sel != null) closeSheet(true);
         setAccept(null);
-        if (s.phase === 'tender' || s.phase === 'attack' || resultNow) ctx.view.tab = 'city';
+        if (s.phase === 'tender' || s.phase === 'attack' || resultNow) {
+          ctx.view.tab = 'city';
+          // the attack, the call / tender card and the receipt must never hide behind settings or the news archive
+          ctx.view.settings = false;
+          ctx.view.news = false;
+        }
       }
       lastPhase = s.phase;
       lastResult = resultNow;
