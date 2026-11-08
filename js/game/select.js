@@ -8,7 +8,7 @@ import {
   RIVAL_COPY, callLines, SEG_NAME, STAGE_NAME,
 } from './copy.js';
 import {
-  radarRuns, isFree, assigned, blockReason, owned, vehicleCost, rizaUnit, rizaAll, basePrice, upkeepCost,
+  radarRuns, isFree, assigned, blockReason, owned, vehicleCost, rizaUnit, rizaAll, rizaTotal, upkeepCost,
   upkeepCap, lineCount, canStartJob, jobSectors, isClean,
 } from './sim.js';
 import { chance, cellTerms, isHatched, estimate } from './tender.js';
@@ -214,7 +214,8 @@ export function districtStatus(s, id) {
     upkeep = {
       tier: sec.upkeep, cap: upkeepCap(s),
       title: LABEL.upkeepTitle(id, sec.upkeep),
-      rateText: LABEL.upkeepRate(sec.upkeep * BAL.upkeepRate),
+      // unsigned: show what signing earns (+72 bin ₺/dk), not 0 bin ₺
+      rateText: sec.upkeep > 0 ? LABEL.upkeepRate(sec.upkeep * BAL.upkeepRate) : LABEL.upkeepRate(BAL.upkeepRate, true),
       nextCostText: capped ? null : LABEL.upkeepNext(next, upkeepCost(sec.upkeep)),
       nextCost: capped ? null : upkeepCost(sec.upkeep),
       button: sec.upkeep === 0 ? 'Bakımı üstlen' : 'Kademe yükselt',
@@ -519,8 +520,10 @@ export function factory(s) {
     const k = Object.keys(r.in)[0];
     const n = r.in[k];
     const c = canStartJob(s, r.id);
-    const rawV = n * basePrice(s, k);
-    const outV = basePrice(s, r.out);
+    // honest figures (playtest M3): what Rıza pays for the raw parts now vs the best price on offer for the product now
+    const rawV = rizaTotal(s, k, n);
+    let outV = rizaUnit(s, r.out);
+    for (const o of s.offers) if (o.item === r.out && o.unit > outV) outV = o.unit;
     recipes.push({
       id: r.id, name: ITEMS[r.out].name, inText: FACTORY.row(n, k, r.out, r.time), timeText: `${r.time} sn`,
       rawText: FACTORY.raw(rawV, outV), outText: fmtMoney(outV), have: s.inv[k], need: n,

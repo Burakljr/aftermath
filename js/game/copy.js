@@ -358,12 +358,12 @@ export const LABEL = {
   contractLine: (pay) => `Ödeme ${fmtMoney(pay, true)} + parçalar`,
   progress: (done, total, unit) => `${fmtInt(done)}/${fmtInt(total)} ${unit}`,
   trustD: (d) => `${d > 0 ? '+' : ''}${fmtInt(d)} güven`,
-  upkeepRate: (rate) => `${fmtMoney(rate * 60)}/dk`,
+  upkeepRate: (rate, gain = false) => `${gain ? '+' : ''}${fmtMoney(rate * 60)}/dk`,
   upkeepNext: (tier, cost) => (tier === 1
     ? `Bakımı üstlen: ${fmtMoney(cost)}`
     : `Kademe ${tier}'${tier === 2 ? 'ye' : 'e'} çıkar: ${fmtMoney(cost)}`),
   upkeepTitle: (id, tier) => `${D(id).name} · Bakım sözleşmesi · Kademe ${tier}`,
-  sellAll: (total) => `Hepsini Rıza'ya sat · ${fmtMoney(total)}`,
+  sellAll: (total) => (total > 0 ? `Hepsini Rıza'ya sat · ${fmtMoney(total)}` : "Hepsini Rıza'ya sat"),
   delta: (pct) => `Rıza'dan ${pct} fazla`,
   depotCount: (n) => `${fmtInt(n)} parça`,
 };
