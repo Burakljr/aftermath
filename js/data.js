@@ -62,6 +62,7 @@ export const MONSTERS = {
     belly: '#f2a65a',
     spike: '#ffd166',
     fire: true,
+    voice: 90, // kükreme perdesi (Hz)
     rubble: 120,
     corpse: 80,
   },

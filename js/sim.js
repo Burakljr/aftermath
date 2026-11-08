@@ -50,6 +50,7 @@ export function canStart(s, r) {
 /* ---------------- Haber & bildirim ---------------- */
 
 const toast = (text, kind = '') => emit('toast', { text, kind });
+const sfx = (name, arg) => emit('sfx', { name, arg });
 
 export function news(s, text) {
   s.news.unshift({ t: Date.now(), text });
@@ -73,7 +74,10 @@ export function tick(s, dt) {
       s.timer -= dt;
       if (s.flags.buyerAt != null && s.timer <= s.flags.buyerAt) {
         s.flags.buyerAt = null;
-        if (s.dna > 0) emit('modal', { type: 'buyer' });
+        if (s.dna > 0) {
+          sfx('mystery');
+          emit('modal', { type: 'buyer' });
+        }
       }
       if (s.timer <= 0) startAttack(s);
       break;
@@ -128,6 +132,7 @@ export function sell(s, item, qty) {
   s.inv[item] -= qty;
   s.money += total;
   s.stats.earned += total;
+  sfx('cash', qty >= 10);
   toast(`+${fmt(total)} 💰  (${qty}× ${ITEMS[item].icon})`, 'good');
 }
 
@@ -152,6 +157,7 @@ function jobsTick(s) {
     const r = RECIPES.find((x) => x.id === j.rid);
     s.inv[r.out] += 1;
     s.jobs.splice(i, 1);
+    sfx('factory');
     toast(`🏭 ${ITEMS[r.out].icon} ${ITEMS[r.out].name} hazır`, 'good');
     if (s.autoJobs[r.id]) startJob(s, r.id, true);
   }
@@ -164,6 +170,7 @@ export function hire(s, type) {
   if (s.money < cost) return toast('Yetersiz bakiye', 'bad');
   s.money -= cost;
   s.crews[type] += 1;
+  sfx('buy');
   toast(`${CREWS[type].icon} Yeni ${CREWS[type].name.toLowerCase()} işe alındı`, 'good');
 }
 
@@ -174,6 +181,7 @@ export function buyUpgrade(s, key) {
   if (s.money < cost) return toast('Yetersiz bakiye', 'bad');
   s.money -= cost;
   s.upgrades[key] += 1;
+  sfx('buy');
   toast(`${u.icon} ${u.name} seviye ${s.upgrades[key]}`, 'good');
 }
 
@@ -192,6 +200,7 @@ export function upgradeSector(s, i) {
 export function skipWait(s) {
   if (s.phase === 'calm' && s.timer > 3) {
     s.timer = 3;
+    sfx('radar');
     toast('⏩ Radar hızlandırıldı');
   }
 }
@@ -403,6 +412,7 @@ function finishSegment(s, sec) {
     emit('float', { sector: sec.id, text: `+${eyes} 👁️ Göz!`, color: '#ffe066', big: true });
     if (Math.random() < (mutant ? 0.6 : 0.4)) {
       s.dna += 1;
+      sfx('mystery');
       toast('🧬 Nadir bir DNA örneği buldun...', 'good');
     }
   }

@@ -4,6 +4,7 @@ import { on } from './bus.js';
 import * as sim from './sim.js';
 import { ITEMS, ITEM_KEYS, RECIPES, CREWS, CREW_TYPES, WORK, UPGRADES, SECTORS, BAL, RIVAL } from './data.js';
 import { fmt, fmt1, fmtTime } from './util.js';
+import { play, prefs, setPref } from './audio.js';
 
 export const ui = { tab: 'city', selected: null, key: '' };
 
@@ -65,6 +66,7 @@ function setTab(t) {
 function onClick(e) {
   const tabBtn = e.target.closest('#tabs button');
   if (tabBtn) {
+    play('tab');
     setTab(tabBtn.dataset.tab);
     updateUI();
     return;
@@ -74,7 +76,18 @@ function onClick(e) {
   const s = game.s;
   const { a, v } = el.dataset;
   const n = Number(el.dataset.n);
+  if (a !== 'm-submit') play('click');
   switch (a) {
+    case 'snd':
+      if (v === 'any') {
+        const next = !(prefs.sfx || prefs.music);
+        setPref('sfx', next);
+        setPref('music', next);
+      } else {
+        setPref(v, !prefs[v]);
+      }
+      updateSoundButtons();
+      return;
     case 'crew+': sim.assignCrew(s, n, v, 1); break;
     case 'crew-': sim.assignCrew(s, n, v, -1); break;
     case 'auto': sim.autoAssign(s); break;
@@ -101,6 +114,7 @@ function onClick(e) {
     case 'm-speed': tenderSel.speed = Number(v); renderModal(); return;
     case 'm-submit':
       tenderResult = sim.resolveTender(s, tenderSel.bid, tenderSel.speed);
+      if (tenderResult) play(tenderResult.win ? 'win' : 'lose');
       if (tenderResult && tenderResult.win && s.attack) {
         ui.selected = s.attack.chain[0];
         setTab('city');
@@ -370,6 +384,10 @@ function buildCompany() {
       <span>Saldırı sayısı</span><b data-k="st-a"></b>
       <span>Rakip itibarı (${RIVAL})</span><b data-k="st-r"></b>
     </div></div>
+    <div class="card"><h3>🔊 Ses</h3>
+      <div class="row"><div class="grow">Efektler<div class="muted">Saldırı, ekipler, kasa, fabrika</div></div><button class="btn small toggle" data-a="snd" data-v="sfx" data-snd="sfx"></button></div>
+      <div class="row"><div class="grow">Müzik<div class="muted">Oyunun evresine göre değişir</div></div><button class="btn small toggle" data-a="snd" data-v="music" data-snd="music"></button></div>
+    </div>
     <div class="card"><h3>🗞️ Haberler</h3><div data-news></div></div>
     <div class="card center"><button class="btn sec small" data-a="reset">Oyunu sıfırla</button></div>`;
   return h;
@@ -393,6 +411,7 @@ function dis(key, d) {
 }
 
 function update(s) {
+  updateSoundButtons();
   if (ui.tab === 'city') updateCity(s);
   else if (ui.tab === 'depot') updateDepot(s);
   else if (ui.tab === 'factory') updateFactory(s);
@@ -581,6 +600,10 @@ function nextModal() {
     nextModal();
     return;
   }
+  if (current && current.type === 'result') {
+    const r = current.data.ratio;
+    play(r <= 0.75 ? 'record' : r <= 1 ? 'win' : 'late');
+  }
   renderModal();
 }
 
@@ -698,4 +721,16 @@ function showToast(text, kind) {
   toastBox.appendChild(el);
   while (toastBox.children.length > 3) toastBox.firstChild.remove();
   setTimeout(() => el.remove(), 2400);
+}
+
+/* ---------------- Ses düğmeleri ---------------- */
+
+function updateSoundButtons() {
+  for (const el of document.querySelectorAll('[data-snd]')) {
+    const k = el.dataset.snd;
+    const onState = k === 'any' ? prefs.sfx || prefs.music : prefs[k];
+    el.classList.toggle('off', !onState);
+    const label = k === 'any' ? (onState ? '🔊' : '🔇') : onState ? 'Açık' : 'Kapalı';
+    if (el.textContent !== label) el.textContent = label;
+  }
 }

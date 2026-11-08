@@ -3,9 +3,11 @@ import { game, load, newState, save } from './state.js';
 import * as sim from './sim.js';
 import { initRender, draw } from './render.js';
 import { initUI, updateUI, select, queueModal, ui } from './ui.js';
+import { initAudio, updateAudio } from './audio.js';
 
 game.s = load() || newState();
 
+initAudio(() => game.s);
 initUI();
 initRender(document.getElementById('city'), { onSelect: select, getSelected: () => ui.selected });
 
@@ -28,6 +30,7 @@ function frame(now) {
   last = now;
   sim.tick(game.s, dt);
   draw(dt);
+  updateAudio(game.s, dt);
   uiAcc += dt;
   if (uiAcc >= 0.15) {
     uiAcc = 0;
