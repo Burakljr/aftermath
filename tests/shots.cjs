@@ -123,6 +123,10 @@ const DPR = Number(process.env.DPR || 2);
     await scenario('impact');
     await L.step(page, 0.25);
     await shot('13-impact', 200);
+    // multi-district contract: job framing keeps every chip in the band, compact chips leave the work visible
+    await scenario('cleanup');
+    await L.step(page, 3.0);
+    await shot('13b-contract-chips', 500);
     await scenario('tender');
     await shot('14-tender-sheet', 600);
     await scenario('tender-reveal');

@@ -67,7 +67,8 @@ const prefs = {
 };
 // auto downgrade: the scene reports when the frame-time EMA stays under 28 fps for 5 s (first 10 s and the attack ignored)
 function onSceneEvent(type) {
-  if (type !== 'quality-hint' || forcedQ || gfx.quality !== 'auto' || gfx.downgraded) return;
+  // (?manual=1 drives time by hand on a software GPU: its frame times say nothing about the device)
+  if (type !== 'quality-hint' || MANUAL || forcedQ || gfx.quality !== 'auto' || gfx.downgraded) return;
   gfx.downgraded = true;
   saveGfx();
   if (scene) scene.setQuality('low');
