@@ -543,6 +543,7 @@
   border-radius: var(--r-card); text-align: left; opacity: 0; transform: translateY(10px); transition: opacity 220ms var(--ease), transform 220ms var(--ease); pointer-events: none; }
 .npc.top { bottom: auto; top: calc(var(--safe-top) + 108px); }
 .npc.on { opacity: 1; transform: none; pointer-events: auto; }
+#ui .npc:not(.on) { pointer-events: none; } /* the card is a button: '#ui button' would otherwise keep the faded card catching taps */
 .npc__who { font-size: 12px; color: var(--beton); font-weight: 620; }
 .npc__line { font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
@@ -708,6 +709,11 @@
 .loading__bar { width: 160px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .1); overflow: hidden; margin-top: 14px; }
 .loading__bar i { display: block; height: 100%; background: var(--sinyal); transform-origin: 0 50%; transform: scaleX(.04); transition: transform 300ms var(--ease); }
 .loading__line { font-size: 13px; color: var(--beton); }
+.loading.prompt { cursor: pointer; }
+.loading__line.tap { margin-top: 4px; padding: 12px 22px; min-height: 44px; box-sizing: border-box; border-radius: 22px; border: 1px solid rgba(245, 180, 0, .55);
+  color: var(--tebesir); font-weight: 650; font-size: 15px; letter-spacing: .02em; animation: tapPulse 1.6s var(--ease) infinite; }
+.loading__line.err { color: #ff8a5c; max-width: 300px; text-align: center; line-height: 1.4; }
+@keyframes tapPulse { 50% { border-color: rgba(245, 180, 0, .15); } }
 
 /* modal: hide the panel and dock primary behind notices */
 #ui.modal-open #panel, #ui.modal-open .npc { visibility: hidden; }

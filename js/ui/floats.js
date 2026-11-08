@@ -23,11 +23,16 @@ export function createFloats(ctx) {
     return P.visible ? { x: P.x, y: P.y } : null;
   }
 
+  // floats born together over the same spot stack upward instead of printing on top of each other
+  const stack = { t: -1e9, x: 0, y: 0, n: 0 };
   function addFloat(text, pt, kind) {
     if (!pt) return;
     while (live.length >= MAX_FLOATS) live.shift().remove();
+    const now = performance.now();
+    stack.n = now - stack.t < 450 && Math.abs(pt.x - stack.x) < 60 && Math.abs(pt.y - stack.y) < 60 ? (stack.n + 1) % MAX_FLOATS : 0;
+    stack.t = now; stack.x = pt.x; stack.y = pt.y;
     const el = h(`div.float${KIND_CLASS[kind] ? `.${KIND_CLASS[kind]}` : ''}`, { text });
-    el.style.transform = `translate3d(${pt.x.toFixed(1)}px,${(pt.y - 78).toFixed(1)}px,0)`;
+    el.style.transform = `translate3d(${pt.x.toFixed(1)}px,${(pt.y - 78 - stack.n * 24).toFixed(1)}px,0)`;
     world.appendChild(el);
     live.push(el);
     setTimeout(() => {

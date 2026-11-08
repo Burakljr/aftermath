@@ -55,7 +55,6 @@ export function createAttack(world, { corpse }) {
     // TV camera: low, over the water west of the fight, looking east along the promenade
     const cam = new THREE.Vector3(P.x - 175 * S, 22 * S + 4, QUAY - 14 * S);
     const camT = new THREE.Vector3(P.x + 8 * S, 30 * S, P.z + 2 * S);
-    const D = model.root; void D;
     F = { S, RS, P, M, R, cam, camT, shardO, wadeFrom: new THREE.Vector3(M.x - 20 * S, 0, M.z - 105 * S) };
   }
 
@@ -197,7 +196,7 @@ export function createAttack(world, { corpse }) {
       world.cam.shake(0.35);
     }
     if (cross(TL.contact)) {
-      world.fx.flash(F.P.x, F.P.y, F.P.z, 26 * F.S, 0.35);
+      world.fx.flash(F.P.x, F.P.y, F.P.z, 12 * F.S, 0.22);
       world.fx.sparks(F.P.x, F.P.y, F.P.z, 16, { speed: 22, size: 0.9 });
       world.fx.ring(F.P.x, F.P.z + 6 * F.S, 55 * F.S, 22);
       world.cam.shake(0.7);
@@ -207,10 +206,12 @@ export function createAttack(world, { corpse }) {
   }
 
   // ---------------------------------------------------------------- update (game state or preview)
+  let runA = null, runFit = null, runKey = '';
   function run(a, t, dt) {
     const fit = corpse.fitFor(a);
     if (!fit) return;
-    const key = `${a.n}|${(a.chain || []).join(',')}|${a.mutant ? 1 : 0}|${fit.s.toFixed(3)}`;
+    if (a !== runA || fit !== runFit) { runA = a; runFit = fit; runKey = `${a.n}|${(a.chain || []).join(',')}|${a.mutant ? 1 : 0}|${fit.s.toFixed(3)}`; }
+    const key = runKey;
     if (key !== setupKey) { setupKey = key; setup(a, fit); }
     if (key !== lastKey) { lastKey = key; lastT = t - 1e-3; }
     apply(a, t, fit);

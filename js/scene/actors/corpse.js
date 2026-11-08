@@ -73,7 +73,7 @@ export function createCorpse(world) {
 
   function computeFit(pl, mut) {
     const s = pl.length / LEN0;
-    const kw = Math.max(0.6, Math.min(1.05, pl.width / (WID0 * s)));
+    const kw = Math.max(0.7, Math.min(1.05, pl.width / (WID0 * s)));
     const lx = { x: Math.cos(pl.yaw), z: -Math.sin(pl.yaw) };            // local +x in world
     const side = lx.x * CAM_DIR.x + lx.z * CAM_DIR.z >= 0 ? 1 : -1;
     // nose of the baked mesh at local z = Z1 sits on pl.nose; lateral centre on the axis

@@ -52,7 +52,7 @@ export function createActors(world) {
       const w = el.clientWidth || 390, h = el.clientHeight || 844;
       let best = null, bd = 28;
       fleet.each((u) => {
-        if (u.rival || !u.main.visible) return;
+        if (u.rival || !u.main.visible || u.state === 'yard') return;   // parked vehicles leave the tap to the yard
         fleet.anchor(u.id, _v);
         _v.y -= 3;
         _c.copy(_v).project(cam);

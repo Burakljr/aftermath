@@ -45,7 +45,8 @@ test('state fields audio.js reads exist in every phase', () => {
 
 test('events audio.js listens to are emitted; every logic sfx name exists in audio.js or the planned additions', () => {
   const listened = [...SRC.matchAll(/on\('([a-z-]+)'/g)].map((m) => m[1]);
-  assert.deepEqual(listened.sort(), ['attack-start', 'float', 'hit', 'sfx', 'toast'].sort());
+  // ARCH 3.4 edit 3: the 'float' text-sniffing handler is gone; logic emits explicit 'sfx' events instead
+  assert.deepEqual(listened.sort(), ['attack-start', 'hit', 'sfx', 'toast'].sort());
   const seen = new Set();
   const sfx = new Set();
   let rec = true;
@@ -101,10 +102,9 @@ test('audio.js runs against real game states with a fake AudioContext', async ()
   try {
     mod = await import('../../js/audio.js');
   } catch (err) {
-    // v1 js/data.js may be gone before the integrator repoints the import (ARCH 3.4 edit 1)
+    // audio.js imports ./game/data.js since the integration (ARCH 3.4 edit 1): failing to import is a real failure
     Object.assign(g, saved);
-    console.log(`  audio.js not importable here (${String(err.message).slice(0, 60)}); static checks only`);
-    return;
+    throw err;
   }
   try {
     let s = newState();

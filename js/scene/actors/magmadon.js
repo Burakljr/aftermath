@@ -700,8 +700,8 @@ export function createMagmadon() {
     const t = p.tail || [0, 0];
     tail.rotation.set(t[0], t[1], 0);
   }
-  const HOT = new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6), COOL = new THREE.Color(0.62, 0.09, 0.025).multiplyScalar(1.25);
-  const HOT_M = new THREE.Color(0.35, 1.0, 0.42).multiplyScalar(4.0), COOL_M = new THREE.Color(0.12, 0.5, 0.2).multiplyScalar(1.2);
+  const HOT = new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6), COOL = new THREE.Color(0.75, 0.13, 0.03).multiplyScalar(2.1);
+  const HOT_M = new THREE.Color(0.35, 1.0, 0.42).multiplyScalar(4.0), COOL_M = new THREE.Color(0.12, 0.55, 0.22).multiplyScalar(2.0);
   // heat: 1 alive, 0 cooled corpse; mutant: green magma
   function setHeat(alive, k, mutant) {
     U.uEye.value = alive ? 1 : 0; U.uPulseAmt.value = alive ? 1 : 0; U.uMutant.value = mutant ? 1 : 0;
