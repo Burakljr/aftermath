@@ -14,6 +14,8 @@ export function createWorld(ctx) {
   const chips = [];
   for (let id = 0; id < 6; id++) chips.push(makeChip(id));
   const tags = new Map();
+  const TX = new Float32Array(16);
+  const TY = new Float32Array(16);
   let lastModel = -1e9;
   let tagModels = [];
   let mode = '';
@@ -185,13 +187,23 @@ export function createWorld(ctx) {
         C(c.node, 'edge', edge);
         S(c.node, 'transform', `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`);
       }
+      let n = 0;
       for (const t of tagModels) {
         const el = tags.get(t.id);
         if (!el) continue;
         ctx.project(`vehicle:${t.id}`, P);
         const ok = P.visible && !hideAll && P.y > top + 20 && P.y < bottom;
         C(el, 'off', !ok);
-        if (ok) S(el, 'transform', `translate3d(${P.x.toFixed(1)}px,${(P.y - 10).toFixed(1)}px,0)`);
+        if (!ok) continue;
+        // stack tags of vehicles that are close on screen (convoy leaving the yard)
+        let y = P.y - 10;
+        for (let i = 0; i < n; i++) if (Math.abs(TX[i] - P.x) < 70 && Math.abs(TY[i] - y) < 24) y = TY[i] - 26;
+        if (n < TX.length) {
+          TX[n] = P.x;
+          TY[n] = y;
+          n++;
+        }
+        S(el, 'transform', `translate3d(${P.x.toFixed(1)}px,${y.toFixed(1)}px,0)`);
       }
     },
   };

@@ -458,7 +458,7 @@
 .reveal-why { animation: fadeIn 250ms var(--ease) both; animation-delay: 1.6s; }
 .reveal-why b { font-weight: 700; font-size: 15.5px; }
 .reveal-why p { font-size: 14px; color: var(--beton); margin-top: 4px; max-width: 300px; }
-.reveal-cta { animation: fadeIn 250ms var(--ease) both; animation-delay: 1.7s; }
+.reveal-cta { animation: liftIn 260ms var(--ease) both; animation-delay: 1.5s; }
 .sheet-tender.revealing .sheet-box { animation: tshake 220ms linear 1.38s; }
 @keyframes tshake { 25% { translate: -3px 1px; } 50% { translate: 3px -1px; } 75% { translate: -2px 0; } }
 @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
@@ -504,7 +504,9 @@
 .r-sig { color: var(--murekkep); margin-bottom: 4px; }
 .stamp { position: absolute; right: -4px; bottom: -10px; transform: rotate(-8deg); z-index: 2; mix-blend-mode: multiply; opacity: .92; animation: stampSlam 180ms cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(420ms + var(--n, 4) * 120ms); }
 @keyframes stampSlam { 0% { transform: rotate(-8deg) scale(1.6); opacity: 0; } 100% { transform: rotate(-8deg) scale(1); opacity: .92; } }
-.receipt__after { margin-top: auto; display: grid; gap: 10px; padding-top: 12px; animation: fadeIn 250ms var(--ease) both; animation-delay: 900ms; }
+.receipt__after { margin-top: auto; display: grid; gap: 10px; padding-top: 12px; animation: liftIn 260ms var(--ease) both; animation-delay: 700ms; }
+/* entrances of blocks that hold the primary action move but never sit at opacity 0 (a tap must always land) */
+@keyframes liftIn { 0% { transform: translateY(16px); } 100% { transform: none; } }
 .gains { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .gain { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-card); }
 .gain b { display: block; font-weight: 740; font-stretch: 80%; font-size: 19px; line-height: 1.05; }

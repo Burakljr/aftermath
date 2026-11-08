@@ -12,8 +12,9 @@ const opt = (k, d) => {
 };
 const PORT = opt('--port', process.env.PORT || '5193');
 const OUT = opt('--out', '/tmp/claude-0/-home-user-aftermath/a2b2bb86-d226-5b76-8c09-c4a191c5ba8d/scratchpad/v2/ui');
-const filter = args.find((a) => !a.startsWith('--') && args[args.indexOf(a) - 1] !== '--port' && args[args.indexOf(a) - 1] !== '--out');
+const filter = args.find((a, k) => !a.startsWith('--') && args[k - 1] !== '--port' && args[k - 1] !== '--out');
 const NO_SHOTS = args.includes('--no-shots');
+const RM = args.includes('--rm') ? '&rm=1' : ''; // reduced motion: every state must be final without waiting
 const WAIT = { 'tender-reveal': 2400, receipt: 1500, 'receipt-ftue': 1500, title: 1200, 'attack-first': 700 };
 
 (async () => {
@@ -31,10 +32,10 @@ const WAIT = { 'tender-reveal': 2400, receipt: 1500, 'receipt-ftue': 1500, title
   let hard = 0;
   for (const name of screens) {
     errors.length = 0;
-    await page.goto(`http://localhost:${PORT}/ui-lab.html?screen=${name}&bar=0`);
+    await page.goto(`http://localhost:${PORT}/ui-lab.html?screen=${name}&bar=0${RM}`);
     await page.waitForFunction(() => window.lab && document.fonts.status === 'loaded');
     await page.evaluate(() => document.fonts.ready);
-    await page.waitForTimeout(WAIT[name] || 650);
+    await page.waitForTimeout(RM ? 150 : WAIT[name] || 650);
     const r = await page.evaluate(() => {
       const root = document.getElementById('ui');
       const W = innerWidth;

@@ -40,7 +40,12 @@ export function measureBand(root, L, attack) {
   let top = 0;
   if (ob && ob.offsetParent) top = topOf(ob, root) + ob.offsetHeight + 8;
   let minTop = H;
-  const cands = [L.tabs.firstElementChild, ...L.panel.children, ...L.sheet.children];
+  const cands = [L.tabs.firstElementChild, ...L.panel.children];
+  // sheet slots are full-screen wrappers: measure the box inside the active one
+  for (const slot of L.sheet.children) {
+    if (!slot.classList.contains('on')) continue;
+    for (const box of slot.children) if (box.offsetParent) cands.push(box);
+  }
   for (const el of cands) {
     if (!el || !el.offsetParent || el.hidden || el.classList.contains('off')) continue;
     const t = topOf(el, root);
