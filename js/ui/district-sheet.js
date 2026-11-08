@@ -44,7 +44,9 @@ function dispatchButton(ctx, type, id) {
     set(m, primaryOK) {
       model = m;
       T(label, m.label);
-      T(subText, m.sub || m.reason || '');
+      // one count only (playtest m8): the pips + "N hazır" carry it; the sub line is just the refusal reason
+      T(subText, m.enabled ? '' : m.reason || m.sub || '');
+      show(sub, !m.enabled);
       show(subIcon, !m.enabled);
       C(sub, 'reason', !m.enabled);
       A(el, 'aria-disabled', m.enabled ? null : 'true');

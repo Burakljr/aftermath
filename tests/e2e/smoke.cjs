@@ -36,7 +36,8 @@ function planInPage() {
     return { key: 'submitTender' };
   }
   if (s.phase === 'calm') {
-    if (s.result) return { key: 'collectPayment' };
+    // the receipt slides up ~2 s after contract-done (the result moment plays first)
+    if (s.result) return vis(key('collectPayment')) ? { key: 'collectPayment' } : { wait: 0.5, why: 'result moment' };
     // follow the calm task card when it starts a factory job or sells parts (G5 "first Kemik beton" opens the tenders)
     const task = [...document.querySelectorAll('#panel .btn.primary')].find((b) => vis(b) && /^(startJob|sellAll)/.test(b.dataset.key || ''));
     if (task && a.ui.view.tab === 'city') return { key: task.dataset.key, why: 'calm task' };

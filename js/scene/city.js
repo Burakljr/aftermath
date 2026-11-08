@@ -668,7 +668,8 @@ export function buildCity(scene, { fogU }) {
 
   // ---------------------------------------------------------------- pedestrians (promenade, square, park)
   const pedMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
-  const PCOL = [0xf0ece0, 0x3a6a9a, 0xb83a32, 0x2a2a2a, 0xe0b040, 0x5a8a4a, 0xf4f4f4, 0xd06a2a];
+  // muted clothing tones: no near-white that blooms into confetti at city zoom (review V8 / playtest M12)
+  const PCOL = [0x6b6358, 0x34495e, 0x7a3a34, 0x2a2a2a, 0x8a7440, 0x4a6040, 0x8c8a84, 0x7a5236, 0x3d3f52];
   const peds = [];
   const pr = rng(91);
   for (let k = 0; k < 150; k++) peds.push({ x: -240 + pr() * 480, z: COAST.quay + 2 + pr() * 9, ry: pr() * 6.28, col: PCOL[Math.floor(pr() * PCOL.length)], ph: pr() * 6.28, sp: (pr() < 0.6 ? 1 : 0) * (0.8 + pr() * 0.8), dir: pr() < 0.5 ? 1 : -1, span: 60 });

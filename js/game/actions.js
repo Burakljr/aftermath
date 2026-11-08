@@ -157,6 +157,7 @@ const H = {
     if (s.phase !== 'tender' || !t || !t.reveal || t.reveal.win) return fail(REASON.wrongPhase);
     startRival(s, true);
     headline(s, NEWS.lost, 'tender');
+    if (s.npc && s.npc.text === TENDER.loseLine) s.npc = null; // the offer was taken; Nevin does not repeat it
     return ok({ tail: s.rival.tail });
   },
 
@@ -164,6 +165,7 @@ const H = {
     const t = s.tender;
     if (s.phase === 'tender' && t && t.reveal && !t.reveal.win) {
       startRival(s, false);
+      if (s.npc && s.npc.text === TENDER.loseLine) s.npc = null;
       return ok();
     }
     if (s.phase === 'rival' && s.rival.tail != null) {

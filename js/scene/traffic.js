@@ -144,7 +144,8 @@ export function createTraffic(scene, { city, vehicleMat }) {
       // pedestrians
       for (let i = 0; i < peds.length; i++) {
         const pd = peds[i];
-        let hidden = phase === 'attack' && !pd.did;
+        // the city is evacuated from the attack until the job is over: nobody stands next to fires and the carcass
+        let hidden = phase !== 'calm';
         if (pd.did !== undefined && damaged[pd.did]) hidden = true;
         if (lowQ && i % 2) hidden = true;
         const x = pd.x + (pd.sp ? (((t * pd.sp * pd.dir + pd.ph * 10) % pd.span) + pd.span) % pd.span - pd.span / 2 : 0);

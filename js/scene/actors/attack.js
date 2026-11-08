@@ -39,13 +39,15 @@ export function createAttack(world, { corpse }) {
     // monster at the contact moment, at the origin, to find its mouth
     model.group.position.set(0, 0, 0); model.group.rotation.set(0, Math.atan2(MON_DIR.x, MON_DIR.z), 0); model.group.scale.setScalar(S);
     model.root.position.set(0, 0, 0); model.root.rotation.set(0, 0, 0);
-    model.setPose(standPose(1.3 + TL.contact * 0.5, { lunge: 0.5, roar: 0.55 }));
+    // exactly the pose apply() shows at the contact frame, so the fist lands on the jaw (review V3: it missed by ~80 px)
+    const tc = TL.contact;
+    model.setPose(standPose(1.3 + 0.9 * 2.4 + (tc - 0.9) * 0.3, { lunge: smooth(0.8, 1.4, tc) * 0.5, roar: 0, snap: 0, stagger: 0, breath: Math.sin(tc * 1.6) }));
     const mouth = model.worldPoint('mouth').clone();
     P.y = mouth.y;
     const M = new THREE.Vector3(P.x - mouth.x + MON_DIR.x * 3 * S, 0, P.z - mouth.z + MON_DIR.z * 3 * S);
     // robot: scale so the fist meets the jaw at full extension
     robot.group.position.set(0, 0, 0); robot.group.rotation.set(0, Math.atan2(ROB_DIR.x, ROB_DIR.z), 0); robot.group.scale.setScalar(1);
-    robot.pose(punchPoseR(0.59)); robot.group.updateMatrixWorld(true);
+    robot.pose(punchPoseR(0.6)); robot.group.updateMatrixWorld(true);
     const fist1 = robot.J.handR.localToWorld(new THREE.Vector3(0, -6.0, 1.5));
     const RS = Math.max(0.45, Math.min(2.2, 1.08 * P.y / Math.max(1, fist1.y)));
     const toMon = new THREE.Vector3(M.x - P.x, 0, M.z - P.z).normalize();
@@ -53,8 +55,9 @@ export function createAttack(world, { corpse }) {
     // waterfront facades behind the monster: glass shard origins
     const shardO = new THREE.Vector3(P.x + 30 * S, 0, -160);
     // TV camera: low, over the water west of the fight, looking east along the promenade
-    const cam = new THREE.Vector3(P.x - 175 * S, 22 * S + 4, QUAY - 14 * S);
-    const camT = new THREE.Vector3(P.x + 8 * S, 30 * S, P.z + 2 * S);
+    // closer than proto-B so KALKAN-07 fills ~40 % of the band at the punch (review V7), low 3/4 front
+    const cam = new THREE.Vector3(P.x - 128 * S, 17 * S + 4, QUAY - 22 * S);
+    const camT = new THREE.Vector3(P.x + 4 * S, 27 * S, P.z + 2 * S);
     F = { S, RS, P, M, R, cam, camT, shardO, wadeFrom: new THREE.Vector3(M.x - 20 * S, 0, M.z - 105 * S) };
   }
 
@@ -93,7 +96,7 @@ export function createAttack(world, { corpse }) {
       out.ry = 110 * F.RS * Math.pow(1 - land, 2.2);
       out.thrust = t < TL.land ? smooth(-0.2, 0.3, t) : Math.max(0, 1 - (t - TL.land) / 0.35);
       out.rx = F.R.x; out.rz = F.R.z;
-      out.punch = t < TL.wind ? 0 : t < TL.strike ? 0.45 * smooth(TL.wind, TL.strike, t) : t < TL.contact ? 0.45 + 0.11 * Math.pow((t - TL.strike) / (TL.contact - TL.strike), 2) : t < TL.release ? 0.56 + 0.06 * (t - TL.contact) / (TL.release - TL.contact) : Math.min(1, 0.62 + 0.38 * (t - TL.release) / 0.6);
+      out.punch = t < TL.wind ? 0 : t < TL.strike ? 0.45 * smooth(TL.wind, TL.strike, t) : t < TL.contact ? 0.45 + 0.15 * Math.pow((t - TL.strike) / (TL.contact - TL.strike), 2) : t < TL.release ? 0.6 + 0.02 * (t - TL.contact) / (TL.release - TL.contact) : Math.min(1, 0.62 + 0.38 * (t - TL.release) / 0.6);
       out.crouch = t > TL.land - 0.05 ? Math.exp(-Math.max(0, t - TL.land) * 7) * smooth(TL.land - 0.05, TL.land, t) : 0;
     } else {
       out.rx = F.R.x; out.rz = F.R.z; out.punch = -1; out.crouch = 0;
@@ -131,8 +134,9 @@ export function createAttack(world, { corpse }) {
         const ox = fit.pos.x - fit.lx.x * xs * (1 - k), oz = fit.pos.z - fit.lx.z * xs * (1 - k);
         model.group.position.set(ox, lerp(0, fit.pos.y, k), oz);
         const st = standPose(2.3 + (t - TL.cut) * 2, { snap: pose.snap, stagger: pose.stag, roar: pose.roar });
-        const cp = corpsePose({ roll: ROLL, side, neck: [0.6, 0, 0], head: [0.45, 0, -0.2], jaw: 0.66 });
-        model.setPose(mixPose(st, cp, k));
+        const cp = side > 0 ? (CP_POS || (CP_POS = corpsePose({ roll: ROLL, side: 1, neck: [0.6, 0, 0], head: [0.45, 0, -0.2], jaw: 0.66 })))
+          : (CP_NEG || (CP_NEG = corpsePose({ roll: ROLL, side: -1, neck: [0.6, 0, 0], head: [0.45, 0, -0.2], jaw: 0.66 })));
+        model.setPose(mixPose(st, cp, k, MIX));
         model.root.rotation.set(0, 0, side * ROLL * k);
         model.root.position.set(0, corpse.bakeLift() * k, 0);
       }
@@ -172,12 +176,25 @@ export function createAttack(world, { corpse }) {
       // the camera tilts up a little to follow the robot down
       if (at < TL.land) _tgt.y += 12 * F.S * (1 - smooth(-0.4, TL.land, at));
       camera.position.copy(_v); camera.up.set(0, 1, 0); camera.lookAt(_tgt);
+    } else if (at < TL.hit && sidePl) {
+      // the topple in profile (review V3): a low 3/4 shot from the end of the body axis nearer the gameplay camera,
+      // ~25 deg elevation, so the 160 t body visibly rolls onto its side; hard cut to the gameplay framing at the hit
+      const pl = sidePl;
+      const sg = pl.dir.x * Math.sin(GAME_AZ) + pl.dir.z * Math.cos(GAME_AZ) >= 0 ? 1 : -1;
+      const c35 = Math.cos(0.6), s35 = Math.sin(0.6) * fitSide;
+      const dx = sg * (pl.dir.x * c35 - pl.dir.z * s35), dz = sg * (pl.dir.z * c35 + pl.dir.x * s35);
+      const k = smooth(TL.cut, TL.hit, at);
+      const D = Math.max(400, pl.length * 2.3, 200 * F.S) * (1.0 + 0.06 * k);
+      camera.position.set(pl.x + dx * D * 0.9, D * 0.42, pl.z + dz * D * 0.9);
+      camera.up.set(0, 1, 0); camera.lookAt(pl.x, 14 * F.S * (1 - 0.5 * k), pl.z);
     } else {
       const d = 0.8 + 0.2 * smooth(TL.cut, a.end, at);
       camera.position.copy(rig.target).addScaledVector(rig.fwd, -rig.dist * d);
       camera.up.set(0, 1, 0); camera.lookAt(rig.target);
     }
   }
+  const GAME_AZ = 0.14;
+  let sidePl = null, fitSide = 1;
   let curA = null, curT = 0, tvFov = false;
   function own(a, t) {
     curA = a; curT = t;
@@ -210,6 +227,8 @@ export function createAttack(world, { corpse }) {
   function run(a, t, dt) {
     const fit = corpse.fitFor(a);
     if (!fit) return;
+    sidePl = world.placement ? world.placement() : null;
+    fitSide = fit.side || 1;
     if (a !== runA || fit !== runFit) { runA = a; runFit = fit; runKey = `${a.n}|${(a.chain || []).join(',')}|${a.mutant ? 1 : 0}|${fit.s.toFixed(3)}`; }
     const key = runKey;
     if (key !== setupKey) { setupKey = key; setup(a, fit); }
@@ -280,11 +299,16 @@ export function createAttack(world, { corpse }) {
 }
 
 function lerpAngle(a, b, k) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * k; }
-function mixArr(a, b, k) { return a.map((v, i) => lerp(v, b[i] ?? 0, k)); }
-function mixPose(A, B, k) {
-  const out = { y: lerp(A.y ?? 0, B.y ?? 0, k), pitch: lerp(A.pitch ?? 0, B.pitch ?? 0, k), roll: lerp(A.roll ?? 0, B.roll ?? 0, k), yaw: lerp(A.yaw ?? 0, B.yaw ?? 0, k), breath: lerp(A.breath ?? 0, 0, k),
-    neck: mixArr(A.neck, B.neck, k), head: mixArr(A.head, B.head, k), jaw: lerp(A.jaw ?? 0, B.jaw ?? 0, k), tail: mixArr(A.tail, B.tail, k), legs: {} };
-  for (const n of ['FL', 'FR', 'HL', 'HR']) out.legs[n] = mixArr(A.legs[n], B.legs[n], k);
+// the corpse pose is constant per side and the mixed pose is written into one reused object (no per-frame garbage)
+let CP_POS = null, CP_NEG = null;
+const MIX = { y: 0, pitch: 0, roll: 0, yaw: 0, breath: 0, neck: [], head: [], jaw: 0, tail: [], legs: { FL: [], FR: [], HL: [], HR: [] } };
+const LEG_NAMES = ['FL', 'FR', 'HL', 'HR'];
+function mixArr(a, b, k, out) { out.length = a.length; for (let i = 0; i < a.length; i++) out[i] = lerp(a[i], b[i] ?? 0, k); return out; }
+function mixPose(A, B, k, out) {
+  out.y = lerp(A.y ?? 0, B.y ?? 0, k); out.pitch = lerp(A.pitch ?? 0, B.pitch ?? 0, k); out.roll = lerp(A.roll ?? 0, B.roll ?? 0, k);
+  out.yaw = lerp(A.yaw ?? 0, B.yaw ?? 0, k); out.breath = lerp(A.breath ?? 0, 0, k); out.jaw = lerp(A.jaw ?? 0, B.jaw ?? 0, k);
+  mixArr(A.neck, B.neck, k, out.neck); mixArr(A.head, B.head, k, out.head); mixArr(A.tail, B.tail, k, out.tail);
+  for (let i = 0; i < 4; i++) { const n = LEG_NAMES[i]; mixArr(A.legs[n], B.legs[n], k, out.legs[n]); }
   return out;
 }
 

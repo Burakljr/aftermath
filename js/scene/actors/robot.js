@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Builder, smooth, lerp } from '../util.js';
 
-const WHITE = 0xe9e6de, WHITE2 = 0xcfccc4, BLUE = 0x34577c, BLUE2 = 0x27425f, FRAME = 0x2a2d31, STEEL = 0x8d9296, DARK = 0x16181b, YEL = 0xf2b51a, INK = 0x1c2a40;
+const WHITE = 0xecf0f3, WHITE2 = 0xc9d0d6, BLUE = 0x2d5d92, BLUE2 = 0x23476f, FRAME = 0x2a2d31, STEEL = 0x8d9296, DARK = 0x16181b, YEL = 0xf2b51a, INK = 0x1c2a40;
 
 class Part {
   constructor(seed) { this.B = new Builder(seed); }

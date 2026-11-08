@@ -123,14 +123,27 @@ export function createUI(root, deps = {}) {
     ctx.dirty = true;
   }
 
-  function closeSheet(force) {
+  function closeSheet(force, noFrame) {
     if (ctx.view.sel == null) return;
     if (!force && !ctx.allows('closeSheet')) return;
     ctx.view.sel = null;
     scene.setHighlight(null, 'select');
-    scene.frame('city', { zoom: 'city', duration: 0.7 });
+    if (!noFrame) scene.frame('city', { zoom: 'city', duration: 0.7 });
     ctx.dirty = true;
   }
+
+  // the result moment (playtest M9 / review V5): the receipt waits ~2 s of game time after contract-done (and until a
+  // rare-part card has had its time) so the last district's clean, TEMİZ and the pull-out are seen first
+  const nowState = () => (deps.getState ? deps.getState() : ctx.s);
+  let resultAt = null;
+  let rareAt = -1e9;
+  on('contract-done', () => { const st = nowState(); resultAt = st ? st.clock : null; });
+  on('rare', () => { const st = nowState(); if (st) rareAt = st.clock; });
+  function resultHeld(s) {
+    if (resultAt == null || !s.result) return false;
+    return s.clock < Math.max(resultAt + 2.2, rareAt + 2.4);
+  }
+  ctx.resultHeld = resultHeld;
 
   function setAccept(type) {
     ctx.view.accept = type;
@@ -190,7 +203,7 @@ export function createUI(root, deps = {}) {
     const v = ctx.view;
     if (v.settings) return 'settings';
     if (s.phase === 'attack' || v.title) return null;
-    if (s.phase === 'calm' && s.result) return 'receipt';
+    if (s.phase === 'calm' && s.result) return resultHeld(s) ? null : 'receipt';
     if (s.phase === 'tender' && s.tender && s.tender.kind === 'bid') return 'tender';
     if (v.tab !== 'city') return v.tab;
     if (v.sel != null) {
@@ -225,7 +238,7 @@ export function createUI(root, deps = {}) {
     const resultNow = !!s.result;
     if (s.phase !== lastPhase || resultNow !== lastResult) {
       if (lastPhase !== null) {
-        if (ctx.view.sel != null) closeSheet(true);
+        if (ctx.view.sel != null) closeSheet(true, resultNow); // the scene runs its own result framing
         setAccept(null);
         if (s.phase === 'tender' || s.phase === 'attack' || resultNow) {
           ctx.view.tab = 'city';
@@ -262,7 +275,24 @@ export function createUI(root, deps = {}) {
   on('contract-done', () => buzz('contract'));
   on('tender-result', () => buzz('reveal'));
   on('sale', () => buzz('sale'));
-  on('purchase', () => buzz('purchase'));
+  // a purchase is seen in the yard (review V5): the page steps aside while the new vehicle drives in, then comes back
+  let purchaseTimer = 0;
+  on('purchase', () => {
+    buzz('purchase');
+    const st = nowState();
+    if (ctx.view.tab !== 'company' || !st || st.phase === 'attack') return;
+    ctx.view.tab = 'city';
+    ctx.view.settings = false;
+    ctx.dirty = true;
+    scene.frame('yard', { zoom: 'district', duration: 0.6 });
+    clearTimeout(purchaseTimer);
+    purchaseTimer = setTimeout(() => {
+      const s2 = nowState();
+      if (!s2 || ctx.view.tab !== 'city' || ctx.view.sel != null || s2.phase === 'attack' || s2.phase === 'tender') return;
+      scene.frame('city', { zoom: 'city', duration: 0.8 });
+      openTab('company');
+    }, 2200);
+  });
   on('unlock', () => buzz('unlock'));
   on('stage-done', ({ stage }) => buzz(stage === 'fire' ? 'fireOut' : stage === 'rubble' ? 'roadOpen' : 'clean'));
   const dirtyOn = ['phase', 'call', 'tender-open', 'tender-result', 'contract-start', 'contract-done', 'payment', 'sale', 'purchase',

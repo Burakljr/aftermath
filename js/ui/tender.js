@@ -102,8 +102,7 @@ export function createTenderSheet(ctx) {
   }
 
   function updateBid(s, r, g) {
-    const parts = g.title.split(' · ');
-    T(r.sub, parts[1] ? `${parts[1].replace('–', ' ve ')} bölgeleri. Parçalar kazananın.` : 'Parçalar kazananın.');
+    T(r.sub, g.sub);
     T(r.jf, String(g.summary.fires));
     T(r.jr, g.summary.rubble);
     T(r.jc, g.summary.corpse);

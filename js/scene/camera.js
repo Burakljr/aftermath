@@ -74,6 +74,14 @@ export function createCameraRig(camera) {
       for (const id of chainIds) { const D = DISTRICTS[id]; x0 = Math.min(x0, D.x0); x1 = Math.max(x1, D.x1); z0 = Math.min(z0, D.z0); z1 = Math.max(z1, D.z1); }
       return boxPts(x0 - 6, x1 + 6, z0 - 6, z1 + 6, 20);
     }
+    if (target === 'job' && chainIds && chainIds.length) {
+      // every job district with headroom above the roofs for its chip (playtest M6 / review V1)
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+      for (const id of chainIds) { const D = DISTRICTS[id]; x0 = Math.min(x0, D.x0); x1 = Math.max(x1, D.x1); z0 = Math.min(z0, D.z0); z1 = Math.max(z1, D.z1); }
+      const pts = boxPts(x0 - 6, x1 + 6, z0 - 4, z1 + 8, 48);
+      if (rig.jobExtra) for (const p of rig.jobExtra) pts.push(p);
+      return pts;
+    }
     const m = /^district:(\d)(\+yard)?$/.exec(target || '');
     if (m) {
       const D = DISTRICTS[+m[1]];
@@ -101,14 +109,30 @@ export function createCameraRig(camera) {
       const r = fit(boundsFor(target, chain), 0.94, 0.94);
       T = r.target; d = Math.min(r.dist, rig.cityDist);
       if (z === 'district' && /^district:\d$/.test(target)) d = rig.cityDist / ZOOM_K;
+      if (target === 'job') d = Math.max(d, rig.cityDist / 1.75); // never closer than about the district zoom
     }
-    rig.zoom = target === 'city' ? 'city' : z;
+    rig.zoom = target === 'city' ? 'city' : target === 'job' ? 'district' : z;
     if (rig.zoom === 'district') clampPan(T);
     place(rig.target, rig.dist);   // restore the live pose after fitting
     if (instant) { rig.target.copy(T); rig.dist = d; rig.anim = null; return; }
     rig.from.t.copy(rig.target); rig.from.d = rig.dist;
     rig.to.t.copy(T); rig.to.d = d;
     rig.anim = { t: 0, dur: Math.max(0.05, duration) };
+  };
+  /** live job framing: re-fit the job districts (+ extra points such as a truck on its way) and ease there if it moved */
+  rig.refitJob = (ids, extra) => {
+    if (rig.lastFrame !== 'job' || rig.overrideFn) return;
+    rig.jobExtra = extra && extra.length ? extra : null;
+    applyViewOffset();
+    const r = fit(boundsFor('job', ids), 0.94, 0.94);
+    let d = Math.max(Math.min(r.dist, rig.cityDist), rig.cityDist / 1.75);
+    place(rig.target, rig.dist);
+    const goalT = rig.anim ? rig.to.t : rig.target, goalD = rig.anim ? rig.to.d : rig.dist;
+    if (r.target.distanceTo(goalT) < 4 && Math.abs(d - goalD) < goalD * 0.04) return;
+    rig.from.t.copy(rig.target); rig.from.d = rig.dist;
+    rig.to.t.copy(r.target); rig.to.d = d;
+    rig.anim = { t: 0, dur: 1.1 };
+    rig.lastChain = ids;
   };
   rig.zoomTo = (stop) => {
     if (stop === 'city') return rig.frame('city', { zoom: 'city' });

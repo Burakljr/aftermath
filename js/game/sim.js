@@ -31,6 +31,8 @@ export const float = (sector, text, kind) => emit('float', { sector, text, kind 
 
 export function headline(s, text, kind = '') {
   s.news.current = { text, kind, until: s.clock + BAL.headlineTime };
+  const dup = s.news.archive.indexOf(text);
+  if (dup >= 0) s.news.archive.splice(dup, 1); // one copy per line in the archive (playtest m11)
   s.news.archive.unshift(text);
   if (s.news.archive.length > 30) s.news.archive.length = 30;
   emit('headline', { text, kind });
@@ -403,7 +405,7 @@ export function radarRuns(s) {
   if (s.phase !== 'calm' || s.result) return false;
   const f = s.progress.ftue;
   if (f !== 'cold' && f !== 'done') return false;
-  for (const n of s.notices) if (n.kind === 'buyer' || n.kind === 'chapter') return false;
+  for (const n of s.notices) if (n.kind === 'buyer' || n.kind === 'chapter' || n.kind === 'offline') return false; // the radar waits for the welcome-back card
   return true;
 }
 
@@ -464,7 +466,7 @@ export function startAttack(s) {
   s.stats.attacks += 1;
   setPhase(s, 'attack');
   emit('attack-start', { n, monster: 'magmadon', mutant, chain, segments, sectors: s.attack.sectors, first });
-  headline(s, mutant ? NEWS.mutant : NEWS.attack, 'attack');
+  headline(s, mutant ? NEWS.mutant : n <= 1 ? NEWS.attack : NEWS.attackAgain[(n - 2) % NEWS.attackAgain.length], 'attack');
 }
 
 export function applyHit(s) {
@@ -828,7 +830,13 @@ export function releaseTailNow(s) {
   const sec = s.sectors[tail];
   for (const v of s.fleet) if (v.sector === tail && (v.state === 'working' || v.state === 'enroute')) sendHome(s, v, HOOKS);
   s.rival.tail = null;
-  if (sec.corpse > 0) {
+  if (sec.corpse > 0 && s.rival.t >= s.rival.T) {
+    // Süpürge has already finished its part: it hauls the rest away at once (no carcass left behind in calm)
+    sec.fire = 0;
+    sec.rubble = 0;
+    sec.corpse = 0;
+    cleanCheck(s, [tail]);
+  } else if (sec.corpse > 0) {
     const p = clamp(s.rival.t / s.rival.T, 0, 0.999);
     sec.rival = true;
     s.rival.init[tail] = [0, 0, sec.corpse / (1 - p)];
@@ -837,11 +845,10 @@ export function releaseTailNow(s) {
   }
 }
 
-function rivalStep(s, dt) {
+/** Süpürge's trucks drive (also after the rival phase ended in the same tick: they still leave the map in calm). */
+function rivalFleetStep(s, dt) {
   const r = s.rival;
-  const wasDone = r.t >= r.T;
-  r.t = Math.min(r.T, r.t + dt);
-  const p = r.t / r.T;
+  let gone = false;
   for (const rv of r.fleet) {
     if (rv.state === 'enroute' || rv.state === 'returning') {
       rv.eta -= dt;
@@ -850,7 +857,17 @@ function rivalStep(s, dt) {
         rv.state = rv.state === 'enroute' ? 'working' : 'gone';
       }
     }
+    if (rv.state === 'gone') gone = true;
   }
+  if (gone) r.fleet = r.fleet.filter((x) => x.state !== 'gone');
+}
+
+function rivalStep(s, dt) {
+  const r = s.rival;
+  const wasDone = r.t >= r.T;
+  r.t = Math.min(r.T, r.t + dt);
+  const p = r.t / r.T;
+  rivalFleetStep(s, dt);
   if (!wasDone) {
     for (const id in r.init) {
       const sec = s.sectors[id];
@@ -860,12 +877,6 @@ function rivalStep(s, dt) {
       sec.corpse = c * (1 - p);
     }
     if (p >= 1) rivalDone(s);
-  }
-  for (const v of r.fleet) {
-    if (v.state === 'gone') {
-      r.fleet = r.fleet.filter((x) => x.state !== 'gone');
-      break;
-    }
   }
   if (r.tail != null) {
     workStep(s, dt, HOOKS);
@@ -904,6 +915,16 @@ function rivalDone(s) {
 
 function endRival(s) {
   for (const sec of s.sectors) sec.rival = false;
+  // trucks still at work leave now (they keep driving in calm through rivalFleetStep)
+  for (const rv of s.rival.fleet) {
+    if (rv.state === 'returning') continue;
+    rv.state = 'returning';
+    rv.from = rv.sector;
+    rv.sector = null;
+    rv.eta = 3;
+    rv.eta0 = 3;
+    rv.seq += 1;
+  }
   for (const v of s.fleet) if (v.state === 'working' || v.state === 'enroute') sendHome(s, v, HOOKS);
   startCalm(s);
 }
@@ -1128,6 +1149,7 @@ function step(s, dt) {
   switch (s.phase) {
     case 'calm':
       workStep(s, dt, HOOKS); // vehicles still driving home
+      if (s.rival.fleet.length) rivalFleetStep(s, dt);
       calmStep(s, dt);
       break;
     case 'attack':

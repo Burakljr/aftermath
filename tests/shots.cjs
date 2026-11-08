@@ -91,7 +91,10 @@ const DPR = Number(process.env.DPR || 2);
     // ---------- 07 carving ----------
     await shot('07-carving');
     await stepUntil(() => !!window.aftermath.state().result, 80, 0.5);
-    await L.step(page, 1.5);
+    await L.step(page, 0.6);
+    // ---------- 07b result moment: the last district's clean before the receipt (held ~2 s) ----------
+    await shot('07b-temiz', 200);
+    await L.step(page, 2.0);
     // ---------- 08 receipt ----------
     await shot('08-receipt', 1600);
     await tap('collectPayment');

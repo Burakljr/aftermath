@@ -19,11 +19,12 @@ const D2R = Math.PI / 180;
 const _c = new THREE.Color(), _p = new THREE.Vector3(), _n = new THREE.Vector3(), _v = new THREE.Vector3();
 
 export const PAL = {
-  basalt: 0x262325, basaltHi: 0x4c4b50, basaltLo: 0x121012, sulfur: 0x9a8448, crust: 0x1a0b07,
+  basalt: 0x2c2826, basaltHi: 0x6a645e, basaltLo: 0x121012, sulfur: 0x9a8448, crust: 0x1a0b07,
   hideDark: 0x3c312a, hide: 0x6a5545, hideMid: 0x8a6e55, belly: 0xb99b74, bellyFold: 0x987b5b,
   snout: 0x553834, nostril: 0x1a0e0c, ivory: 0xe6d8ba, ivoryBase: 0x8f7d60, nail: 0xd0c2a2,
   mouth: 0x3c100c, gum: 0x6e2c27, tongue: 0x8a4446, tooth: 0xd8ccb0,
-  flesh: 0xb33c3a, fleshLight: 0xdc7a72, fleshDeep: 0x6e1a18, fat: 0xecd6b4, bone: 0xdccfb2, gland: 0xff8a2a,
+  // the inside under the plates reads volcanic (basalt layers, pale mineral, magma veins), never as red meat (DESIGN §8/§13)
+  flesh: 0x4e4038, fleshLight: 0x7a6656, fleshDeep: 0x231b18, fat: 0xb8a68a, bone: 0xdccfb2, gland: 0xff8a2a,
 };
 // heat channel (aHeat.y): 0 magma (cools on death), 1 eyes (off when dead), 2 gland (always hot), 3 wet flesh
 const CH_MAGMA = 0, CH_EYE = 1, CH_GLAND = 2, CH_WET = 3;
@@ -67,11 +68,12 @@ ${CARVE_PARS}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.86, 0.92) + vec3(0.015, 0.03, 0.035), uMutant);
   if (!gl_FrontFacing && uCarveOn > 0.5) {
-    // inside of the body seen through a cut: raw flesh with fat marbling
+    // inside of the body seen through a cut: layered basalt with pale mineral bands (magma veins glow below)
     float mb = carveHash(vLPc * 0.9) * 0.3 + 0.7 * fract(sin(dot(floor(vLPc * 0.3), vec3(7.1, 3.3, 5.7))) * 413.7);
-    vec3 fl = mix(vec3(0.38, 0.05, 0.05), vec3(0.66, 0.16, 0.15), mb);
-    if (mb > 0.88) fl = vec3(0.82, 0.68, 0.56);
-    diffuseColor.rgb = mix(fl, fl * vec3(0.5, 1.1, 0.9), uMutant);
+    float band = 0.5 + 0.5 * sin(vLPc.y * 1.7 + vLPc.z * 0.35 + mb * 2.0);
+    vec3 fl = mix(vec3(0.15, 0.12, 0.11), vec3(0.34, 0.28, 0.24), mb * 0.7 + band * 0.3);
+    if (mb > 0.9) fl = vec3(0.62, 0.56, 0.48);
+    diffuseColor.rgb = mix(fl, fl * vec3(0.7, 1.05, 0.85), uMutant);
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
   if (vHeat.y > 2.5 || !gl_FrontFacing) roughnessFactor = 0.38;`)
@@ -81,7 +83,9 @@ ${CARVE_PARS}`)
     float h = vHeat.x;
     vec3 e = vec3(0.0);
     if (!gl_FrontFacing) {
-      e = uGlandCol * 0.14 * exp(-gCut * 1.2);
+      float vn = carveHash(vLPc * 0.45 + vec3(3.1, 0.0, 1.7));
+      float vein = smoothstep(0.86, 0.97, vn) * (0.6 + 0.4 * sin(uTime * 1.3 + vLPc.z * 0.2));
+      e = uGlandCol * (0.1 * exp(-gCut * 1.2) + 0.32 * vein);
     } else if (ch < 0.5) {
       float pulse = mix(1.0, 0.7 + 0.3 * sin(uTime * 1.7 - vLP.z * 0.05), uPulseAmt);
       float smoulder = 0.75 + 0.25 * sin(uTime * 0.6 + vLP.x * 0.21 + vLP.z * 0.13);
@@ -96,11 +100,12 @@ ${CARVE_PARS}`)
     } else {
       e = uHotCol * h * h * uHeat * 0.5;
     }
-    if (gl_FrontFacing && gCut < 1.6 && uCarveOn > 0.5) { e += uGlandCol * 0.12 * (1.0 - gCut / 1.6); diffuseColor.rgb *= 0.75; }
+    // cut edge: a broken, noisy ember line rather than a hard outline (review V6)
+    if (gl_FrontFacing && gCut < 1.2 && uCarveOn > 0.5) { float en = carveHash(vLPc * 0.8); e += uGlandCol * 0.07 * (1.0 - gCut / 1.2) * smoothstep(0.45, 0.9, en); diffuseColor.rgb *= 0.8; }
     totalEmissiveRadiance += e;
   }`);
   };
-  m.customProgramCacheKey = () => 'magmadon-v2a';
+  m.customProgramCacheKey = () => 'magmadon-v2b';
   return m;
 }
 // shadow depth with the same cut (a carved part casts no shadow)
@@ -363,7 +368,8 @@ function buildShell(acc, data) {
     outer.set(i, base.clone().addScaledVector(n, thick + terr + rough * (0.25 + 0.6 * inn)));
     inner.set(i, base.clone().addScaledVector(n, -0.45));
     const wN = noise3(base.x * 0.07 + 4, base.y * 0.07, base.z * 0.07);
-    const cl = mix(C.basalt, C.basaltHi, (wN - 0.35) * 1.4 * inn);
+    // plate centres lighter than the seams so the shell pattern reads from the gameplay camera (playtest m16)
+    const cl = mix(C.basalt, C.basaltHi, Math.min(1, 0.3 + (wN - 0.35) * 1.4) * inn);
     cl.lerp(C.basaltLo, (1 - inn) * 0.55);
     if (inn < 0.6 && noise3(base.x * 0.16 + 20, base.y * 0.16, base.z * 0.16) > 0.66) cl.lerp(C.sulfur, 0.55 * (1 - inn));
     if (terr > 0.2) cl.multiplyScalar(1.12);
@@ -379,7 +385,7 @@ function buildShell(acc, data) {
     for (const [a, b] of plateInfo[k].bnd) {
       const Ao = outer.get(a), Bo = outer.get(b), Ai = inner.get(a), Bi = inner.get(b);
       const rim = isBottom(a) && isBottom(b);
-      const top = mix(C.basaltLo, C.basalt, 0.4), bot = rim ? C.hideDark : C.crust;
+      const top = rim ? C.ivoryBase : mix(C.basaltLo, C.basalt, 0.4), bot = rim ? C.hideDark : C.crust; // pale shell rim: the outline reads from above
       const hT = [0, 0], hB = rim ? [0, 0] : [0.95, CH_MAGMA];
       acc.tri(Ao, Ai, Bi, top, bot, bot, hT, hB, hB, 0.12);
       acc.tri(Ao, Bi, Bo, top, bot, top, hT, hB, hT, 0.12);
@@ -700,7 +706,8 @@ export function createMagmadon() {
     const t = p.tail || [0, 0];
     tail.rotation.set(t[0], t[1], 0);
   }
-  const HOT = new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6), COOL = new THREE.Color(0.75, 0.13, 0.03).multiplyScalar(2.1);
+  // the cooled corpse keeps bright seams so the shell plates read from the gameplay camera (review V6)
+  const HOT = new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6), COOL = new THREE.Color(0.95, 0.27, 0.05).multiplyScalar(2.9);
   const HOT_M = new THREE.Color(0.35, 1.0, 0.42).multiplyScalar(4.0), COOL_M = new THREE.Color(0.12, 0.55, 0.22).multiplyScalar(2.0);
   // heat: 1 alive, 0 cooled corpse; mutant: green magma
   function setHeat(alive, k, mutant) {

@@ -1,6 +1,6 @@
 /* Aftermath v2 · game layout: layers, HUD, panels, sheets, overlays (ARCH §7, UI-SPEC §4). Phone first: 390 x 844. */
 
-#ui { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; contain: layout style; }
+#ui { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; overflow: clip; contain: layout style; }
 #ui .layer { position: absolute; inset: 0; pointer-events: none; }
 #ui button, #ui .sheet-box, #ui .page-box, #ui .card, #ui .notice-card, #ui .receipt, #ui .tabs, #ui .hud, #ui .objective, #ui .headline-bar { pointer-events: auto; }
 #ui [hidden] { display: none !important; }
@@ -86,14 +86,15 @@
 .unlock__reward { font-weight: 700; font-stretch: 90%; font-size: 15px; }
 
 /* ================= tabs ================= */
-.tabs { position: absolute; left: 0; right: 0; bottom: 0; height: var(--tabs-h); padding-bottom: var(--safe-bottom); display: grid; grid-template-columns: repeat(4, 1fr);
+.tabs { position: absolute; left: 0; right: 0; bottom: 0; height: var(--tabs-h); padding-bottom: var(--safe-bottom); display: flex;
   background: rgba(14, 17, 19, .97); border-top: 1px solid rgba(255, 255, 255, .06); }
-.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #7d8687; font-weight: 640; font-stretch: 88%; font-size: 12px; position: relative; min-height: 60px; }
+.tab { flex: 1 1 0; min-width: 0; transition: flex-grow 320ms var(--ease); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #7d8687; font-weight: 640; font-stretch: 88%; font-size: 12px; position: relative; min-height: 60px; }
 .tab__label { line-height: 1; }
 .tab.on { color: var(--tebesir); }
 .tab.on .i { color: var(--sinyal); }
 .tab.on::before { content: ''; position: absolute; top: -1px; left: 26%; right: 26%; height: 3px; background: var(--sinyal); }
-.tab.is-hidden { visibility: hidden; pointer-events: none; }
+/* unlocked tabs share the bar evenly (playtest m4); a hidden tab collapses to a zero-width slot that still marks where it will drop in */
+.tab.is-hidden { visibility: hidden; pointer-events: none; flex-grow: 0; overflow: hidden; }
 .tab__dot { position: absolute; top: 9px; left: 57%; width: 9px; height: 9px; border-radius: 50%; background: var(--ikaz); box-shadow: 0 0 0 2px rgba(14, 17, 19, .97); display: none; }
 .tab__dot.show { display: block; }
 .tab__new { position: absolute; top: 5px; left: 54%; display: none; }
@@ -167,7 +168,7 @@
 .cline { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border-radius: var(--r-btn); background: rgba(14, 17, 19, .88); font-size: 14px; font-weight: 560; }
 .cline__text { flex: 1; }
 .cline__hint { flex: 1; display: flex; align-items: center; gap: 6px; color: var(--sinyal); font-weight: 680; }
-.cline__cancel { display: inline-flex; align-items: center; gap: 4px; color: var(--beton); min-height: 36px; font-weight: 620; font-size: 13.5px; }
+.cline__cancel { display: inline-flex; align-items: center; gap: 4px; color: var(--beton); min-height: 44px; font-weight: 620; font-size: 13.5px; }
 
 /* rival card */
 .rivalcard { display: grid; gap: 6px; padding: 12px 14px; border-left: 4px solid var(--kesim); }
@@ -256,7 +257,7 @@
 .offer__what { font-weight: 720; font-stretch: 88%; font-size: 15px; line-height: 1.2; }
 .offer__sub { font-size: 12.5px; color: var(--beton); margin-top: 1px; line-height: 1.25; }
 .offer__side { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.offer__side .btn { --h: 36px; min-height: 36px; padding: 0 14px; font-size: 14.5px; }
+.offer__side .btn { --h: 44px; min-height: 44px; padding: 0 14px; font-size: 14.5px; }
 .offer__side .btn[aria-disabled="true"] { padding: 0 8px; }
 .offer__side .btn[aria-disabled="true"] .main { display: none; }
 .ring { width: 44px; height: 44px; position: relative; display: grid; place-items: center; color: var(--sinyal); }
@@ -369,7 +370,8 @@
 .est__head b { color: var(--tebesir); font-weight: 740; font-stretch: 82%; font-size: 17px; }
 .axis { position: relative; height: 34px; margin: 6px 10px 0; }
 .axis__rail { position: absolute; left: -10px; right: -10px; top: 10px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); }
-.axis__band { position: absolute; top: 6px; height: 14px; border-radius: 3px; background: repeating-linear-gradient(-45deg, rgba(238, 239, 234, .5) 0 2px, rgba(238, 239, 234, .16) 2px 5px); box-shadow: inset 0 0 0 1px rgba(238, 239, 234, .55); }
+/* the estimate band is a solid tint: hatching is reserved for grid cells the estimate cannot meet (playtest m17) */
+.axis__band { position: absolute; top: 6px; height: 14px; border-radius: 3px; background: linear-gradient(90deg, rgba(118, 196, 255, .28), rgba(118, 196, 255, .42) 50%, rgba(118, 196, 255, .28)); box-shadow: inset 0 0 0 1px rgba(150, 210, 255, .7); }
 .tick { position: absolute; top: 2px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
 .tick i { width: 2px; height: 22px; background: var(--beton); border-radius: 1px; }
 .tick span { font-weight: 680; font-stretch: 82%; font-size: 12px; color: var(--beton); margin-top: -2px; }
@@ -566,6 +568,7 @@
 .wchip.rival .wchip__flag { background: var(--rakip); color: #120c30; }
 .wchip.done .wchip__head { background: #1f6b47; }
 .wchip.done { animation: chipFade 2.2s linear forwards; }
+#ui .wchip.done { pointer-events: none; } /* a finished district needs no tap; the faded chip must not swallow taps */
 @keyframes chipFade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 .wchip.attention { border-color: rgba(255, 90, 31, .85); box-shadow: 0 0 0 2px rgba(255, 90, 31, .35), 0 6px 16px rgba(0, 0, 0, .5); }
 .wchip.pulse-on { animation: chipPulse 1s var(--ease) infinite; }
@@ -579,7 +582,21 @@
 .wchip.spreading .wchip__ring { display: block; }
 .wchip.spreading .wchip__flag { background: #ff3b1f; color: #fff; }
 @keyframes spreadPulse { 0% { box-shadow: 0 0 0 2px rgba(255, 59, 31, .6), 0 6px 16px rgba(0, 0, 0, .5); } 100% { box-shadow: 0 0 0 6px rgba(255, 59, 31, .15), 0 6px 16px rgba(0, 0, 0, .5); } }
-.wanchor.edge .wchip { transform: translate(-50%, 0) scale(.86); opacity: .95; }
+.wanchor.edge .wchip { transform: translate(-50%, 0) scale(.92); opacity: .97; }
+/* compact pill (review V4 / playtest M10): name + crew + one bar, the 3D work below stays visible */
+.wchip.compact { width: max-content; min-width: 70px; max-width: 104px; }
+.wchip.compact .wchip__head { border-radius: 5px; padding: 3px 7px 4px; }
+.wchip.compact .wchip__body { padding: 0 3px 3px; gap: 0; }
+.wchip.compact .wchip__task, .wchip.compact .dots { display: none; }
+.wchip.compact .bar { height: 4px; }
+.wchip.compact .wchip__ring { right: -7px; top: -7px; width: 18px; height: 18px; }
+/* edge pointer: chips of off-screen job districts clamp to the band and point toward their district (playtest M6) */
+.wchip__arrow { display: none; position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; transform: rotate(var(--ang, 0rad)); }
+.wchip__arrow::before { content: ''; position: absolute; left: 50px; top: -7px; border: 7px solid transparent; border-left: 10px solid var(--sinyal); border-right: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.wanchor.edge .wchip__arrow { display: block; }
+.wanchor.edge > *::after { display: none; }
+/* 44 px touch targets without growing the visuals (playtest m1) */
+.wchip::before, .wplate::before { content: ''; position: absolute; left: -4px; right: -4px; top: 50%; height: 48px; transform: translateY(-50%); }
 .wplate { display: inline-block; }
 .wplate.tappable { cursor: pointer; }
 .wplate.sel { box-shadow: 0 0 0 2px var(--sinyal), 0 3px 8px rgba(0, 0, 0, .45); }
@@ -640,9 +657,11 @@
 /* ================= broadcast ================= */
 .bc { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity 250ms, visibility 0s 250ms; }
 .bc.on { opacity: 1; visibility: visible; transition: opacity 250ms; }
-.bc-grade { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 55% at 60% 46%, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, .5) 100%), linear-gradient(180deg, rgba(120, 20, 10, .28), rgba(120, 20, 10, .16));
-  transition: opacity 500ms; backdrop-filter: saturate(.45) contrast(1.12); -webkit-backdrop-filter: saturate(.45) contrast(1.12); }
-.bc-scan { position: absolute; inset: 0; opacity: .2; background: repeating-linear-gradient(180deg, rgba(255, 255, 255, .08) 0 1px, transparent 1px 3px); transition: opacity 400ms; }
+/* a light edge vignette with a red rim only: no backdrop-filter over the WebGL canvas (review V2: it left an unpainted
+   slab on the compositor and costs a GPU readback per frame on iOS); the attack grade itself lives in js/scene/post.js */
+.bc-grade { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 62% at 55% 46%, rgba(0, 0, 0, 0) 55%, rgba(70, 8, 4, .24) 100%);
+  transition: opacity 500ms; }
+.bc-scan { position: absolute; inset: 0; opacity: .12; background: repeating-linear-gradient(180deg, rgba(255, 255, 255, .08) 0 1px, transparent 1px 3px); transition: opacity 400ms; }
 .bc[data-stage="fall"] .bc-grade, .bc[data-stage="open"] .bc-grade { opacity: .35; }
 .bc[data-stage="fall"] .bc-scan, .bc[data-stage="open"] .bc-scan { opacity: 0; }
 .letter { position: absolute; left: 0; right: 0; background: #050606; transition: transform 500ms var(--ease-io); }
@@ -650,8 +669,10 @@
 .letter--bot { bottom: 0; height: 284px; }
 .bc[data-stage="open"] .letter--top { transform: translateY(-100%); }
 .bc[data-stage="open"] .letter--bot { transform: translateY(100%); }
-.bc.on .letter--top { animation: lbTop 400ms var(--ease) both; }
-.bc.on .letter--bot { animation: lbBot 400ms var(--ease) both; }
+/* 'backwards' fill: the slide-in animation ends instead of holding a compositor layer for the whole broadcast; together
+   with the flash layer only existing while it flashes, this removes the unpainted slab over the canvas (playtest M1) */
+.bc.on .letter--top { animation: lbTop 400ms var(--ease) backwards; }
+.bc.on .letter--bot { animation: lbBot 400ms var(--ease) backwards; }
 @keyframes lbTop { 0% { transform: translateY(-100%); } }
 @keyframes lbBot { 0% { transform: translateY(100%); } }
 .bug { position: absolute; bottom: 18px; left: 16px; display: flex; align-items: stretch; height: 28px; }
@@ -684,8 +705,8 @@
 .bc-track span, .bc-track b { font-weight: 700; font-stretch: 84%; font-size: 12px; color: #fff; background: rgba(224, 30, 30, .9); padding: 2px 7px; border-radius: 2px; white-space: nowrap; }
 .bc-track span { margin-top: -2px; }
 .bc-track b { margin-top: -4px; font-size: 13px; }
-.bc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
-.bc-flash.go { animation: flash 260ms ease-out; }
+.bc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; display: none; }
+.bc-flash.go { display: block; animation: flash 260ms ease-out; }
 @keyframes flash { 0% { opacity: .75; } 100% { opacity: 0; } }
 
 /* ================= title card ================= */
@@ -724,4 +745,3 @@
 }
 .reduce-motion #ui *, .reduce-motion #ui *::before, .reduce-motion #ui *::after, #ui.reduce-motion *, #ui.reduce-motion *::before, #ui.reduce-motion *::after {
   animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
-.low-gfx .bc-grade { backdrop-filter: none; -webkit-backdrop-filter: none; }

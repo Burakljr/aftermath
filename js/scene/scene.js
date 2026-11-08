@@ -48,7 +48,7 @@ export function createScene(canvas, opts = {}) {
 
   let city = null, fx = null, rubble = null, yard = null, traffic = null, districts = null, actors = null, anchors = null;
   let ctx = null, intact = [];
-  let vt = 0, timeScale = 1, slowUntil = -1, readyFlag = false;
+  let vt = 0, timeScale = 1, slowUntil = -1, readyFlag = false, cityAt = -1, lastClean = null;
   let attackN = null, placement = null, hitApplied = false, lastPhase = null, lastResult = null, lastAttackT = -99;
   let lastState = null, corpseCleared = false;
   const dmg = Array.from({ length: 6 }, () => ({ plan: null, ready: false, applied: false, touched: [], props: null }));
@@ -184,7 +184,8 @@ export function createScene(canvas, opts = {}) {
     jobs.add('d' + did, gen, () => { d.ready = true; d.props = plan.props; });
   }
   function disposeProps(p) {
-    for (const k of ['facade', 'rubble', 'chunks']) { const m = p[k]; if (!m) continue; scene.remove(m); m.geometry.dispose(); if (k === 'chunks') m.dispose(); }
+    // 'chunks' instances the shared ctx.chunkGeo: dispose the instanced mesh only, never the shared geometry
+    for (const k of ['facade', 'rubble', 'chunks']) { const m = p[k]; if (!m) continue; scene.remove(m); if (k === 'chunks') m.dispose(); else m.geometry.dispose(); }
   }
   function applyDistrict(did, juice) {
     const d = dmg[did];
@@ -245,7 +246,8 @@ export function createScene(canvas, opts = {}) {
     fx.ring(c.x, c.z, placement.length * 0.35 + 30, 24);
     fx.ring(n.x, n.z, 40, 16);
     for (const did of a.sectors || []) if (!a.chain.includes(did)) { const p = dmg[did].plan; if (p) fx.ring(p.caps[0].ax, p.caps[0].az, 30, 12); }
-    if (!reducedMotion) { rig.shake(0.85); fx.flash(c.x, 30, c.z, 90, 0.45); }
+    // a short (120 ms) flash at the contact point, not a long bloom whiteout over the body (review V3)
+    if (!reducedMotion) { rig.shake(0.85); fx.flash(c.x, 12, c.z, 42, 0.12); }
     fx.debris([{ x: n.x, z: n.z, dx: placement.dir.x, dz: placement.dir.z }, { x: c.x, z: c.z, dx: -placement.dir.z, dz: placement.dir.x }, { x: c.x, z: c.z, dx: placement.dir.z, dz: -placement.dir.x }]);
   }
 
@@ -272,7 +274,12 @@ export function createScene(canvas, opts = {}) {
       onEvent('attack:impact', {});
     }
     if (lastPhase === 'attack' && s.phase !== 'attack') onEvent('attack:end', {});
-    if (s.result && !lastResult && juice && lastPhase !== null) rig.frame('city', { duration: 1.2 });
+    // result moment (playtest M9 / review V5): close on the last cleaned district while its clean plays, then pull out
+    if (s.result && !lastResult && juice && lastPhase !== null) {
+      if (lastClean != null) rig.frame(`district:${lastClean}`, { zoom: 'district', duration: 0.6 });
+      cityAt = vt + 1.0;
+    }
+    if (!s.result) cityAt = -1;
     lastResult = s.result; lastPhase = s.phase;
     const secs = s.sectors || [];
     for (let did = 0; did < 6; did++) {
@@ -422,8 +429,40 @@ export function createScene(canvas, opts = {}) {
     resize();
   }
 
+  /** the player's job districts: the contract's, or the tail in the rival phase */
+  function jobIds(st) {
+    if (!st) return null;
+    if (st.contract && st.contract.sectors) return st.contract.sectors;
+    if (st.phase === 'rival' && st.rival && st.rival.tail != null) return [st.rival.tail];
+    return st.attack ? st.attack.sectors || st.attack.chain : null;
+  }
   function frame(target, o = {}) {
+    if (target === 'job') {
+      const ids = jobIds(lastState);
+      if (!ids || !ids.length) target = 'city';
+      else { rig.jobExtra = null; rig.frame('job', { ...o, chain: ids }); jobFitT = vt; return; }
+    }
     rig.frame(target, { ...o, chain: lastState && lastState.attack ? lastState.attack.chain : undefined });
+  }
+  // during the guided contract the frame follows a truck on its way, then settles on the site (review V1)
+  let jobFitT = 0;
+  const jobExtra = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const jobPts = [];
+  function refitJob(st) {
+    if (!st || rig.lastFrame !== 'job' || vt - jobFitT < 0.5) return;
+    jobFitT = vt;
+    const ids = jobIds(st);
+    if (!ids || !ids.length) return;
+    jobPts.length = 0;
+    const guided = st.progress && st.progress.ftue !== 'done';
+    if (guided && actors && actors.anchor) {
+      for (const v of st.fleet || []) {
+        if (v.state !== 'enroute' || jobPts.length >= jobExtra.length || !ids.includes(v.sector)) continue;
+        const p = actors.anchor(`vehicle:${v.id}`, jobExtra[jobPts.length]);
+        if (p) jobPts.push(p);
+      }
+    }
+    rig.refitJob(ids, jobPts);
   }
 
   // ---------------------------------------------------------------- facade
@@ -448,6 +487,7 @@ export function createScene(canvas, opts = {}) {
       fps.tick(realNow, state && state.phase === 'attack');
       if (fps.hint()) onEvent('quality-hint', { fps: Math.round(fps.fps()) });
       if (slowUntil > 0 && vt > slowUntil) { timeScale = 1; slowUntil = -1; }
+      if (cityAt > 0 && vt >= cityAt) { cityAt = -1; rig.frame('city', { zoom: 'city', duration: 1.2 }); }
       world.timeScale = timeScale;
       const vdt = dt * timeScale;
       setVisualTime(vt + vdt);
@@ -461,6 +501,7 @@ export function createScene(canvas, opts = {}) {
       traffic.update(vt);
       fx.update();
       if (actors) actors.update(state, vdt, vt);
+      refitJob(state);
       rig.update(dt, vt);
       if (render) renderFrame();
     },
@@ -482,6 +523,8 @@ export function createScene(canvas, opts = {}) {
         case 'return': yard.openGate(5.0, vt); break;
         case 'factory-done': yard.factoryDone(p && p.rid); break;
         case 'rare': timeScale = 0.35; slowUntil = vt + 0.4 * 0.35; break;
+        case 'clean': if (p && p.sectorId !== undefined) lastClean = p.sectorId; break;
+        case 'contract-start': lastClean = null; break;
         default: break;
       }
       if (actors && actors.event) actors.event(type, p);
@@ -513,7 +556,8 @@ export function createScene(canvas, opts = {}) {
       return {
         drawCalls: stat.drawCalls, triangles: stat.triangles,
         geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs ? renderer.info.programs.length : 0,
-        fps: Math.round(fps.fps()), quality, vehicles: a.vehicles || 0, particles: (fx ? fx.count() : 0) + (a.particles || 0),
+        // particles = live one-shot juice (cap 300, DESIGN §8); particlePool = allocated capacity incl. the per-fire pools
+        fps: Math.round(fps.fps()), quality, vehicles: a.vehicles || 0, particles: (fx ? fx.live() : 0) + (a.particles || 0), particlePool: (fx ? fx.count() : 0),
         jobs: jobs.jobs.length,
       };
     },

@@ -17,7 +17,7 @@ export function createPanel(ctx) {
   const blip = h('i.radar__blip');
   const nextName = h('div.next__name');
   const nextLine = h('div.next__meta');
-  const loot = h('div.next__loot', h('span', { text: 'Çıkacak' }));
+  const loot = h('div.next__loot', h('span', { text: 'Çıkacak parçalar' }));
   const skip = button({ cls: 'ghost sm', icon: 't-skip', iconSize: 18, onTap: (e, b) => ctx.act('skipRadar', null, b) });
   const next = h('div.card.next.glass',
     h('div.radar', blip),

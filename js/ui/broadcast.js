@@ -72,12 +72,13 @@ export function createBroadcast(ctx) {
         flash.classList.remove('go');
         void flash.offsetWidth;
         flash.classList.add('go');
+        setTimeout(() => flash.classList.remove('go'), 320); // the white layer exists only while it flashes
       }
     },
     frame(s) {
       if (!on || dropId == null) return;
       ctx.project(`district:${dropId}`, P);
-      const vis = P.visible && stage !== 'open';
+      const vis = P.visible && stage === 'tv'; // the profile shot of the fall needs no marker
       C(track, 'show', vis);
       if (vis) S(track, 'transform', `translate3d(${P.x.toFixed(1)}px,${P.y.toFixed(1)}px,0)`);
     },

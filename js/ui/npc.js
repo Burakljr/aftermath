@@ -10,6 +10,7 @@ export function createNpc(ctx) {
   ctx.L.bubble.appendChild(card);
   let dismissed = '';
   let shown = '';
+  let tab = ctx.view.tab;
   tap(card, () => {
     dismissed = shown;
     C(card, 'on', false);
@@ -18,6 +19,11 @@ export function createNpc(ctx) {
     update(s) {
       const n = s.phase === 'attack' || ctx.view.title ? null : ctx.game.npcCard(s);
       const key = n ? `${n.who}|${n.text}` : '';
+      // a tab change dismisses the current line (playtest m5): it belonged to the screen the player left
+      if (ctx.view.tab !== tab) {
+        tab = ctx.view.tab;
+        if (shown) dismissed = shown;
+      }
       const PAGES = ctx.activeSheet === 'depot' || ctx.activeSheet === 'factory' || ctx.activeSheet === 'company';
       const sheetBlocks = !!ctx.activeSheet && ctx.activeSheet !== 'district' && !PAGES;
       C(card, 'top', PAGES);

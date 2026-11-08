@@ -22,17 +22,27 @@ export function createFloats(ctx) {
     ctx.project(`district:${sector}`, P);
     return P.visible ? { x: P.x, y: P.y } : null;
   }
+  /** float origin: 8 px above the district chip when one is shown (review V4), else above the anchor */
+  function floatAt(sector) {
+    const c = sector != null && ctx.chipTop ? ctx.chipTop(sector) : null;
+    if (c) return { x: c.x, y: c.y - 8, chip: true };
+    const p = at(sector);
+    return p ? { x: p.x, y: p.y - 40, chip: false } : null;
+  }
 
-  // floats born together over the same spot stack upward instead of printing on top of each other
-  const stack = { t: -1e9, x: 0, y: 0, n: 0 };
-  function addFloat(text, pt, kind) {
+  // each district has its own lane: floats born together over one chip stack upward instead of overprinting
+  const lanes = new Map();
+  function addFloat(text, pt, kind, sector) {
     if (!pt) return;
     while (live.length >= MAX_FLOATS) live.shift().remove();
     const now = performance.now();
-    stack.n = now - stack.t < 450 && Math.abs(pt.x - stack.x) < 60 && Math.abs(pt.y - stack.y) < 60 ? (stack.n + 1) % MAX_FLOATS : 0;
-    stack.t = now; stack.x = pt.x; stack.y = pt.y;
+    const key = sector == null ? -1 : sector;
+    const lane = lanes.get(key) || { t: -1e9, n: 0 };
+    lane.n = now - lane.t < 700 ? (lane.n + 1) % MAX_FLOATS : 0;
+    lane.t = now;
+    lanes.set(key, lane);
     const el = h(`div.float${KIND_CLASS[kind] ? `.${KIND_CLASS[kind]}` : ''}`, { text });
-    el.style.transform = `translate3d(${pt.x.toFixed(1)}px,${(pt.y - 78 - stack.n * 24).toFixed(1)}px,0)`;
+    el.style.transform = `translate3d(${pt.x.toFixed(1)}px,${(pt.y - 22 - lane.n * 22).toFixed(1)}px,0)`;
     world.appendChild(el);
     live.push(el);
     setTimeout(() => {
@@ -66,10 +76,11 @@ export function createFloats(ctx) {
       income(text);
       return;
     }
-    addFloat(text, at(sector), kind);
+    addFloat(text, floatAt(sector), kind, sector);
   });
   on('part', ({ sectorId, item }) => {
-    queue.push({ item, from: at(sectorId) });
+    const f = floatAt(sectorId);
+    queue.push({ item, from: f ? { x: f.x, y: f.y } : null });
   });
   on('rare', ({ sectorId, item }) => rareCard(item, at(sectorId)));
   /** coins arc between a button and the cash plate. dir 'in' (earn) or 'out' (spend) */
@@ -111,6 +122,8 @@ export function createFloats(ctx) {
     coinsFrom,
     flyItem,
     frame(s, now) {
+      // part icons never fly across a full-screen sheet (the receipt): pending flights are dropped (playtest M9)
+      if (ctx.activeSheet && ctx.activeSheet !== 'district') queue.length = 0;
       if (queue.length && now - lastPart >= 120) {
         lastPart = now;
         const q = queue.shift();

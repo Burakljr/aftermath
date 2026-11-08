@@ -63,7 +63,9 @@ export function createObjective(ctx) {
       C(bar, 'has-reward', !!o.reward);
       // no headline swap while a guided step needs its objective line
       const fv = game.ftueView(s);
-      const n = attack || (fv && fv.dim) ? null : game.headline(s);
+      // nor in the first 8 s of a contract, when the player needs to know what to do (playtest m6)
+      const early = s.phase === 'cleanup' && s.contract && s.contract.elapsed < 8;
+      const n = attack || early || (fv && fv.dim) ? null : game.headline(s);
       const ht = n ? n.text : '';
       if (ht !== hlShown) {
         hlShown = ht;

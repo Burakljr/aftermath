@@ -302,7 +302,7 @@ Invariants: `s.attack` is non-null whenever `phase === 'attack'`; `s.contract` i
 - Calm length: 15 s after the FTUE (fixer round 1: playtest M11, the first calm felt stalled), 35 s for contracts #2-#4, 45 s later, 60 s once `upkeep` and `offers` are unlocked.
 - Rıza: unit = base × 0.6 × market.m × (1 − drop); drop +0.01 per unit sold, linear recovery to 0 over 60 s. FTUE: drop off, m = 1 (exact 472).
 - Upkeep: 1.2 /s per tier (72 bin ₺/dk); cost `round10(350 × 1.85^tier)`; tier cap 3 (4 after G14); paused while `damaged`. `'income'` event every 10 s.
-- Offline (after G7): rate × min(away, 4 h) × 0.5, shown as a notice, credited on "Kasaya al".
+- Offline (after G7): rate × min(away, 2 h) × 0.25, shown as a notice, credited on "Kasaya al" (fixer round 1, playtest m14: 4 h × 0.5 was a windfall). The radar waits while the notice is open and keeps at least 15 s.
 - Foreman (Vardiya şefi, after G11): one-time 2500; every 1 s sends idle vehicles by the greedy rule in `tender.js`.
 - FTUE money check (test): 1500 + 900 + 225 + 472 − 680 = 2417.
 
@@ -333,7 +333,7 @@ Integrator edits (nothing else changes):
 | `wipe(storage)` | removes v2 key only; returns `newState()` |
 | `hasV1Save(storage)` | boolean; main pushes the `'v1'` notice for a fresh state when true |
 | `tick(s, dt)` | advances the game; clamps dt to 0.1 and substeps at ≤ 0.05; emits bus events synchronously |
-| `applyOffline(s, seconds)` | if unlocked.offline: queues an `'offline'` notice; in calm reduces `timer` (min 3 s); never advances a contract clock |
+| `applyOffline(s, seconds)` | if unlocked.offline: queues an `'offline'` notice; in calm reduces `timer` (min 15 s); never advances a contract clock |
 | `setSeed(n)` / `setRandom(fn)` | test determinism |
 
 ### 4.2 Actions
@@ -505,7 +505,7 @@ const scene = createScene(canvas, { quality:'high'|'low', band:{ top, bottom }, 
 | `event(type, payload)` | bus events forwarded by main (one-shot visuals: steam, crate pop, van, ring, swaps) |
 | `setBand({ top, bottom })` | insets in CSS px: `top` = distance from the canvas top to the band (HUD + objective), `bottom` = distance from the canvas bottom to the band (bottom panel / sheet height). Camera uses a view offset so framed targets sit in the band. The lab mock is `{ top: 96, bottom: 260 }` |
 | `setQuality(q)`, `quality()` | 'high' / 'low' (5.5) |
-| `frame(target, { zoom:'city'|'district', duration = 0.7, instant = false })` | target `'city'`, `'district:<id>'`, `'district:<id>+yard'`, `'chain'`, `'yard'`. Eased (cubic in-out), never instant unless asked |
+| `frame(target, { zoom:'city'|'district', duration = 0.7, instant = false })` | target `'city'`, `'district:<id>'`, `'district:<id>+yard'`, `'chain'`, `'yard'`, `'job'`. Eased (cubic in-out), never instant unless asked. `'job'` (fixer round 1) fits the player's job districts (contract sectors, or the tail in the rival phase) with headroom for their chips, never closer than about the district zoom, and re-fits every 0.5 s while it is the live frame (during the guided contract it also includes trucks on their way). main frames `'job'` on `contract-start` / `rival-start`, and maps the UI's `'city'` to `'job'` while a job runs. On a new `result` the scene closes on the last cleaned district, then pulls out to `'city'` after 1 s |
 | `zoomTo(stop)`, `panBy(dxCss, dyCss)` | gestures from main; pan only in 'district' zoom, clamped to map bounds |
 | `shake(amount)` | 0..1 trauma |
 | `pick(clientX, clientY)` | `{ type:'vehicle', id }` (screen distance ≤ 28 CSS px wins) → `{ type:'district', id }` (whole cell incl. half the surrounding roads) → `{ type:'yard' }` (below the ring road) → `null` |
@@ -513,7 +513,7 @@ const scene = createScene(canvas, { quality:'high'|'low', band:{ top, bottom }, 
 | `setHighlight(ids | id | null, kind)` | kinds: `'select'` (translucent fill + 4 corner brackets, yellow), `'pulse'` (orange 1 Hz, FTUE/attention target), `'accept'` (soft glow on districts that accept the chosen vehicle type). Each kind is an independent layer. `'spread'` (red 2 Hz) is drawn by the scene from `sectors[].warnTo` |
 | `playAttack(desc)` | preview only (labs, title loops): `{ skip(), done:Promise, t }`, runs its own clock over the same pose function. In game the scene follows `state.attack.t` |
 | `setTime(t)` | deterministic visual time (lab `__setTime`) |
-| `stats()` | `{ drawCalls, triangles, geometries, textures, programs, fps, quality, vehicles, particles }` (triangles include the shadow pass) |
+| `stats()` | `{ drawCalls, triangles, geometries, textures, programs, fps, quality, vehicles, particles, particlePool }` (triangles include the shadow pass; `particles` = live one-shot juice particles, capped at 300; `particlePool` = allocated capacity incl. the per-fire pools) |
 | `resize()`, `dispose()` | |
 
 `onEvent` emits only view events: `'attack:cut'`, `'attack:impact'`, `'attack:end'` (useful for UI timing, optional), `'quality-hint' {fps}`.

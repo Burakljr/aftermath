@@ -71,7 +71,7 @@ export function createRubble(scene, { fx, quality }) {
         const s = size * (slab ? 2.6 : 1.6);
         const y = 0.2 + mound * (0.5 + R() * 0.5) + s * 0.1;
         let col = LIGHT[Math.floor(R() * LIGHT.length)];
-        if (R() < 0.35) col = color;
+        if (R() < 0.2) col = color; // mostly light concrete: the heaps read apart from the dark carcass (review V6)
         items.push({ proto, x: px, y, z: pz, rx: (R() - 0.5) * (slab ? 1.4 : 3), ry: R() * 6.28, rz: (R() - 0.5) * (slab ? 1.4 : 3), sx: s * (0.8 + R() * 0.5), sy: s * (0.7 + R() * 0.5), sz: s * (0.8 + R() * 0.5), col, h: mound });
       }
     };
@@ -79,7 +79,7 @@ export function createRubble(scene, { fx, quality }) {
     // one street pile on the perimeter road nearest the source: it visibly blocks the road
     const src = plan.caps[0];
     const sp = streetPileSpot(did, (src.ax + src.bx) / 2, (src.az + src.bz) / 2, plan.caps[0].r > 3 ? plan.caps : null);
-    addPile({ x: sp.x, z: sp.z, radius: 7, height: 2.6, count: 46, sx: sp.axis === 'z' ? 0.8 : 1.2, sz: sp.axis === 'z' ? 1.2 : 0.8, color: 0x8a8278 });
+    addPile({ x: sp.x, z: sp.z, radius: 8, height: 4.6, count: 58, sx: sp.axis === 'z' ? 0.8 : 1.2, sz: sp.axis === 'z' ? 1.2 : 0.8, color: 0x8a8278 });
     yield;
     items.sort((a, b) => a.h - b.h);
     const B = new Builder(did * 7 + 9);

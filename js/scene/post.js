@@ -157,7 +157,8 @@ export class Post {
     r.setRenderTarget(this.rtScene);
     r.render(scene, camera);
     const calls = r.info.render.calls, tris = r.info.render.triangles;
-    this.stats = { sceneCalls: calls, sceneTris: tris };
+    if (!this.stats) this.stats = { sceneCalls: 0, sceneTris: 0 }; // reused: no per-frame allocation
+    this.stats.sceneCalls = calls; this.stats.sceneTris = tris;
     this.grade.tScene.value = this.rtScene.texture;
     if (!this.bloomOn) {
       this.grade.tBloomA.value = this.rtScene.texture; this.grade.tBloomB.value = this.rtScene.texture;

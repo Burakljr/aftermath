@@ -306,8 +306,12 @@ export function tenderGrid(s) {
   const bubble = t.rec && bi < 3
     ? { index: bi, text: typeof bubbles[bi] === 'function' ? bubbles[bi](fmtTime(e.mid)) : bubbles[bi], anchor: ['grid', 'estimate', 'rival'][bi] }
     : null;
+  // every job district, not only the carcass chain (playtest m7)
+  const all = a.sectors.map((id) => D(id).name);
+  const list = all.length > 1 ? `${all.slice(0, -1).join(', ')} ve ${all[all.length - 1]}` : all[0] || '';
+  const sub = `${all.length > 3 ? `${fmtInt(all.length)} bölge: ${list}.` : all.length > 1 ? `${list} bölgeleri.` : `${list} bölgesi.`} Parçalar kazananın.`;
   return {
-    title: TENDER.title(names), cols: TENDER.cols.slice(), legend: TENDER.legend,
+    title: TENDER.title(names), sub, cols: TENDER.cols.slice(), legend: TENDER.legend,
     summary: { fires, firesText: `${fires} yangın`, rubble: fmtTon(rubble), corpse: fmtTon(corpse) },
     estimate: { lo: e.lo, mid: e.mid, hi: e.hi, text: TENDER.estimate(fmtTime(e.mid), fmtTime(e.lo), fmtTime(e.hi)) },
     rows,
@@ -541,7 +545,8 @@ export function company(s) {
     return {
       type, name: CREWS[type].name, owned: owned(s, type), ownedText: COMPANY.owned(owned(s, type)),
       price: vehicleCost(s, type), priceText: fmtMoney(vehicleCost(s, type)), canBuy: !reason && ftueAllows(s, `buyVehicle:${type}`),
-      reason: reason || (ftueAllows(s, `buyVehicle:${type}`) ? null : FTUE_BLOCKED), desc: CREWS[type].desc,
+      reason: reason || (ftueAllows(s, `buyVehicle:${type}`) ? null : FTUE_BLOCKED),
+      desc: type === 'fire' && owned(s, type) >= 2 ? 'Her yeni araç yangını daha hızlı söndürür.' : CREWS[type].desc,
       primary: fv && type === 'fire' && !reason,
     };
   });

@@ -204,12 +204,12 @@ test('upkeep: tiers, costs, paused while damaged, income event every 10 s', () =
   assert.equal(act(s, 'signUpkeep', { sector: 1 }).reason, 'En üst kademede');
 });
 
-test('offline income after G7 only, capped and halved, credited on ack', () => {
+test('offline income after G7 only, capped at 2 h and quartered, credited on ack', () => {
   const s = debugScenario('late');
   const rate = upkeepRate(s);
   const m0 = s.money;
   const amt = applyOffline(s, 10 * 3600);
-  assert.equal(amt, Math.round(rate * 4 * 3600 * 0.5));
+  assert.equal(amt, Math.round(rate * 2 * 3600 * 0.25));
   assert.equal(s.notices[0].kind, 'offline');
   assert.equal(s.money, m0);
   act(s, 'ackNotice');
@@ -217,7 +217,7 @@ test('offline income after G7 only, capped and halved, credited on ack', () => {
   const f = debugScenario('calm');
   assert.equal(applyOffline(f, 3600), 0);
   assert.equal(f.notices.length, 0);
-  assert.equal(f.timer, 3, 'radar shortened to 3 s');
+  assert.equal(f.timer, 15, 'radar shortened to 15 s');
 });
 
 test('factory: recipes gated, lines, material copy, auto-repeat after G11', () => {

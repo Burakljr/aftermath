@@ -132,7 +132,7 @@ export const BAL = {
   // upkeep
   upkeepRate: 1.2, upkeepBase: 350, upkeepMult: 1.85, upkeepCap: 3, upkeepCap4: 4, incomeEvery: 10,
   // offline
-  offlineCap: 4 * 3600, offlineRate: 0.5, offlineMinTimer: 3,
+  offlineCap: 2 * 3600, offlineRate: 0.25, offlineMinTimer: 15,
   // upgrades
   foremanCost: 2500, foremanEvery: 1,
   equipBase: 900, equipMult: 1.8, equipMax: 5,

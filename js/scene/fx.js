@@ -433,10 +433,17 @@ void main(){
     uniforms: { uT: { value: -1 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `uniform float uT; varying vec2 vUv;
+      float h1(vec2 q){ return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453); }
+      float vn(vec2 q){ vec2 i = floor(q), f = fract(q); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h1(i), h1(i + vec2(1.0, 0.0)), f.x), mix(h1(i + vec2(0.0, 1.0)), h1(i + vec2(1.0, 1.0)), f.x), f.y); }
       void main(){ if (uT < 0.0) discard; vec2 p = (vUv - 0.5) * 2.0; float r = length(p);
-        float front = 1.0 - exp(-uT * 3.0); float d = abs(r - front);
-        float a = (1.0 - smoothstep(0.0, 0.05 + 0.08 * uT, d)) * (1.0 - smoothstep(0.3, 1.1, uT)) * step(r, 1.0) * smoothstep(0.0, 0.05, uT);
-        gl_FragColor = vec4(vec3(1.0, 0.85, 0.65) * a * 0.7, 1.0); }`,
+        // soft, noise-eroded dust front (review V3: no flat disc with a hard rim)
+        float ang = atan(p.y, p.x);
+        float er = vn(vec2(ang * 5.0 + 3.0, r * 6.0 - uT * 2.0)) * 0.7 + vn(vec2(ang * 13.0, r * 14.0)) * 0.3;
+        float front = (1.0 - exp(-uT * 3.0)) * (0.88 + 0.16 * er); float d = abs(r - front);
+        float a = (1.0 - smoothstep(0.0, 0.12 + 0.14 * uT, d)) * (1.0 - smoothstep(0.25, 1.0, uT)) * smoothstep(0.0, 0.05, uT) * (1.0 - smoothstep(0.85, 1.0, r));
+        a *= smoothstep(0.3, 0.75, er);
+        gl_FragColor = vec4(vec3(1.0, 0.85, 0.65) * a * 0.32, 1.0); }`,
   });
   const ringM = new THREE.Mesh(ringG, ringMat); ringM.renderOrder = 4; ringM.visible = false; ringM.name = 'ring';
   group.add(ringM);
@@ -621,6 +628,13 @@ void main(){
     },
     flashLevel() { const ft = now - flashState.t0; return ft >= 0 && ft < flashState.dur ? Math.pow(1 - ft / flashState.dur, 2) : 0; },
     count() { return NF + NS + NE + NP + NG + JETS * 36; },
+    /** live one-shot juice particles (puffs + sparks/arcs) at the current visual time; the DESIGN §8 cap of 300 applies here */
+    live() {
+      let n = 0;
+      for (let i = 0; i < NP; i++) { const t = now - pe.array[i * 4 + 3]; if (t >= 0 && t < px.array[i * 4 + 3]) n++; }
+      for (let i = 0; i < NG; i++) { const t = now - ge.array[i * 4 + 3]; if (t >= 0 && t < gx.array[i * 4 + 3]) n++; }
+      return n;
+    },
     dispose() { flameRT.dispose(); smokeTex.dispose(); group.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); scene.remove(group); },
   };
   return api;

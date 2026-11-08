@@ -214,7 +214,7 @@ export const RIVAL_COPY = {
 export const CALM = {
   next: 'Sıradaki iş',
   eta: (t) => `Radar ${t}`,
-  line: 'Magmadon kıyıya yaklaşıyor.',
+  line: 'Kıyıya yaklaşıyor.',
   lineMutant: 'Radar alışılmadık bir iz görüyor.',
   skip: 'Sıradaki işe geç',
   sellParts: (n) => `Depoda ${fmtInt(n)} parça var`,
@@ -301,6 +301,8 @@ export const UNITS = { contract: 'sözleşme', part: 'parça', vehicle: 'araç',
 
 export const NEWS = {
   attack: 'Magmadon Liman açıklarında. KALKAN-07 sahada.',
+  // later attacks rotate so the archive does not repeat one line (playtest m11)
+  attackAgain: ['Körfezde alarm. KALKAN-07 yine yolda.', 'Magmadon yeniden kıyıda. Esnaf kepenk indirdi.', 'Liman yine boşaltıldı. KALKAN-07 sahada.', 'Sahil yolunda sirenler. Magmadon karaya çıkıyor.'],
   mutant: 'Uzmanlar gelen canavarın rengini doğal bulmuyor.',
   won: (deadline) => `Temizlik ihalesi Aftermath'in. Söz: ${fmtDur(deadline)}.`,
   lost: "İhale Süpürge Holding'e gitti. Kuyruk Aftermath'e kaldı.",

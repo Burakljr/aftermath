@@ -119,7 +119,7 @@ export function createDepot(ctx) {
         sell.addEventListener('contextmenu', (e) => e.preventDefault());
         const tile = h(`div.tile${it.rare ? '.rare' : ''}`, icon(ITEM_ICON[it.key] || 'g-crate', 24, `item-${it.key}`), it.rare ? h('span.tag.gold.rare-tag', { text: 'Nadir' }) : null);
         rowsEl.appendChild(h('div.row', tile, h('div', name, stock), h('div.spark', spark, delta), sell));
-        rowRefs[it.key] = { name, stock, path, delta, dIcon, dText, sell, sellMain, sellSub, histKey: '' };
+        rowRefs[it.key] = { name, stock, path, spark, delta, dIcon, dText, sell, sellMain, sellSub, histKey: '' };
       }
       return {};
     });
@@ -147,6 +147,10 @@ export function createDepot(ctx) {
         if (hk !== r.histKey) {
           r.histKey = hk;
           A(r.path, 'd', sparkPath(hist));
+          // no price history yet: no flat placeholder line (playtest m21)
+          const moved = !!hist && hist.length > 1 && hist.some((v) => Math.abs(v - hist[0]) > 1e-6);
+          S(r.spark, 'visibility', moved ? '' : 'hidden');
+          S(r.delta, 'visibility', moved ? '' : 'hidden');
         }
         const [ic, word] = TREND[it.trend] || TREND.flat;
         show(r.dIcon, !!ic);

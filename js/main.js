@@ -113,18 +113,17 @@ let scene = null;
 for (const ev of SCENE_EVENTS) on(ev, (p) => { if (scene && booted) scene.event(ev, p); });
 
 // camera director (ARCH 8.3): the UI frames on select / close, the attack director owns the camera during the attack
-on('ftue', ({ step, prev }) => {
-  if (scene && step === 'fire' && prev === 'call') scene.frame('district:1+yard', { duration: 0.8 });
-});
-on('contract-done', () => { if (scene) scene.frame('city', { zoom: 'city', duration: 1.2 }); });
+// a contract frames its job districts (review V1 / playtest M6): chips fit in the band, the work is big enough to follow
+on('contract-start', () => { if (scene) scene.frame('job', { duration: 0.9 }); });
+on('rival-start', () => { if (scene) scene.frame('job', { duration: 0.9 }); });
+// contract-done: the scene holds on the last cleaned district, then pulls out to the city itself (scene.js result framing)
 
-// the UI frames 'city' when a sheet closes; during the guided contract (one district) the home shot is Konak + the yard,
-// so the first trucks stay big enough to follow on a phone
-const FTUE_WORK = new Set(['fire', 'rubble', 'carve']);
+// the UI frames 'city' when a sheet closes; while a job runs the home shot is the job framing instead (the job districts,
+// and during the guided contract the truck on its way), so the work stays big enough to follow on a phone
 function sceneForUI(sc) {
   return Object.assign(Object.create(sc), {
     frame(target, o) {
-      if (target === 'city' && s.phase === 'cleanup' && FTUE_WORK.has(s.progress.ftue)) return sc.frame('district:1+yard', o);
+      if (target === 'city' && (s.phase === 'cleanup' || s.phase === 'rival') && !s.result) return sc.frame('job', { ...o, zoom: undefined });
       return sc.frame(target, o);
     },
   });
@@ -154,6 +153,7 @@ async function boot() {
   ui.setScene(sceneForUI(scene));
   ui.render(s, performance.now());
   await scene.prime(s);
+  frameJobIfWorking(true);
   ui.loading.set(1);
   if (!fresh && s.lastSave) {
     const away = (Date.now() - s.lastSave) / 1000;
@@ -314,10 +314,14 @@ function resetView() {
     scene.frame('city', { zoom: 'city', instant: true });
   }
 }
+function frameJobIfWorking(instant) {
+  if (scene && (s.phase === 'cleanup' || s.phase === 'rival') && !s.result) scene.frame('job', { instant, duration: 0.9 });
+}
 async function useState(next) {
   s = next;
   resetView();
   if (scene) await scene.prime(s);
+  frameJobIfWorking(true);
   ui.refresh();
   ui.render(s, performance.now());
   return s;
