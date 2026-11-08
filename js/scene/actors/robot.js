@@ -255,7 +255,7 @@ export function createRobot(sharedMat) {
   pose(standPoseR());
   function lights(on) { lampMat.color.setScalar(on ? 4.5 : 0.2); beaconMat.color.setRGB(on ? 5.5 : 0.3, on ? 2.6 : 0.1, 0.3); }
   function thrust(k) { jetMat.opacity = Math.min(1, k); for (const j of jets) { j.visible = k > 0.01; j.scale.set(0.7 + 0.3 * k, 0.4 + 0.8 * k, 0.7 + 0.3 * k); } }
-  group.traverse((o) => { if (o.isMesh && o.material !== jetMat) { o.castShadow = true; o.receiveShadow = true; } });
+  group.traverse((o) => { if (o.isMesh) { const big = o.material === mat; o.castShadow = big; o.receiveShadow = big; } });
   thrust(0);
   return { group, J, pose, lights, thrust, visorMat };
 }
