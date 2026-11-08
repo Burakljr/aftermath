@@ -30,7 +30,7 @@ addEventListener('error', (e) => errors.push(String(e.message)));
 
 function emit(type, payload) { events.push([type, payload]); scene.event(type, payload); }
 function setState(s, { juice = true } = {}) {
-  state = s; window.lab.state = s;
+  state = s; window.lab.state = s; window.lab.step = (dt) => { sim.step(state, dt); scene.update(state, dt); };
   if (!juice) return scene.prime(s);
   scene.update(s, 0);
   return Promise.resolve();
@@ -73,7 +73,7 @@ function sep() { const d = document.createElement('div'); d.className = 'sep'; p
 function rebuild(over) { Object.assign(opts, over); setState(fakeState(opts), { juice: false }).then(() => applyFraming(false)); }
 
 await scene.ready;
-window.lab = { state, step: (dt) => { sim.step(state, dt); scene.update(state, dt); }, scene, emit, setState, fakeState, opts, events, errors, rebuild, sim };
+window.lab = { state, step: (dt) => { sim.step(state, dt); scene.update(state, dt); }, scene, emit, setState, fakeState, opts, events, errors, rebuild, sim, live: (on) => { live = !!on; } };
 await scene.prime(state);
 applyFraming(true);
 if (opts.t !== null && opts.t !== undefined) window.__setTime(opts.t); else scene.update(state, 0);

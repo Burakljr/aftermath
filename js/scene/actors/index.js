@@ -19,6 +19,13 @@ export function createActors(world) {
   const buyer = createBuyer(world, { fleet });
   const _v = new THREE.Vector3(), _c = new THREE.Vector3();
   let lastT = 0, lastState = null;
+  // a state-shaped stand-in for scene.playAttack previews (no game state behind them)
+  const pv = { phase: 'attack', attack: null, sectors: Array.from({ length: 6 }, (_, id) => ({ id, damaged: false, corpse: 0, corpseMax: 0 })) };
+  function previewState(a) {
+    pv.attack = a;
+    for (const sec of pv.sectors) { const on = a.chain.includes(sec.id); sec.damaged = on && a.hit; sec.corpseMax = on ? 40 : 0; sec.corpse = sec.corpseMax; }
+    return pv;
+  }
 
   return {
     drawsCorpse: true,                   // the lab hides its placeholder carcass
@@ -27,7 +34,8 @@ export function createActors(world) {
       const s = state || lastState;
       work.setState(s);
       attack.update(s, t, dt);
-      corpse.update(s, t, dt, attack);
+      const pa = attack.previewState();
+      corpse.update(pa ? previewState(pa) : s, t, dt);
       fleet.update(s, t, dt);
       buyer.update(s, t, dt);
     },

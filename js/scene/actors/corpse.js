@@ -25,6 +25,7 @@ export function createCorpse(world) {
   model.group.updateMatrixWorld(true);
   let minY = 1e9; for (const p of model.hullPoints(5)) minY = Math.min(minY, p.y);
   model.root.position.y = -minY;
+  const LIFT = -minY;
   const headW = model.worldPoint('head').clone(), eyeW = model.worldPoint('eye').clone();
   const plateW = []; for (let k = 0; k < model.plateCount; k++) plateW.push(model.plateCentre(k).clone());
   const bake = model.bakeGeometry();
@@ -55,8 +56,16 @@ export function createCorpse(world) {
   const glint = new THREE.Sprite(glintMat); glint.visible = false; glint.renderOrder = 30; world.scene.add(glint);
   let glintT = -99, glintPos = new THREE.Vector3(), glintGreen = false;
 
-  // ---- per placement
+  // ---- per placement (layout.corpsePlacement is pure: cache it per attack object)
   let key = '', P = null, fit = null;
+  const plCache = { a: null, n: -1, chain: '', mutant: false, pl: null }, fitCache = { pl: null, fit: null };
+  function placementFor(a) {
+    if (!a || !a.chain || !a.chain.length) return null;
+    if (plCache.a === a && plCache.n === a.n && plCache.mutant === !!a.mutant && plCache.len === a.chain.length && plCache.c0 === a.chain[0]) return plCache.pl;
+    plCache.a = a; plCache.n = a.n; plCache.mutant = !!a.mutant; plCache.len = a.chain.length; plCache.c0 = a.chain[0];
+    plCache.pl = world.corpsePlacement(a);
+    return plCache.pl;
+  }
   const parts = [];                      // { id, u0, u1, f (shown front), step, started, tStep }
   const vents = [];
   let tHit = -99, shown = false, mutant = false;
@@ -109,12 +118,12 @@ export function createCorpse(world) {
     model, bakeMs,
     get fit() { return fit; },
     get placement() { return P; },
-    fitFor(attack) { const pl = world.placement() || world.corpsePlacement(attack); return pl ? computeFit(pl, attack && attack.mutant) : null; },
+    fitFor(attack) { const pl = placementFor(attack); if (!pl) return null; if (fitCache.pl !== pl) { fitCache.pl = pl; fitCache.fit = computeFit(pl, attack.mutant); } return fitCache.fit; },
+    bakeXC: () => XC, bakeLift: () => LIFT,
     update(state, t, dt) {
       const a = state && state.attack;
-      const pl = a ? world.placement() || world.corpsePlacement(a) : null;
-      const k = pl ? `${pl.x.toFixed(1)},${pl.z.toFixed(1)},${pl.length.toFixed(1)},${a.n},${a.mutant ? 1 : 0}` : '';
-      if (k !== key) { key = k; if (pl) place(pl, a); else P = null; tHit = -99; }
+      const pl = a ? placementFor(a) : null;
+      if (pl !== key) { key = pl; if (pl) place(pl, a); else P = null; tHit = -99; }
       let show = false;
       if (P && a && (a.hit || (state.phase !== 'attack'))) {
         for (const p of parts) {
@@ -153,7 +162,8 @@ export function createCorpse(world) {
       model.U.uTime.value = t;
       // steam vents
       for (const v of vents) {
-        const p = parts.find((q) => v.u >= q.u0 && v.u < q.u1 + 1e-4);
+        let p = null;
+        for (const q of parts) if (v.u >= q.u0 && v.u < q.u1 + 1e-4) p = q;
         if (p && (p.f >= 0.999 || (p.u1 - v.u) / (p.u1 - p.u0) < p.f + 0.1)) continue;
         if (dt > 0 && t - v.t > 1.5) { v.t = t + Math.random() * 0.3; world.fx.steam(v.p.x, v.p.y, v.p.z, 2, { size: 9 * fit.kw * fit.s, life: 2.4, spread: 2 }); }
       }

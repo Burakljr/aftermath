@@ -222,6 +222,7 @@ export function createFleet(world, { work, route }) {
   }
 
   let currentList = [];
+  const pendingIn = new Map();
   function sync(list, rival, t, dt) {
     currentList = list;
     for (let i = 0; i < list.length; i++) {
@@ -255,6 +256,14 @@ export function createFleet(world, { work, route }) {
     if (e.state === 'yard') {
       work.idle(u);
       if (u.rival || u.bay >= 8) { M.visible = false; if (A) A.visible = false; M.beaconOn = false; return; }
+      const pend = pendingIn.get(u.id);
+      if (pend !== undefined) { pendingIn.delete(u.id); u.inT = pend; const P = u.legMain; P.clear(); P.route(world, 'BUYER', homeNode(u)); const b0 = bayPos(u); P.push(b0.x, b0.z); }
+      if (u.inT !== undefined && t - u.inT < 5.5 && t >= u.inT) {
+        const k = (t - u.inT) / 5.5, P = u.legMain;
+        follow(M, P, k * k * (3 - 2 * k) * P.len, true, bayPos(u).yaw);
+        M.beaconOn = true; if (A) A.visible = false;
+        return;
+      }
       const b = bayPos(u);
       M.x = b.x; M.z = b.z; M.yaw = b.yaw; M.visible = true; M.beaconOn = false;
       if (A) A.visible = false;
@@ -360,6 +369,7 @@ export function createFleet(world, { work, route }) {
       return out.set(u.main.x, u.main.mesh.position.y + u.main.kit.meta.h + 2, u.main.z);
     },
     each(fn) { for (const u of order) fn(u); },
+    driveIn(id, t) { pendingIn.set(id, t); const u = units.get(id); if (u) u.inT = undefined; },
     count() { let n = 0; for (const u of order) { if (u.main.visible) n++; if (u.aux && u.aux.visible) n++; } return n; },
     dispose() {
       for (const u of [...order]) freeUnit(u);

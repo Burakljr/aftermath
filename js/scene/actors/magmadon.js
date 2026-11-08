@@ -68,9 +68,9 @@ ${CARVE_PARS}`)
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.86, 0.92) + vec3(0.015, 0.03, 0.035), uMutant);
   if (!gl_FrontFacing && uCarveOn > 0.5) {
     // inside of the body seen through a cut: raw flesh with fat marbling
-    float mb = carveHash(vLPc * 0.6) * 0.25 + 0.75 * fract(sin(dot(floor(vLPc * 0.22), vec3(7.1, 3.3, 5.7))) * 413.7);
-    vec3 fl = mix(vec3(0.42, 0.06, 0.05), vec3(0.72, 0.2, 0.17), mb);
-    if (mb > 0.86) fl = vec3(0.86, 0.74, 0.6);
+    float mb = carveHash(vLPc * 0.9) * 0.3 + 0.7 * fract(sin(dot(floor(vLPc * 0.3), vec3(7.1, 3.3, 5.7))) * 413.7);
+    vec3 fl = mix(vec3(0.38, 0.05, 0.05), vec3(0.66, 0.16, 0.15), mb);
+    if (mb > 0.88) fl = vec3(0.82, 0.68, 0.56);
     diffuseColor.rgb = mix(fl, fl * vec3(0.5, 1.1, 0.9), uMutant);
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -81,7 +81,7 @@ ${CARVE_PARS}`)
     float h = vHeat.x;
     vec3 e = vec3(0.0);
     if (!gl_FrontFacing) {
-      e = uGlandCol * 0.35 * exp(-gCut * 0.9);
+      e = uGlandCol * 0.14 * exp(-gCut * 1.2);
     } else if (ch < 0.5) {
       float pulse = mix(1.0, 0.7 + 0.3 * sin(uTime * 1.7 - vLP.z * 0.05), uPulseAmt);
       float smoulder = 0.75 + 0.25 * sin(uTime * 0.6 + vLP.x * 0.21 + vLP.z * 0.13);
@@ -96,7 +96,7 @@ ${CARVE_PARS}`)
     } else {
       e = uHotCol * h * h * uHeat * 0.5;
     }
-    if (gl_FrontFacing && gCut < 3.0 && uCarveOn > 0.5) { e += uGlandCol * 0.25 * (1.0 - gCut / 3.0); diffuseColor.rgb *= 0.6; }
+    if (gl_FrontFacing && gCut < 1.6 && uCarveOn > 0.5) { e += uGlandCol * 0.12 * (1.0 - gCut / 1.6); diffuseColor.rgb *= 0.75; }
     totalEmissiveRadiance += e;
   }`);
   };
