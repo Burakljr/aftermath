@@ -585,6 +585,7 @@
 .wanchor.edge .wchip { transform: translate(-50%, 0) scale(.92); opacity: .97; }
 /* compact pill (review V4 / playtest M10): name + crew + one bar, the 3D work below stays visible */
 .wchip.compact { width: max-content; min-width: 70px; max-width: 104px; }
+.wchip.compact.done { max-width: 168px; } /* "Kemeraltı ✓ Temiz" fits on one line */
 .wchip.compact .wchip__head { border-radius: 5px; padding: 3px 7px 4px; }
 .wchip.compact .wchip__body { padding: 0 3px 3px; gap: 0; }
 .wchip.compact .wchip__task, .wchip.compact .dots { display: none; }

@@ -80,7 +80,7 @@ export function createFloats(ctx) {
   });
   on('part', ({ sectorId, item }) => {
     const f = floatAt(sectorId);
-    queue.push({ item, from: f ? { x: f.x, y: f.y } : null });
+    queue.push({ item, from: f ? { x: f.x, y: f.y - 24 } : null }); // the icon starts above the chip, not on its name
   });
   on('rare', ({ sectorId, item }) => rareCard(item, at(sectorId)));
   /** coins arc between a button and the cash plate. dir 'in' (earn) or 'out' (spend) */

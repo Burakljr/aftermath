@@ -15,7 +15,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
-    fetch(e.request)
+    // no-cache: revalidate with the server (cheap 304) so a fresh deploy never mixes old and new modules from the HTTP cache
+    fetch(e.request, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok && res.type === 'basic') {
           const copy = res.clone();

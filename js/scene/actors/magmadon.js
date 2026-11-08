@@ -71,7 +71,7 @@ ${CARVE_PARS}`)
     // inside of the body seen through a cut: layered basalt with pale mineral bands (magma veins glow below)
     float mb = carveHash(vLPc * 0.9) * 0.3 + 0.7 * fract(sin(dot(floor(vLPc * 0.3), vec3(7.1, 3.3, 5.7))) * 413.7);
     float band = 0.5 + 0.5 * sin(vLPc.y * 1.7 + vLPc.z * 0.35 + mb * 2.0);
-    vec3 fl = mix(vec3(0.15, 0.12, 0.11), vec3(0.34, 0.28, 0.24), mb * 0.7 + band * 0.3);
+    vec3 fl = mix(vec3(0.09, 0.075, 0.07), vec3(0.40, 0.33, 0.27), clamp(mb * 0.5 + band * 0.65 - 0.12, 0.0, 1.0));
     if (mb > 0.9) fl = vec3(0.62, 0.56, 0.48);
     diffuseColor.rgb = mix(fl, fl * vec3(0.7, 1.05, 0.85), uMutant);
   }`)

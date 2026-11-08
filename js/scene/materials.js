@@ -429,14 +429,16 @@ int distAt(vec2 p){
     col *= 1.0 - crack * 0.6 * dz;
     col *= 1.0 - rim * 0.5 * dz;
     col *= 1.0 - (1.0 - smoothstep(-3.0, 0.0, cd)) * 0.5 * dz;   // scorched crater floor under the body
-    gEmit += vec3(1.0, 0.3, 0.06) * (1.0 - smoothstep(0.0, 2.5, abs(cd - 0.5))) * 0.35 * dz * (0.6 + 0.4 * sin(uTime * 1.3 + p.x * 0.2));
+    // embers along the footprint edge: patchy (noise-broken), never a continuous glowing outline (review V6)
+    float emb = smoothstep(0.52, 0.72, fbm(p * 0.11 + 3.0));
+    gEmit += vec3(1.0, 0.3, 0.06) * (1.0 - smoothstep(0.0, 3.0, abs(cd - 0.5))) * 0.24 * emb * dz * (0.6 + 0.4 * sin(uTime * 1.3 + p.x * 0.2));
   }
   diffuseColor.rgb = col;
   }`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   totalEmissiveRadiance += gEmit;`);
   };
-  mat.customProgramCacheKey = () => 'groundV2';
+  mat.customProgramCacheKey = () => 'groundV2b';
   return mat;
 }
 
