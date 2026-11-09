@@ -69,6 +69,8 @@ export default {
   'toast.milestone': '{station}: speed x2',
   'toast.open': '{station} is open',
   'toast.goal': 'Goal done',
+  'truck.info': 'Each {toy} sells for {n} coins',
+  'error.webgl': 'This device could not start the 3D view. Try another browser.',
 
   'tut.tapSaw': 'Tap the Saw',
   'tut.tapUpgrade': 'Tap Upgrade to earn more per toy',

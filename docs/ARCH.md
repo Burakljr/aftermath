@@ -8,15 +8,27 @@ be wrapped in try/catch: the game modules never touch storage, main.js does).
 Work split: core-ui owns `js/game/*`, `js/i18n/*`, `js/ui/*`, `css/app.css`,
 `js/audio.js`, `tools/serve.mjs`, `tests/logic/*`, `tests/ui/*`, `assets/fonts/*`,
 `ui-lab.html`. The scene agent owns `js/scene/*` (and `scene-lab.html`). The integrator
-writes `index.html` and `js/main.js` last.
+wrote `index.html`, `js/main.js`, `tests/e2e/play.cjs`, `tests/shots.cjs`,
+`tests/helpers.cjs`, `README.md`, `LICENSES.md`.
+
+## Run
+
+```
+PORT=5300 node tools/serve.mjs      # then open http://localhost:5300/
+```
+
+Any static server works (the game only needs correct MIME types for `.js` and `.woff2`).
+It also runs from a sub-path and inside a sandboxed iframe (`tools/serve.mjs` sends
+`Access-Control-Allow-Origin: *`, which module scripts and fonts need when the iframe has an
+opaque origin; without storage access the game simply does not save).
 
 ## File layout
 
 ```
-index.html                 import map ("three", "three/addons/"), canvas + #ui root (integrator)
+index.html                 import map ("three", "three/addons/"), canvas + #ui root, loading screen
 ui-lab.html                UI development page: real game + DOM UI, fake scene, coloured placeholder
 css/app.css                all UI styles (+ @font-face for Fredoka)
-js/main.js                 integration (integrator)
+js/main.js                 integration: game + scene + UI + audio, loop, saving, window.toy
 js/audio.js                procedural Web Audio sounds
 js/game/config.js          FACTORIES + RULES (pure data, the economy lives here)
 js/game/state.js           fresh state, load/validate/migrate, serialise
@@ -37,13 +49,16 @@ js/ui/complete.js          factory complete screen
 js/ui/offline.js           "while you were away" card
 js/ui/floats.js            +coins floats, coin flights, star bursts, toasts
 js/ui/dom.js               DOM helpers + inline SVG icons (own drawings)
-js/scene/*.js              three.js view (scene agent)
+js/scene/*.js              three.js view (scene agent; kit.js = shared helpers, an addition)
 js/scene/layout.js         shared layout numbers (both sides import it)
 tests/logic/run.mjs        runs tests/logic/*.test.mjs (node, no deps): `node tests/logic/run.mjs`
 tests/logic/bot.mjs        attentive-player bot; `node tests/logic/bot.mjs [--lazy] [--factory=2]` prints a timeline
 tests/ui/lab-play.cjs      Playwright interaction test of the UI in ui-lab.html
 tests/ui/lab-shots.cjs     Playwright screenshots of the UI lab states: `node tests/ui/lab-shots.cjs <outDir>`
-tests/e2e/play.cjs, tests/shots.cjs   end-to-end (integrator)
+tests/e2e/play.cjs         end-to-end play test of index.html (iPhone 13, real taps + fast-forward)
+tests/shots.cjs            screenshots of the real game in play order: `node tests/shots.cjs <outDir>`
+tests/helpers.cjs          shared Playwright helpers (in-page fast-forward player)
+README.md, LICENSES.md     overview / third-party licences
 tools/serve.mjs            static server for the repo root (PORT env, default 5300; .woff2/.mjs MIME ok)
 assets/fonts/              Fredoka 500/600/700 latin + latin-ext woff2, OFL.txt, README.md
 ```
@@ -207,37 +222,49 @@ openSettings(), tapStation(id), relabel(), destroy() }`
   second for the FPS meter, `scene.anchor()` every frame for the overlays.
 - Unlocks audio on the first pointerdown anywhere.
 - main.js forwards game events to the scene: `for (const ev of EVENTS) game.on(ev, p => scene.fx(ev, p))`.
+- On a tap on the truck the UI honks and shows a toast "Each toy car sells for N coins"
+  (`truck.info`, integrator addition).
+- When the tutorial points at a button in the card, its bubble sits above the card so it
+  never covers the card's numbers (integrator addition).
 
-Expected `index.html` body (as in ui-lab.html, with the real canvas):
+## Integration (index.html, js/main.js)
 
-```html
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<link rel="stylesheet" href="css/app.css">
-<canvas id="scene"></canvas>
-<div id="ui"></div>
-<script type="module" src="js/main.js"></script>
-```
+`index.html`: viewport with `viewport-fit=cover`, preloads the two main Fredoka weights,
+`css/app.css`, the import map (`"three"` -> `./vendor/three/build/three.module.min.js`,
+`"three/addons/"` -> `./vendor/three/addons/`), `<canvas id="scene">`, `<div id="ui">`, a
+text-free loading screen (`#loader`, three hopping toy blocks, removed after the first
+frame) and `#fatal` (only used when WebGL cannot start). All paths are relative.
 
-Main loop sketch (integrator):
+`js/main.js`:
 
-```js
-import { createGame, EVENTS } from './game/index.js';
-import { createUI } from './ui/index.js';
-import { createAudio } from './audio.js';
-const load = () => { try { return localStorage.getItem('toyfactory.save'); } catch { return null; } };
-const store = (s) => { try { localStorage.setItem('toyfactory.save', s); } catch { /* sandboxed */ } };
-const game = createGame({ save: load() });
-const scene = createScene(canvas, { quality: game.state.settings.quality, factory: game.config(),
-  onAutoQuality: (q) => game.act({ type: 'setting', key: 'quality', value: q }) });
-const audio = createAudio();
-const ui = createUI({ root: document.getElementById('ui'), game, scene, audio, canvas });
-for (const ev of EVENTS) game.on(ev, (p) => scene.fx(ev, p));
-game.on('factoryStart', () => scene.setFactory(game.config()));
-loop(dt => { game.tick(dt); scene.update(game.state, dt); ui.update(dt); });
-setInterval(() => store(game.save()), 5000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) store(game.save()); });
-window.toy = { game, step(dt) { /* tick game, scene, ui in 1/60 s steps */ } };
-```
+- Save: `localStorage['toyfactory.save.v1']`, every access in try/catch. Saved every 4 s,
+  at once on `open`, `factoryComplete`, `factoryStart` and `setting`, and on
+  `visibilitychange` (hidden) and `pagehide` (no `beforeunload`: it can block the
+  back/forward cache).
+- `createGame({ save, lang })`: `lang` only from `?lang=en|tr` (new games); otherwise the
+  phone language. A broken save starts a new game.
+- `createScene(canvas, { quality, factory: game.config(), autoQuality, onAutoQuality })`.
+  Auto quality is on only while the saved quality is High (and not with `?autoq=0`);
+  when the scene drops itself to Low, main.js stores it with
+  `game.act({ type: 'setting', key: 'quality', value: 'low' })`. If the player picks a
+  quality by hand, auto quality is switched off for the rest of the session.
+  If WebGL cannot start, a small DOM stand-in scene keeps the UI working and `#fatal`
+  shows `error.webgl` (it does not block taps).
+- `createUI({ root: #ui, game, scene, audio: createAudio(), canvas })`. The UI handles taps
+  on the canvas (pick -> boost + card; truck -> honk + info; empty -> close card), the
+  settings (live language switch via `relabel`, quality -> `scene.setQuality`, sound, FPS
+  meter from `scene.stats()`), the offline card on start, the tutorial and all feedback.
+- Every game event in `EVENTS` is forwarded to `scene.fx(ev, payload)`;
+  `factoryStart` also calls `scene.setFactory(game.config())`.
+- Frame loop (requestAnimationFrame): `game.tick(dt)`, `scene.update(game.state, dt)`,
+  `ui.update(dt)`. A pause of 0.25-60 s (hitch, short app switch) is caught up by extra
+  game ticks (1 s each); longer gaps become offline earnings inside `game.tick` (wall clock).
+- URL options (development and tests): `?manual=1` (no loop; time only moves through
+  `toy.step`), `?autoq=0` (no automatic Low), `?lang=en|tr` (new game language),
+  `?reset=1` (delete the save).
+- Test hook: `window.toy = { game, scene, ui, audio, step(dt, h = 1/30, render = true),
+  save(), saveKey, manual, ready }`. `step` advances game, scene (without drawing) and UI
+  in sub-steps of `h` seconds, then draws one frame. `ready` turns true after the first frame.
 
 ## Audio (js/audio.js)
 
@@ -259,9 +286,24 @@ placeholders, no emoji, no "!" in Turkish, and that every key used in code exist
 
 ## Tests
 
+Playwright and Chromium must be installed (`require('playwright')`); every script starts
+its own `tools/serve.mjs` on `PORT` and stops it at the end. Headless WebGL is slow
+(SwiftShader), so the scripts move game time with `window.toy.step()` instead of waiting.
+
 - `node tests/logic/run.mjs` - logic, pacing, softlock, save/load, offline cap, i18n (38 tests, ~1 s).
+- `node tests/logic/bot.mjs [--lazy] [--factory=2]` - pacing timeline of the attentive (or careless) bot.
+- `timeout 600 node tests/e2e/play.cjs` - the real game (PORT, default 5303), iPhone 13:
+  fresh start, tutorial with real taps (tap the Saw, Upgrade, Open sign + Open button,
+  Collect), truck info, Gift Wrap opened with real taps, all goals by fast-forward
+  (in-page player from `tests/helpers.cjs`), Factory complete, Next factory (Teddy Bears),
+  reload keeps progress, offline card after 90 min away, Türkçe and back, quality/sound/FPS
+  settings survive a reload, draw-call/triangle budgets, no console errors (~1 min).
+- `timeout 600 node tests/shots.cjs <outDir>` - 9 screenshots of the real game in play
+  order at 390x844, DPR 2 (01-start-tutorial ... 09-offline-card) + `stats.json` with draw
+  calls and triangles per shot and at Low (~1 min).
 - `timeout 600 node tests/ui/lab-play.cjs` - UI interaction checks in the UI lab (PORT, default 5301).
 - `timeout 600 node tests/ui/lab-shots.cjs <outDir>` - UI lab screenshots at 390x844 and 390x664, 1x.
+- `timeout 900 node tests/scene/lab-smoke.cjs` / `lab-shots.cjs <outDir>` - scene lab (PORT, default 5302).
 - UI lab presets: `ui-lab.html?state=fresh|card|poor|locked|goals|tut1|milestone|sales|complete|teddy|offline|settings&lang=en|tr&paused=1`;
   `window.toy = { game, ui, scene, step(dt), buy(station, n), applyPreset(name) }`.
 
@@ -319,6 +361,10 @@ it with `game.act({ type: 'setting', key: 'quality', value: q })`), `zoom` (defa
 Framing keeps the machines, corners, workers and the truck inside the viewport minus
 insets + safe areas, and keeps the level badges of the top two machines below the HUD. It
 works in portrait, landscape and tablets (fit by the tighter axis, centred).
+Integrator addition: after the fit, `resize()` projects the anchors of the top two
+stations and grows the top inset until a 42 px DOM badge above each anchor clears the HUD
+(on short screens such as a phone browser with toolbars the badge used to cover the income
+pill); the 0.5 s size check re-runs this when a machine grows or opens.
 
 Budgets (Playwright/SwiftShader, 402x874): 28-40 draw calls, 36k-60k triangles (worst case:
 all open, all boosted, 100+ particles), ~0.1 ms of JS per frame. No shadow maps (blob

@@ -59,7 +59,7 @@ export default {
   'card.milestoneTop': 'En yüksek hıza ulaştı',
   'card.bottleneck': 'En yavaş istasyon bu. Hattı hızlandırmak için yükselt.',
   'card.lockedFirst': 'Önce {station} aç.',
-  'card.newStep': 'Hatta yeni bir adım ekler.',
+  'card.newStep': 'Üretim hattına yeni bir adım ekler.',
   'card.close': 'Kapat',
 
   'mark.level': 'Sv {n}',
@@ -69,6 +69,8 @@ export default {
   'toast.milestone': '{station}: hız x2',
   'toast.open': '{station} açıldı',
   'toast.goal': 'Hedef tamamlandı',
+  'truck.info': 'Her {toy} {n} altına satılıyor',
+  'error.webgl': 'Bu cihaz 3B görünümü başlatamadı. Başka bir tarayıcı dene.',
 
   'tut.tapSaw': 'Testereye dokun',
   'tut.tapUpgrade': 'Oyuncak başına daha çok kazanmak için Yükselt’e dokun',

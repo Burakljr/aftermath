@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#9fdcff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<title>Toy Factory</title>
+<link rel="preload" href="assets/fonts/fredoka-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/fredoka-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/app.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.min.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+<style>
+  /* Loading screen: shown until the first frame is drawn. No text (it appears before the language files load). */
+  #loader {
+    position: fixed; inset: 0; z-index: 50;
+    display: grid; place-items: center;
+    background: linear-gradient(180deg, #9fdcff 0%, #c7ecff 45%, #ffe8c2 100%);
+    transition: opacity .35s ease;
+    pointer-events: auto;
+  }
+  #loader.is-done { opacity: 0; pointer-events: none; }
+  #loader .blocks { display: flex; gap: 14px; align-items: flex-end; height: 90px; }
+  #loader .blocks i {
+    display: block; width: 38px; height: 38px; border-radius: 11px;
+    box-shadow: inset 0 -6px 0 rgba(0, 0, 0, .14), 0 6px 0 rgba(42, 35, 80, .12);
+    animation: tf-hop .9s cubic-bezier(.3, .7, .4, 1) infinite;
+  }
+  #loader .blocks i:nth-child(1) { background: #ff5f8f; }
+  #loader .blocks i:nth-child(2) { background: #ffc93c; animation-delay: .15s; border-radius: 50%; }
+  #loader .blocks i:nth-child(3) { background: #4cb8ff; animation-delay: .3s; }
+  @keyframes tf-hop {
+    0%, 100% { transform: translateY(0) scale(1.08, .92); }
+    35% { transform: translateY(-42px) scale(.94, 1.06); }
+    60% { transform: translateY(0) scale(1, 1); }
+  }
+  #fatal {
+    position: fixed; left: 16px; right: 16px; top: 40%; z-index: 60;
+    padding: 18px 20px; border-radius: 22px; background: #fff; color: #2a2350;
+    font: 600 18px/1.35 'Fredoka', system-ui, sans-serif; text-align: center; pointer-events: none;
+    box-shadow: 0 4px 0 rgba(42, 35, 80, .16), 0 12px 26px rgba(42, 35, 80, .18);
+  }
+  #fatal[hidden] { display: none; }
+</style>
+</head>
+<body>
+<canvas id="scene" class="scene"></canvas>
+<div id="ui"></div>
+<div id="loader" aria-hidden="true"><div class="blocks"><i></i><i></i><i></i></div></div>
+<div id="fatal" role="alert" hidden></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

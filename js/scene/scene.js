@@ -155,6 +155,18 @@ export function createScene(canvas, opts = {}) {
     add(tx - 0.75, 1.2, tz - 1.45); add(tx + 0.75, 0, tz + 1.45); add(tx - 0.75, 0.3, tz + 1.45); add(tx + 0.75, 0.3, tz - 1.45);
   }
 
+  const BADGE_PX = 42;
+  let fitTop = 0;
+  function badgeOver(h, top) {
+    let over = -Infinity;
+    for (let i = 0; i < 2; i++) {
+      stations.anchorPoint(i, _v2);
+      _v.copy(_v2).project(camera);
+      over = Math.max(over, top + BADGE_PX - ((1 - _v.y) / 2) * h);
+    }
+    return over;
+  }
+
   function resize() {
     needResize = false;
     const w = canvas.clientWidth || window.innerWidth || 390;
@@ -173,6 +185,15 @@ export function createScene(canvas, opts = {}) {
     };
     // on wide screens keep the factory a phone-like size in the middle
     cam.fit(w, h, ins, framePts, opts.zoom || 1);
+    // the DOM level badges (about BADGE_PX tall above the anchor) of the top two machines
+    // must stay below the HUD on every screen height: grow the top inset until they do
+    for (let k = 0; k < 4 && stations; k++) {
+      const over = badgeOver(h, ins.top);
+      if (over <= 0.5) break;
+      ins.top += over + 1;
+      cam.fit(w, h, ins, framePts, opts.zoom || 1);
+    }
+    fitTop = ins.top;
     // background quad covers the frustum
     bg.scale.set((camera.right - camera.left) * 1.02, (camera.top - camera.bottom) * 1.02, 1);
     bg.position.set((camera.left + camera.right) / 2, (camera.top + camera.bottom) / 2, -150);
@@ -409,6 +430,8 @@ export function createScene(canvas, opts = {}) {
     if (sizeCheckT <= 0) {
       sizeCheckT = 0.5;
       if ((canvas.clientWidth && canvas.clientWidth !== viewW) || (canvas.clientHeight && canvas.clientHeight !== viewH)) needResize = true;
+      // a machine grew or opened (taller anchor): re-check the badge clearance
+      else if (stations && badgeOver(viewH, fitTop) > 1) needResize = true;
     }
     if (needResize) resize();
     time += dt;

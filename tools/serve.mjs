@@ -56,6 +56,8 @@ const server = createServer(async (req, res) => {
       'Content-Type': TYPES[extname(file).toLowerCase()] || 'application/octet-stream',
       'Content-Length': body.length,
       'Cache-Control': 'no-store',
+      // lets the game run inside a sandboxed iframe (opaque origin) too: module scripts and fonts use CORS
+      'Access-Control-Allow-Origin': '*',
     });
     res.end(req.method === 'HEAD' ? undefined : body);
   } catch (e) {

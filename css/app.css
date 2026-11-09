@@ -180,6 +180,7 @@ html, body {
 .toast.is-star { background: linear-gradient(var(--yellow-top), var(--yellow)); color: #5a3200; }
 .toast.is-open { background: linear-gradient(#ff86b8, var(--pink)); }
 .toast.is-goal { background: linear-gradient(var(--green-top), var(--green)); }
+.toast.is-truck { background: linear-gradient(#7fd0ff, var(--blue)); }
 .toast.toast-in { animation: toastIn 0.32s cubic-bezier(0.2, 1.4, 0.4, 1); }
 
 /* ---------- station marks ---------- */

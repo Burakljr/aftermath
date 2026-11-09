@@ -137,7 +137,11 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
     let hit = null;
     try { hit = scene && scene.pick ? scene.pick(ev.clientX, ev.clientY) : null; } catch { hit = null; }
     if (hit && hit.type === 'station') tapStation(hit.id);
-    else if (hit && hit.type === 'truck') { ctx.sfx('honk'); }
+    else if (hit && hit.type === 'truck') {
+      ctx.sfx('honk');
+      const f = game.select.factory();
+      floats.toast(ctx.tx('truck.info', { toy: ctx.tx(f.toyKey), n: ctx.num(game.select.toyValue()) }), 'is-truck');
+    }
     else closeCard();
   }
   if (canvas) {

@@ -26,7 +26,8 @@ export function createTutorial(ctx) {
     if (!e) return null;
     const r = e.getBoundingClientRect();
     if (r.width === 0) return null;
-    return { x: r.left + r.width * 0.86, y: r.top + r.height * 0.62, h: 8, ring: { x: r.left + r.width * 0.86, y: r.top + r.height / 2 } };
+    // the bubble goes above the card so it never covers the card's numbers
+    return { x: r.left + r.width * 0.86, y: r.top + r.height * 0.62, h: 8, ring: { x: r.left + r.width * 0.86, y: r.top + r.height / 2 }, bubbleAbove: ctx.panelTop() };
   }
 
   // Temporary pointer used when a goal tile is tapped ("where do I do this?").
@@ -59,7 +60,10 @@ export function createTutorial(ctx) {
     const gap = 46;
     const roomRight = W - 12 - (p.x + gap);
     const roomLeft = p.x - gap - 12;
-    if (p.y < H * 0.62 && (roomRight >= bubbleW || roomLeft >= bubbleW)) {
+    if (p.bubbleAbove > 0) {
+      x = W / 2 - bubbleW / 2;
+      y = p.bubbleAbove - 14 - bubbleH;
+    } else if (p.y < H * 0.62 && (roomRight >= bubbleW || roomLeft >= bubbleW)) {
       // beside the hand
       x = roomRight >= bubbleW ? p.x + gap : p.x - gap - bubbleW;
       y = ring.y - bubbleH / 2;
