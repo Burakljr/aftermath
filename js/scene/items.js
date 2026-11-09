@@ -28,9 +28,9 @@ function woodStages(th) {
   out.push(b.build());
   // 1: cut blocks
   b = new Builder({ ol: OL });
-  b.add(G.box(0.21, 0.21, 0.21, 0.04), th.wood, -0.11, 0.105, 0.02);
-  b.add(G.box(0.21, 0.21, 0.21, 0.04), 0xffd79a, 0.11, 0.105, -0.02);
-  b.add(G.box(0.21, 0.21, 0.21, 0.04), shade(th.wood, -0.08), 0, 0.31, 0, { ry: 0.3 });
+  b.add(G.box(0.21, 0.21, 0.21, 0.03), th.wood, -0.11, 0.105, 0.02);
+  b.add(G.box(0.21, 0.21, 0.21, 0.03), 0xffd79a, 0.11, 0.105, -0.02);
+  b.add(G.box(0.21, 0.21, 0.21, 0.03), shade(th.wood, -0.08), 0, 0.31, 0, { ry: 0.3 });
   out.push(b.build());
   // 2: car body (unpainted wood)
   out.push(carGeo(th, false));
@@ -46,10 +46,10 @@ function carGeo(th, painted) {
   const body = painted ? 0xffffff : 0xf7c98a;
   const t = painted ? 1 : 0;
   b.add(G.box(0.32, 0.16, 0.5, 0.07), body, 0, 0.16, 0, { tint: t });
-  b.add(G.box(0.27, 0.16, 0.25, 0.07), body, 0, 0.29, -0.04, { tint: t });
+  b.add(G.box(0.27, 0.16, 0.25, 0.03), body, 0, 0.29, -0.04, { tint: t });
   const wheel = painted ? 0x2f2840 : th.woodDark;
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    b.add(G.cyl(0.085, 0.085, 0.07, 8), wheel, sx * 0.16, 0.085, sz * 0.16, { rz: PI / 2 });
+    b.add(G.cyl(0.085, 0.085, 0.07, 7), wheel, sx * 0.16, 0.085, sz * 0.16, { rz: PI / 2 });
     if (painted) b.add(G.box(0.075, 0.05, 0.05, 0), 0xffffff, sx * 0.17, 0.085, sz * 0.16, { ol: 0 });
   }
   if (painted) {
@@ -71,8 +71,8 @@ function giftGeo(ribbon, inner = null) {
   b.add(G.box(0.09, 0.34, 0.425, 0), ribbon, 0, 0.17, 0, { ol: 0 });
   if (inner) inner(b);
   else {
-    b.add(G.sphere(7, 5), ribbon, -0.085, 0.39, 0, { sx: 0.11, sy: 0.075, sz: 0.055, rz: 0.5, ol: 0.6 });
-    b.add(G.sphere(7, 5), ribbon, 0.085, 0.39, 0, { sx: 0.11, sy: 0.075, sz: 0.055, rz: -0.5, ol: 0.6 });
+    b.add(G.sphere(6, 4), ribbon, -0.085, 0.39, 0, { sx: 0.11, sy: 0.075, sz: 0.055, rz: 0.5, ol: 0.6 });
+    b.add(G.sphere(6, 4), ribbon, 0.085, 0.39, 0, { sx: 0.11, sy: 0.075, sz: 0.055, rz: -0.5, ol: 0.6 });
     b.add(G.sphere(6, 4), shade(ribbon, -0.15), 0, 0.37, 0, { s: 0.05, ol: 0 });
   }
   return b.build();
@@ -210,7 +210,7 @@ export function createItems(theme, path, preset) {
     if (id >= 0) { work[j] = -1; }
     if (to >= 0) {
       if (inflight[to] >= 3) { release(id); return; }
-    } else if (truckFlights >= 6) { release(id); return; }
+    } else if (truckFlights >= 8) { release(id); return; }
     if (id < 0) { id = alloc(); if (id < 0) return; stage[id] = Math.min(4, j + 1); tint[id] = randTint(stage[id]); }
     const out = Math.min(4, j + 1);
     if (stage[id] !== out) {
@@ -297,16 +297,25 @@ export function createItems(theme, path, preset) {
     },
     /** throw an item from pos into the truck bed; false when there is no room */
     hopFrom(pos, stg, tn, truck) {
-      if (!truckRoom(truck)) return false;
+      if (truck.phase !== 'parked') return false;
       const id = alloc();
       if (id < 0) return false;
       stage[id] = stg; tint[id] = tn;
       hx[id * 3] = pos.x; hx[id * 3 + 1] = pos.y; hx[id * 3 + 2] = pos.z;
-      slot[id] = truck.load + truckHops;
-      truckHops++;
-      truck.slot(slot[id], _w);
+      if (truckRoom(truck)) {
+        slot[id] = truck.load + truckHops;
+        truckHops++;
+        truck.slot(slot[id], _w);
+        stn[id] = -1;
+      } else {
+        // the bed is full but the truck waits a little longer: onto the pile, it sinks in
+        slot[id] = truck.capacity - 1;
+        truck.slot(slot[id], _w);
+        _w.y += 0.3;
+        stn[id] = -3;
+      }
       hy[id * 3] = _w.x; hy[id * 3 + 1] = _w.y; hy[id * 3 + 2] = _w.z;
-      mode[id] = M_HOP; stn[id] = -1; tt[id] = 0; dur[id] = 0.36;
+      mode[id] = M_HOP; tt[id] = 0; dur[id] = 0.36;
       return true;
     },
     /** draw one extra item (carried toys) this frame; call after update() */
@@ -452,7 +461,7 @@ export function createItems(theme, path, preset) {
           tt[id] += dt;
           const k = clamp(tt[id] / dur[id], 0, 1);
           // the truck may move: re-aim at the slot
-          if ((stn[id] === -1 || stn[id] === -3) && slot[id] >= 0 && slot[id] < 6) { truck.slot(slot[id], _w); if (stn[id] === -3) _w.y += 0.3; hy[id * 3] = _w.x; hy[id * 3 + 1] = _w.y; hy[id * 3 + 2] = _w.z; }
+          if ((stn[id] === -1 || stn[id] === -3) && slot[id] >= 0 && slot[id] < truck.capacity) { truck.slot(slot[id], _w); if (stn[id] === -3) _w.y += 0.3; hy[id * 3] = _w.x; hy[id * 3 + 1] = _w.y; hy[id * 3 + 2] = _w.z; }
           _p.set(hx[id * 3] + (hy[id * 3] - hx[id * 3]) * k, hx[id * 3 + 1] + (hy[id * 3 + 1] - hx[id * 3 + 1]) * k + Math.sin(k * PI) * 0.7, hx[id * 3 + 2] + (hy[id * 3 + 2] - hx[id * 3 + 2]) * k);
           heading = k * PI * 0.5;
           if (k >= 1) {
@@ -465,7 +474,7 @@ export function createItems(theme, path, preset) {
           }
           y = 0;
         } else if (md === M_CARGO) {
-          if (slot[id] < 0 || slot[id] > 5) { release(id); continue; }
+          if (slot[id] < 0 || slot[id] >= truck.capacity) { release(id); continue; }
           truck.slot(slot[id], _p);
           heading = (slot[id] % 2) * 0.4 - 0.2 + PI;
         } else if (md === M_DOCK) {

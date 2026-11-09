@@ -18,11 +18,11 @@ export function createMarks(ctx) {
       const signCost = el('span', 'sign-cost num');
       const sign = el('div', 'mark-sign', null, [
         el('span', 'sign-head', null, [icon('lock', 'sign-lock'), signTitle]),
-        el('span', 'sign-price', null, [icon('coin', 'sign-coin'), signCost]),
+        el('span', 'sign-price', null, [icon('lock', 'sign-plock'), icon('coin', 'sign-coin'), signCost]),
       ]);
       const root = el('div', 'mark', { 'data-index': i }, [badge, sign]);
       layer.appendChild(root);
-      const item = { root, badge, lvl, up, sign, signTitle, signCost, x: -1, y: -1, vis: null, level: -1 };
+      const item = { root, badge, lvl, up, sign, signTitle, signCost, x: -1, y: -1, vis: null, level: -1, full: null };
       const tap = () => {
         const id = ctx.game.state.factory.stations[i].id;
         ctx.tapStation(id, 'mark');
@@ -83,7 +83,13 @@ export function createMarks(ctx) {
         it.level = -1;
         setText(it.signTitle, v.canOpen ? ctx.tx('sign.open') : ctx.tx('sign.locked'));
         setText(it.signCost, ctx.num(v.openCost));
-        toggle(it.sign, 'can-afford', v.canOpen && v.canAfford);
+        // the next plot shows a small price chip until the player can afford it, then the
+        // big green "Open" sign pops up (it never hides the machines while it cannot be used)
+        const full = v.canOpen && v.canAfford;
+        toggle(it.sign, 'can-afford', full);
+        toggle(it.root, 'is-chip', v.canOpen && !full);
+        if (full && it.full === false) pulse(it.sign, 'sign-pop');
+        it.full = full;
       }
     }
   }

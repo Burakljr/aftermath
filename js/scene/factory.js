@@ -24,7 +24,7 @@ const BASE = {
     machines: ['saw', 'assembly', 'paint', 'wrap'],
     machineColor: [PAL.orange, PAL.blue, PAL.purple, PAL.pink],
     worker: { hat: PAL.yellow, hatBand: PAL.orange, suit: PAL.blue, shirt: 0xffffff, hair: 0x6b3a1f, boots: 0x5a3b2a },
-    carrier: { hat: PAL.red, hatBand: 0xffffff, suit: PAL.green, shirt: PAL.yellow, hair: 0x3d2414, boots: 0x5a3b2a },
+    carrier: { hat: PAL.purple, hatBand: 0xffffff, suit: PAL.green, shirt: PAL.yellow, hair: 0x3d2414, boots: 0x5a3b2a },
     truck: PAL.red, truckTrim: 0xffffff, truckDark: 0x3d3357,
     toy: [PAL.red, PAL.blue, PAL.yellow, PAL.green, PAL.pink, PAL.purple],
     box: [PAL.blue, PAL.pink, PAL.green, PAL.orange, PAL.purple],
@@ -643,8 +643,10 @@ export function chibiHead(b, skin, cap, capBand, hair, s = 1) {
 }
 
 // ------------------------------------------------------------------- truck
-const TRUCK_CAP = 6;
+const TRUCK_CAP = 12; // two layers of 6 on the bed
 const TRUCK_AWAY = 11; // distance the truck drives off along +Z
+const TRUCK_MIN_PARK = 8; // seconds parked at least, so the dock is rarely empty
+const T_LEAVE = 0.9, T_AWAY = 0.15, T_ARRIVE = 1.0;
 
 export function createTruck(theme) {
   const group = new THREE.Group();
@@ -714,10 +716,10 @@ export function createTruck(theme) {
     wheelRot: 0,
     honk: 0,
     get parked() { return truck.phase === 'parked' && truck.load < TRUCK_CAP; },
-    /** world position of cargo slot k (0..5) on the bed */
+    /** world position of cargo slot k (0..capacity-1) on the bed (two layers of 6) */
     slot(k, out) {
-      const col = k % 2, row = (k >> 1) % 3;
-      out.set(col ? 0.33 : -0.33, 0.69 + truck.bounceY, -1.05 + row * 0.52).add(group.position);
+      const col = k % 2, row = (k >> 1) % 3, layer = k >= 6 ? 1 : 0;
+      out.set((col ? 0.33 : -0.33) * (layer ? 0.8 : 1), 0.69 + layer * 0.3 + truck.bounceY, -1.05 + row * 0.52 + layer * 0.1).add(group.position);
       return out;
     },
     bounceY: 0,
@@ -731,20 +733,20 @@ export function createTruck(theme) {
       let z = park.z;
       let speed = 0;
       // leave when full, but stay parked a few seconds at least (no frantic back and forth)
-      if (truck.phase === 'parked' && truck.load >= TRUCK_CAP && truck.t >= 3) { truck.phase = 'leaving'; truck.t = -0.35; }
+      if (truck.phase === 'parked' && truck.load >= TRUCK_CAP && truck.t >= TRUCK_MIN_PARK) { truck.phase = 'leaving'; truck.t = -0.3; }
       if (truck.phase === 'leaving') {
-        const k = clamp(truck.t / 1.1, 0, 1);
+        const k = clamp(truck.t / T_LEAVE, 0, 1);
         z = park.z + TRUCK_AWAY * k * k;
-        speed = TRUCK_AWAY * 2 * k / 1.1;
-        if (truck.t >= 1.1) { truck.phase = 'away'; truck.t = 0; truck.load = 0; }
+        speed = TRUCK_AWAY * 2 * k / T_LEAVE;
+        if (truck.t >= T_LEAVE) { truck.phase = 'away'; truck.t = 0; truck.load = 0; }
       } else if (truck.phase === 'away') {
         z = park.z + TRUCK_AWAY;
-        if (truck.t >= 0.35) { truck.phase = 'arriving'; truck.t = 0; }
+        if (truck.t >= T_AWAY) { truck.phase = 'arriving'; truck.t = 0; }
       } else if (truck.phase === 'arriving') {
-        const k = clamp(truck.t / 1.2, 0, 1);
+        const k = clamp(truck.t / T_ARRIVE, 0, 1);
         const e = 1 - (1 - k) * (1 - k);
         z = park.z + TRUCK_AWAY * (1 - e);
-        speed = -TRUCK_AWAY * 2 * (1 - k) / 1.2;
+        speed = -TRUCK_AWAY * 2 * (1 - k) / T_ARRIVE;
         if (k >= 1) { truck.phase = 'parked'; truck.t = 0; truck.bounce = 0.7; }
       }
       group.position.z = z;
@@ -770,8 +772,9 @@ export function createTruck(theme) {
 }
 
 // ---------------------------------------------------------------- forklift
-/** forklift route: pallet stack (loads here) and the spot beside the truck bed */
-export const FORK = { stack: [10.8, 5.0], drop: [8.9, 7.25] };
+/** forklift route: pallet stack (loads here) and a drop spot at the bottom right,
+ * well away from the truck cab (the truck and its bed are the payoff and stay clear) */
+export const FORK = { stack: [10.8, 5.0], drop: [9.7, 6.75] };
 
 export function createForklift(theme) {
   const group = new THREE.Group();
@@ -853,22 +856,23 @@ export function createForklift(theme) {
     update(dt, truck) {
       st.t += dt;
       st.bump = 0;
-      const parked = truck && truck.phase === 'parked';
       switch (st.phase) {
         case 'load': // forks under the pallet: lift it
           load.visible = true;
+          load.scale.setScalar(0.72 * Math.min(1, 0.6 + st.t * 1.6));
           st.lift = Math.min(1, st.t / 0.7);
           if (st.t > 1.0) { st.phase = 'go'; st.t = 0; st.path = [WAY, DP]; st.pi = 0; st.face = -PI / 2; }
           break;
         case 'go':
           if (drive(dt)) { st.phase = 'wait'; st.t = 0; }
           break;
-        case 'wait': // until the truck is parked
-          if (parked && st.t > 0.3) { st.phase = 'drop'; st.t = 0; }
+        case 'wait': // a short pause before setting the pallet down
+          if (st.t > 0.4) { st.phase = 'drop'; st.t = 0; }
           break;
-        case 'drop':
-          st.lift = 1 + Math.sin(Math.min(1, st.t / 0.5) * PI) * 0.4;
-          if (st.t > 0.4 && load.visible) { load.visible = false; if (truck) truck.bounce = Math.max(truck.bounce, 0.6); }
+        case 'drop': // set it down; it pops away (stacked out of view)
+          st.lift = 1 - Math.min(1, st.t / 0.4) * 0.8;
+          load.scale.setScalar(0.72 * clamp(1 - (st.t - 0.4) / 0.25, 0, 1));
+          if (st.t > 0.66 && load.visible) load.visible = false;
           if (st.t > 0.8) { st.phase = 'back'; st.t = 0; st.path = [WAY, L]; st.pi = 0; st.face = PI / 2; }
           break;
         case 'back':

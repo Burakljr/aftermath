@@ -15,6 +15,7 @@ const SKIN = [0xffd2b0, 0xf2b98f, 0xc98d64, 0xffe0c7, 0x9c6a48, 0xe8a87c];
 const SHOULDER_Y = 0.33, SHOULDER_X = 0.215;
 const FOOT_X = 0.095;
 const WS = 1.16; // worker scale
+const HEAD_Y = 0.68, HEAD_TILT = 0.22; // head centre, tilt up toward the camera (radians)
 const N_CARRIERS = 3;
 const STACK_MAX = 3;
 const WALK_SPEED = 1.75;
@@ -25,10 +26,11 @@ const ROUTE = [[5.0, 0.4], [4.42, 2.95], [4.9, 4.32], [6.5, 4.6], [8.5, 4.1], [8
 const PICK_NODE = { 1: 0, 2: 2, 3: 4 }; // last open station index -> route node
 const T_NODE = ROUTE.length - 1;
 // waiting spots behind each pickup and drop spots beside the truck
+// (spread about a head and a half apart on screen so the carriers never pile up)
 const QUEUE = {
-  0: [[5.0, 0.4], [5.62, 0.22], [4.85, -0.28]],
-  2: [[4.9, 4.32], [5.55, 4.6], [5.15, 5.15]],
-  4: [[8.5, 4.1], [9.15, 4.25], [9.25, 3.65]],
+  0: [[5.0, 0.4], [5.55, -0.2], [4.6, 1.3]],
+  2: [[4.9, 4.32], [6.1, 4.5], [3.95, 4.85]],
+  4: [[8.5, 4.1], [9.25, 3.55], [9.9, 4.6]],
 };
 const DROP = [[8.4, 5.72], [8.95, 5.55]];
 // break spot (by the water cooler) for a carrier who is not needed (short route)
@@ -47,33 +49,39 @@ function buildBody(c, capStyle) {
     b.add(G.box(0.05, 0.08, 0.03, 0.01), c.suit, sx * 0.085, 0.4, 0.13, { ol: 0 });
     b.add(G.sphere(6, 4), PAL.yellow, sx * 0.085, 0.37, 0.158, { s: 0.026, ol: 0 });
   }
-  // head (tinted: skin tone per worker), ears, nose
-  b.add(G.sphere(12, 9), 0xffffff, 0, 0.68, 0, { s: 0.3, tint: 1 });
-  for (const sx of [-1, 1]) b.add(G.sphere(6, 4), 0xffffff, sx * 0.29, 0.66, 0.0, { s: 0.065, tint: 1, ol: 0 });
-  b.add(G.sphere(6, 4), 0xffffff, 0, 0.645, 0.29, { s: 0.035, tint: 1, ol: 0 });
-  // hair below the cap
-  b.add(G.sphere(8, 6), c.hair, 0, 0.72, -0.05, { sx: 0.31, sy: 0.27, sz: 0.29, ol: 0 });
-  for (const sx of [-1, 1]) b.add(G.sphere(5, 4), c.hair, sx * 0.23, 0.69, 0.14, { sx: 0.075, sy: 0.1, sz: 0.06, ol: 0 });
-  // face: big eyes with sparkles, brows, cheeks, open smile
+  // head (tinted: skin tone per worker), tilted up toward the camera so the face reads
+  // from the 34 deg view; the hat is small and sits back on the crown, never over the eyes
+  b.push(0, HEAD_Y, 0, { rx: -HEAD_TILT });
+  b.add(G.sphere(12, 9), 0xffffff, 0, 0, 0, { s: 0.3, tint: 1 });
+  for (const sx of [-1, 1]) b.add(G.sphere(6, 4), 0xffffff, sx * 0.29, -0.03, -0.01, { s: 0.065, tint: 1, ol: 0 });
+  b.add(G.sphere(6, 4), 0xffffff, 0, -0.06, 0.29, { s: 0.034, tint: 1, ol: 0 });
+  // hair at the back and sides, a little fringe under the hat
+  b.add(G.sphere(8, 6), c.hair, 0, 0.05, -0.07, { sx: 0.31, sy: 0.27, sz: 0.28, ol: 0 });
+  for (const sx of [-1, 1]) b.add(G.sphere(5, 4), c.hair, sx * 0.235, 0.03, 0.13, { sx: 0.07, sy: 0.1, sz: 0.06, ol: 0 });
+  b.add(G.sphere(6, 4), c.hair, 0.07, 0.17, 0.2, { sx: 0.13, sy: 0.07, sz: 0.07, rz: -0.3, ol: 0 });
+  // face: big eyes with sparkles (low on the face), brows, cheeks, open smile
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(7, 5), INK, sx * 0.105, 0.685, 0.262, { sx: 0.047, sy: 0.07, sz: 0.03, ol: 0 });
-    b.add(G.sphere(6, 4), 0xffffff, sx * 0.105 + 0.016, 0.708, 0.287, { s: 0.017, ol: 0 });
-    b.add(G.box(0.07, 0.018, 0.012, 0), INK, sx * 0.105, 0.778, 0.262, { rz: sx * -0.18, ol: 0 });
-    b.add(G.sphere(5, 3), 0xff7f9e, sx * 0.185, 0.615, 0.225, { sx: 0.055, sy: 0.032, sz: 0.02, ol: 0 });
+    b.add(G.sphere(7, 5), INK, sx * 0.11, -0.03, 0.262, { sx: 0.062, sy: 0.09, sz: 0.035, ol: 0 });
+    b.add(G.sphere(6, 4), 0xffffff, sx * 0.11 + 0.02, 0.0, 0.292, { s: 0.023, ol: 0 });
+    b.add(G.sphere(5, 3), 0xffffff, sx * 0.11 - 0.012, -0.06, 0.29, { s: 0.011, ol: 0 });
+    b.add(G.box(0.075, 0.02, 0.012, 0), INK, sx * 0.11, 0.09, 0.268, { rz: sx * -0.2, rx: -0.3, ol: 0 });
+    b.add(G.sphere(5, 3), 0xff7f9e, sx * 0.19, -0.105, 0.22, { sx: 0.058, sy: 0.034, sz: 0.02, ol: 0 });
   }
-  b.add(G.hemi(8, 3), INK, 0, 0.6, 0.272, { sx: 0.06, sy: 0.045, sz: 0.03, rx: PI, ol: 0 });
-  // cap
+  b.add(G.hemi(8, 3), INK, 0, -0.125, 0.262, { sx: 0.065, sy: 0.05, sz: 0.03, rx: PI, ol: 0 });
+  b.add(G.sphere(5, 3), 0xff8a8a, 0, -0.15, 0.272, { sx: 0.035, sy: 0.016, sz: 0.012, ol: 0 });
+  // hat: a small dome on the back of the crown (about half the head height)
   if (capStyle === 'hardhat') {
-    b.add(G.hemi(12, 5), c.hat, 0, 0.77, -0.01, { sx: 0.325, sy: 0.27, sz: 0.325 });
-    b.add(G.cyl(0.35, 0.36, 0.045, 14), c.hat, 0, 0.775, 0.025, { sz: 1.1 });
-    b.add(G.box(0.07, 0.05, 0.5, 0), c.hatBand, 0, 1.03, -0.02, { ol: 0 });
-    b.add(G.star(0.075, 0.034, 0.03, 5, false), 0xffffff, 0, 0.92, 0.27, { rx: -0.5, ol: 0 });
+    b.add(G.hemi(12, 5), c.hat, 0, 0.12, -0.045, { sx: 0.3, sy: 0.2, sz: 0.3 });
+    b.add(G.cyl(0.31, 0.32, 0.04, 14), c.hat, 0, 0.125, -0.03, { sz: 1.02 });
+    b.add(G.box(0.26, 0.035, 0.06, 0.015), c.hatBand, 0, 0.16, 0.24, { rx: -0.5, ol: 0 });
+    b.add(G.star(0.06, 0.028, 0.025, 5, false), 0xffffff, 0, 0.245, 0.16, { rx: -0.75, ol: 0 });
   } else {
-    b.add(G.hemi(12, 5), c.hat, 0, 0.77, -0.01, { sx: 0.315, sy: 0.25, sz: 0.315 });
-    b.add(G.box(0.32, 0.04, 0.22, 0.02), c.hat, 0, 0.775, 0.3, { rx: -0.12 });
-    b.add(G.sphere(6, 4), c.hatBand, 0, 1.02, -0.01, { s: 0.055, ol: 0.6 });
-    b.add(G.box(0.3, 0.07, 0.02, 0.01), c.hatBand, 0, 0.86, 0.29, { rx: -0.35, ol: 0 });
+    b.add(G.hemi(12, 5), c.hat, 0, 0.12, -0.04, { sx: 0.295, sy: 0.19, sz: 0.295 });
+    b.add(G.box(0.28, 0.035, 0.13, 0.015), c.hat, 0, 0.125, 0.25, { rx: -0.08 });
+    b.add(G.sphere(6, 4), c.hatBand, 0, 0.31, -0.04, { s: 0.045, ol: 0.6 });
+    b.add(G.box(0.26, 0.055, 0.02, 0.01), c.hatBand, 0, 0.19, 0.225, { rx: -0.45, ol: 0 });
   }
+  b.pop();
   return b.build();
 }
 
@@ -283,9 +291,14 @@ export function createWorkers(theme, path) {
       // ---------------------------------------------------- carriers
       const newPick = PICK_NODE[lastOpen] ?? -1;
       pickStation = newPick >= 0 ? lastOpen : -1;
+      // two carriers on a short or slow line (the third has a break at the water cooler)
+      const active = lastOpen === 2 ? N_CARRIERS : 2;
       if (C[0].state === 'init') {
         pick = newPick;
-        for (const c of C) placeAtQueue(c);
+        for (const c of C) {
+          if (c.k < active) placeAtQueue(c);
+          else { c.x = REST[0]; c.z = REST[1]; c.state = 'rest'; c.ry = PI / 4; c.path.length = 0; }
+        }
       } else if (newPick !== pick) {
         const old = pick;
         pick = newPick;
@@ -294,7 +307,6 @@ export function createWorkers(theme, path) {
           if (c.state === 'wait' || c.state === 'return') { leaveQueue(c); goBack(c, nearestNode(c.x, c.z)); c.path.unshift([c.x, c.z]); }
         }
       }
-      const active = lastOpen >= 3 ? 2 : N_CARRIERS;
       for (const c of C) {
         if (c.k >= active && (c.state === 'wait' || c.state === 'return') && !c.stack.length) {
           leaveQueue(c);
@@ -328,7 +340,7 @@ export function createWorkers(theme, path) {
           } else {
             // face the viewer, glance at the station when a toy arrives
             const j = pickStation >= 0 ? pickStation : 1;
-            let want = PI / 4 + Math.sin(c.t * 0.6 + c.k) * 0.35;
+            let want = PI / 4 + Math.sin(c.t * 0.6 + c.k * 2.1) * 0.5;
             const fresh = c.stack.length && c.stack[c.stack.length - 1].t < 1;
             if (fresh) want = Math.atan2(CORNERS[j][0] - c.x, CORNERS[j][1] - c.z);
             c.ry += angleTo(c.ry, want) * Math.min(1, dt * 6);
@@ -415,6 +427,10 @@ export function createWorkers(theme, path) {
           let ax, az;
           if (carrying) { ax = -1.45 - c.flick * 0.9; az = sgn * 0.32; }
           else if (c.state === 'rest') { ax = side ? -2.2 * c.flick : Math.sin(c.t * 1.5) * 0.1; az = sgn * (side ? 0.5 : 0.14); }
+          else if (side && c.state === 'wait' && mv < 0.1 && c.k !== queue[0] && Math.sin(c.t * 0.45 + c.k * 2.3) > 0.72) {
+            // a waiting carrier waves now and then
+            ax = -2.9; az = sgn * (0.5 + Math.sin(c.t * 9) * 0.35);
+          }
           else if (c.flick > 0) { ax = -2.4 * c.flick; az = sgn * 0.3; }
           else { ax = Math.sin(ph + side * PI) * 0.7 * mv + Math.sin(c.t * 1.5 + side * PI) * 0.1 * (1 - mv); az = sgn * 0.14; }
           _e.set(ax, 0, az, 'XYZ');

@@ -625,7 +625,8 @@ export function createStations(theme, preset) {
     anchorPoint(i, out) {
       const st = stations[i];
       out.set(0, 0, 0).applyMatrix4(st.spot.matrixWorld);
-      out.y = st.open && st.built ? Math.max(st.built.peak || 0, st.built.top + 0.5) + 0.25 : 0.95;
+      // locked plot: low over the plot, so the UI's sign stands on its own plot
+      out.y = st.open && st.built ? Math.max(st.built.peak || 0, st.built.top + 0.5) + 0.25 : 0.3;
       return out;
     },
     /** centre of the machine (for bursts) */

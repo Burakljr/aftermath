@@ -453,6 +453,23 @@ svg { overflow: visible; }
 .mark.is-locked .sign-lock { display: grid; }
 .mark.is-locked .sign-title { font-size: 16px; --ots: 4.8px; }
 .mark.is-locked .sign-price { display: none; }
+/* chips (price chip of the next plot while it is not affordable, "Soon" sticker) stand on their plot */
+.mark.is-chip .mark-sign, .mark.is-locked .mark-sign { transform: translate(-50%, -50%); }
+.mark.is-chip .mark-sign::after, .mark.is-locked .mark-sign::after { display: none; }
+.mark.is-chip .mark-sign::before, .mark.is-locked .mark-sign::before { inset: -8px; }
+.mark.is-chip .mark-sign {
+  flex-direction: row;
+  min-width: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 -3px 0 var(--cream-2), 0 3px 0 rgba(42, 30, 59, 0.45);
+}
+.mark.is-chip .sign-head { display: none; }
+.mark.is-chip .sign-price { gap: 3px; padding: 1px 11px 3px 6px; font-size: 16px; }
+.mark.is-chip .sign-coin { width: 20px; height: 20px; }
+.sign-plock { display: none; width: 18px; height: 18px; color: var(--orange); }
+.mark.is-chip .sign-plock { display: grid; }
+.mark-sign.can-afford.sign-pop { animation: signIn 0.42s cubic-bezier(0.2, 1.6, 0.4, 1), signPulse 1.1s ease-in-out 0.42s infinite; }
+@keyframes signIn { 0% { scale: 0.3; } 65% { scale: 1.18; } 100% { scale: 1; } }
 
 /* ---------- bottom: next-goal pill + menu bar ---------- */
 .bottom {
@@ -1058,7 +1075,7 @@ svg { overflow: visible; }
 @keyframes toastIn { from { translate: 0 -14px; scale: 0.6; opacity: 0; } to { translate: 0 0; scale: 1; opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .cmp-rays, .cmp-confetti i, .ngp.is-done, .b3.is-ready, .mark-up.is-best, .mark-sign.can-afford, .cmp-trophy, .ngp-dot.is-on, .mbtn-dot.is-on { animation: none !important; }
+  .cmp-rays, .cmp-confetti i, .ngp.is-done, .b3.is-ready, .mark-up.is-best, .mark-sign.can-afford, .mark-sign.sign-pop, .cmp-trophy, .ngp-dot.is-on, .mbtn-dot.is-on { animation: none !important; }
 }
 
 /* short screens (e.g. 390 x 664 browser viewport) */

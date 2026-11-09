@@ -416,9 +416,9 @@ stations and grows the top inset until a 42 px DOM badge above each anchor clear
 (on short screens such as a phone browser with toolbars the badge used to cover the income
 pill); the 0.5 s size check re-runs this when a machine grows or opens.
 
-Budgets (Playwright/SwiftShader, outlines included): 34-50 draw calls, 55k-92k triangles at
-High (fresh start ~59k, all open ~76-84k, busy line with coins ~83k, factory complete
-confetti ~92k), 31-43 calls / 54k-70k at Low; ~0.1-0.2 ms of JS per frame. No shadow maps
+Budgets (Playwright/SwiftShader, outlines included): 33-48 draw calls, 57k-84k triangles at
+High (fresh start ~57k, all open ~72-84k, busy line with boosts and coins ~79k, factory
+complete confetti ~84k), 33-42 calls / 58k-66k at Low; ~0.06 ms of scene JS per frame. No shadow maps
 (blob shadows), no post-processing, no scene lights (lighting is in the toon shader), merged
 static geometry, instanced workers/items/particles/turntables, no per-frame allocations.
 

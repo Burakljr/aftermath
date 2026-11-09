@@ -2,7 +2,7 @@
 // A pure view: it reads the game state every frame and plays effects on fx().
 // See docs/ARCH.md ("Scene") for the API.
 import * as THREE from 'three';
-import { CORNERS, MACHINE_OFFSET, TRUCK, STOCK, UI_INSETS, SCREEN } from './layout.js';
+import { CORNERS, MACHINE_OFFSET, TRUCK, DOCK, STOCK, UI_INSETS, SCREEN } from './layout.js';
 import { createCamera } from './camera.js';
 import { presetFor, createPerfMonitor } from './quality.js';
 import { themeFor, createEnvironment, createTruck, createForklift, createPath, BELT_Y } from './factory.js';
@@ -149,8 +149,10 @@ export function createScene(canvas, opts = {}) {
       // the UI's level badge above the two top machines must stay below the HUD
       if (i < 2) add(mx, 2.75, mz);
     });
+    // the truck bed and the back of the cab (the front wheels may sit under the bottom UI);
+    // the forklift, the pallets and the water cooler never drive the fit
     const [tx, tz] = TRUCK;
-    add(tx - 0.75, 1.2, tz - 1.45); add(tx + 0.75, 0, tz + 1.45); add(tx - 0.75, 0.3, tz + 1.45); add(tx + 0.75, 0.3, tz - 1.45);
+    add(tx - 0.75, 1.2, tz - 1.45); add(tx + 0.75, 0, tz + 0.55); add(tx - 0.75, 0.6, tz + 0.55); add(tx + 0.75, 0.3, tz - 1.45);
   }
 
   const BADGE_PX = 42;
@@ -164,6 +166,9 @@ export function createScene(canvas, opts = {}) {
     }
     return over;
   }
+
+  // the forklift is decor: High quality on tall screens only (short screens keep the truck clear)
+  function forkliftOn() { return !!preset.decor && viewH >= 760; }
 
   function resize() {
     needResize = false;
@@ -192,6 +197,7 @@ export function createScene(canvas, opts = {}) {
       cam.fit(w, h, ins, framePts, opts.zoom || 1);
     }
     fitTop = ins.top;
+    if (forklift) forklift.group.visible = forkliftOn();
     // constant-pixel ink outlines (thinner on small screens)
     const wpp = (camera.right - camera.left) / w;
     TOON.setOutline(OUTLINE_PX * clamp(Math.min(w, h) / 390, 0.8, 1.25), wpp);
@@ -228,7 +234,7 @@ export function createScene(canvas, opts = {}) {
     items = createItems(theme, path, preset);
     truck = createTruck(theme);
     forklift = createForklift(theme);
-    forklift.group.visible = preset.decor;
+    forklift.group.visible = forkliftOn();
     factoryGroup.add(env.group, stations.group, workers.group, items.group, truck.group, forklift.group);
     factoryGroup.updateMatrixWorld(true);
     emitSpecs = {};
@@ -344,7 +350,9 @@ export function createScene(canvas, opts = {}) {
         const n = Math.min(4, Math.floor(coinBudget));
         if (n >= 1) {
           coinBudget -= n;
-          _v.copy(truck.group.position); _v.y = 1.5; _v.z -= 0.5;
+          // coins burst from the truck bed; while the truck is on the road, from the dock pile
+          if (truck.phase === 'parked') { _v.set(TRUCK[0], 1.5, TRUCK[1] - 0.5); _v.y += truck.bounceY; }
+          else { _v.set(DOCK[0] + 0.1, 0.9, DOCK[1] + 0.4); }
           fx.burst('coin', _v, n, { speed: 1.5, up: 5.6, grav: 11, drag: 0.4, life: 1.05, size: 1.3, spin: 12 });
           fx.burst('sparkle', _v, 3, { speed: 1.6, up: 2.2, grav: 1, life: 0.5, size: 1.2, colors: [0xffe27a, 0xffffff] });
         }
@@ -466,7 +474,6 @@ export function createScene(canvas, opts = {}) {
     if (next === preset) return;
     preset = next;
     if (env) env.setPreset(preset);
-    if (forklift) forklift.group.visible = preset.decor;
     fx.setPreset(preset);
     needResize = true;
     resize();
@@ -484,7 +491,8 @@ export function createScene(canvas, opts = {}) {
     if (id === 'coins') return { x: rectL + SCREEN.coins.x * viewW, y: rectT + SCREEN.coins.y * viewH, visible: true };
     if (!stations) return { x: 0, y: 0, visible: false };
     if (id === 'truck') {
-      _v2.copy(truck.group.position); _v2.y += 2.0; _v2.z -= 0.3;
+      // above the bed of the PARKED truck (sale floats stay put while the truck drives off)
+      _v2.set(TRUCK[0], 1.9, TRUCK[1] - 0.5);
       return project(_v2);
     }
     const i = indexOf(id);
