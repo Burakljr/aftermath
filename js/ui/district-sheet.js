@@ -138,7 +138,7 @@ export function createDistrictSheet(ctx) {
           const [v, u] = splitVal(d.values[def.kind]);
           T(r.val, v);
           T(r.unit, def.kind === 'fire' ? 'yanıyor' : u);
-          T(r.note, def.kind === 'carve' && d.segName ? d.segName : '');
+          T(r.note, def.kind === 'carve' && d.segNote ? d.segNote : '');
           const sec = s.sectors[id];
           const frac = def.kind === 'fire' ? (sec.fire0 > 0 ? sec.fire / sec.fire0 : 1)
             : def.kind === 'rubble' ? (sec.rubbleMax > 0 ? sec.rubble / sec.rubbleMax : 1)
@@ -153,7 +153,9 @@ export function createDistrictSheet(ctx) {
       C(refs.status, 'live', d.workers > 0);
       show(refs.recall, !!d.recall);
       if (d.recall) T(refs.recall.lastChild, d.recall.label);
-      const w = d.threatened ? `${d.threatened.text} · ${Math.max(1, Math.ceil(d.threatened.t))} sn` : d.paused ? 'Yangın sıçradı, ekipler durdu' : '';
+      // review 2 M4: the countdown belongs to the burning source (where the fire truck helps); the target shows the risk
+      const w = d.spreading ? `${d.spreading.text} · ${Math.max(1, Math.ceil(d.spreading.t))} sn`
+        : d.threatened ? `${d.threatened.risk} · ${Math.max(1, Math.ceil(d.threatened.t))} sn` : d.paused ? 'Yangın sıçradı, ekipler durdu' : '';
       T(refs.warn, w);
       show(refs.warn, !!w);
       S(el, '--x', '0');

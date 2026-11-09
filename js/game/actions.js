@@ -6,7 +6,7 @@ import { fmtPct } from './format.js';
 import {
   emit, sfx, toast, float, headline, say, post, isFree, blockReason, nearestFree, sendTo, sendHome, HOOKS,
   vehicleCost, owned, credit, startContract, startRival, releaseTailNow, startCalm, radarRuns, jobSectors,
-  rizaAll, sellToRiza, canStartJob, startJobNow, upkeepCost, upkeepCap, round10, clamp, rebuildCrews,
+  rizaAll, offerHeld, sellToRiza, canStartJob, startJobNow, upkeepCost, upkeepCap, round10, clamp, rebuildCrews,
 } from './sim.js';
 import { resolve, chance, cellTerms } from './tender.js';
 import { ftueAllows } from './ftue.js';
@@ -216,7 +216,8 @@ const H = {
     if (buyer !== 'riza' || !s.progress.unlocked.depot) return fail(REASON.locked);
     const { total, qty } = rizaAll(s);
     if (qty <= 0) return fail(REASON.nothing);
-    for (const k of ITEM_KEYS) if (s.inv[k] > 0) sellToRiza(s, k, s.inv[k]);
+    const sell = ITEM_KEYS.map((k) => (s.inv[k] > 0 ? s.inv[k] - offerHeld(s, k) : 0));
+    ITEM_KEYS.forEach((k, i) => { if (sell[i] > 0) sellToRiza(s, k, sell[i]); });
     credit(s, total);
     s.stats.sold += qty;
     emit('sale', { buyer: 'riza', item: 'all', qty, total });

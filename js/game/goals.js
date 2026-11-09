@@ -18,7 +18,7 @@ export const GOALS = [
   { id: 'G5', check: (s) => s.stats.made >= 1, unlock: ['tender'] },
   { id: 'G6', check: (s) => s.stats.won >= 1, unlock: ['upkeep'] },
   { id: 'G7', check: (s) => s.sectors.some((x) => x.upkeep > 0), unlock: ['offline'] },
-  { id: 'G8', check: (s) => C(s) >= 4, unlock: ['offers', 'recipe:armor'], progress: (s) => prog(C(s), 4, UNITS.contract) },
+  { id: 'G8', check: (s) => C(s) >= 4, unlock: ['offers', 'recipe:armor'], progress: (s) => prog(C(s), 4, 'iş') },
   { id: 'G9', check: (s) => sinceStart(s, 'offerSold') >= 5, unlock: ['recipe:cell'], progress: (s) => prog(sinceStart(s, 'offerSold'), 5, UNITS.part) },
   { id: 'G10', check: (s) => sinceStart(s, 'gold') >= 1, fallback: (s) => C(s) >= 6, unlock: ['equipment', 'line2'] },
   { id: 'G11', check: (s) => owned(s, 'carve') >= 3, fallback: (s) => C(s) >= 8, unlock: ['foreman', 'autoRepeat', 'recipe:relic'],

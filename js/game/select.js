@@ -5,7 +5,7 @@ import {
 } from './format.js';
 import {
   CHIP_LABEL, OBJ, LABEL, LOOT, DISTRICT_STATE, RECEIPT, TENDER, CALM, NOTICE, COMPANY, FACTORY, NPC,
-  RIVAL_COPY, callLines, SEG_NAME, STAGE_NAME,
+  RIVAL_COPY, callLines, SEG_NAME, SEG_HERE, STAGE_NAME,
 } from './copy.js';
 import {
   radarRuns, isFree, assigned, blockReason, owned, vehicleCost, rizaUnit, rizaAll, rizaTotal, upkeepCost,
@@ -227,8 +227,8 @@ export function districtStatus(s, id) {
     id, name: d.name, caps: d.caps, stage, bar, dots, values,
     workers: working, attention,
     spreading: sec.warnTo != null ? { to: sec.warnTo, t: sec.warnT, text: DISTRICT_STATE.spreading } : null,
-    threatened: threatened ? { ...threatened, text: DISTRICT_STATE.spreading } : null,
-    paused: sec.paused, seg: sec.seg, segName: sec.seg ? SEG_NAME[sec.seg] : null, rival: sec.rival,
+    threatened: threatened ? { ...threatened, text: DISTRICT_STATE.spreading, risk: DISTRICT_STATE.risk } : null,
+    paused: sec.paused, seg: sec.seg, segName: sec.seg ? SEG_NAME[sec.seg] : null, segNote: sec.seg ? SEG_HERE[sec.seg] : null, rival: sec.rival,
     buttons,
     recall: workPhase && here > 0 ? { count: here, label: LABEL.recall(here) } : null,
     loot: sec.corpse > 0 && sec.seg ? LOOT[sec.seg] : null,
@@ -304,7 +304,7 @@ export function tenderGrid(s) {
   const bi = s.progress.tips.tenderBubble;
   const bubbles = TENDER.bubbles;
   const bubble = t.rec && bi < 3
-    ? { index: bi, text: typeof bubbles[bi] === 'function' ? bubbles[bi](fmtTime(e.mid)) : bubbles[bi], anchor: ['grid', 'estimate', 'rival'][bi] }
+    ? { index: bi, text: typeof bubbles[bi] === 'function' ? bubbles[bi](fmtTime(e.hi)) : bubbles[bi], anchor: ['grid', 'estimate', 'rival'][bi] }
     : null;
   // every job district, not only the carcass chain (playtest m7)
   const all = a.sectors.map((id) => D(id).name);
@@ -456,13 +456,14 @@ export function suggestion(s) {
   return null;
 }
 
+// review 2 m8: no "Kıyıya yaklaşıyor" while the radar is paused
 export function nextCard(s) {
   if (s.phase !== 'calm') return null;
   const runs = radarRuns(s);
   const canSkip = runs && goalDone(s, 'G4');
   return {
     title: CALM.next, etaText: runs ? CALM.eta(fmtTime(s.timer)) : null, monster: 'Magmadon', mutant: !!s.flags.mutantNext,
-    line: s.flags.mutantNext ? CALM.lineMutant : CALM.line, loot: ['scale', 'blood', 'bone', 'eye'],
+    line: !runs ? CALM.linePaused : s.flags.mutantNext ? CALM.lineMutant : CALM.line, loot: ['scale', 'blood', 'bone', 'eye'],
     skip: canSkip ? { label: CALM.skip, action: { id: 'skipRadar' } } : null,
   };
 }
@@ -500,7 +501,8 @@ export function depot(s) {
     items,
     riza: {
       name: BUYERS.riza.name, line: BUYERS.riza.line, sub: BUYERS.riza.sub, note: BUYERS.riza.note,
-      allText: LABEL.sellAll(all.total), allValue: all.total, enabled: all.qty > 0, reason: all.qty > 0 ? null : 'Satacak parça yok',
+      allText: LABEL.sellAll(all.total), allValue: all.total, enabled: all.qty > 0, reason: all.qty > 0 ? null : all.held > 0 ? 'Kalanlar teklifte' : 'Satacak parça yok',
+      heldText: all.held > 0 ? `Teklifteki ${fmtInt(all.held)} parça hariç` : null,
       primary: s.progress.ftue === 'sell',
     },
     offers, offersOn: !!s.progress.unlocked.offers, dna: s.dna, dnaText: s.dna ? `${fmtInt(s.dna)} etiketsiz tüp` : null,

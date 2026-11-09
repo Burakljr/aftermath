@@ -87,6 +87,7 @@ export function createTraffic(scene, { city, vehicleMat }) {
     }
   }
   const peds = city.peds, pedMesh = city.pedMesh;
+  let pedK = 1, pedT = 0;
   const api = {
     setPhase(ph) { phase = ph; },
     setDamaged(i, on) { damaged[i] = on ? 1 : 0; },
@@ -141,17 +142,20 @@ export function createTraffic(scene, { city, vehicleMat }) {
         m4.compose(p, q, lp); gullM.setMatrixAt(i, m4);
       }
       gullM.instanceMatrix.needsUpdate = true;
-      // pedestrians
+      // pedestrians fade back in over 2 s once the city is calm again (review 2 F3: a crowd popped in at the clean)
+      const pdt = Math.min(0.5, Math.max(0, t - pedT));
+      pedT = t;
+      pedK = phase === 'calm' ? Math.min(1, pedK + pdt / 2) : 0;
       for (let i = 0; i < peds.length; i++) {
         const pd = peds[i];
         // the city is evacuated from the attack until the job is over: nobody stands next to fires and the carcass
-        let hidden = phase !== 'calm';
+        let hidden = phase !== 'calm' || pedK < 0.04;
         if (pd.did !== undefined && damaged[pd.did]) hidden = true;
         if (lowQ && i % 2) hidden = true;
         const x = pd.x + (pd.sp ? (((t * pd.sp * pd.dir + pd.ph * 10) % pd.span) + pd.span) % pd.span - pd.span / 2 : 0);
         q.setFromEuler(e.set(0, pd.sp ? (pd.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : pd.ry, 0));
         p.set(x, 0.2 + (pd.sp ? Math.abs(Math.sin(t * 8 + pd.ph)) * 0.12 : 0), pd.z);
-        m4.compose(p, q, hidden ? s0 : lp.setScalar(1.9));
+        m4.compose(p, q, hidden ? s0 : lp.setScalar(1.9 * pedK));
         pedMesh.setMatrixAt(i, m4);
       }
       pedMesh.instanceMatrix.needsUpdate = true;

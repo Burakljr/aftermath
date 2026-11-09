@@ -126,15 +126,27 @@ async function tapCanvas(page, x = 195, y = 330) {
 }
 
 /** tap an element by data-key; returns false if it is not there / not tappable in time */
+// review 2 m12: under SwiftShader load a sheet slide-in may not settle within 2 s; wait for running transitions of the
+// target's sheet to end, then retry once with a longer timeout before giving up
 async function tapKey(page, key, { timeout = 2000, ftue = false } = {}) {
   const sel = `${ftue ? '[data-ftue-target]' : ''}[data-key="${key}"]`;
-  try {
-    await page.click(sel, { timeout });
-    return true;
-  } catch (e) {
-    if (process.env.TRACE) console.log(`  tap ${key} failed: ${String(e.message).split('\n').filter((l) => /intercepts|visible|stable|waiting for/.test(l)).slice(-2).join(' | ')}`);
-    return false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (attempt > 0) {
+        await page.evaluate((q) => {
+          const el = document.querySelector(q);
+          const box = el && el.closest('.sheet-box, .page-box, .receipt');
+          const anims = box && box.getAnimations ? box.getAnimations({ subtree: false }) : [];
+          return Promise.race([Promise.all(anims.map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1500))]);
+        }, sel).catch(() => {});
+      }
+      await page.click(sel, { timeout: attempt ? Math.max(timeout, 4000) : timeout });
+      return true;
+    } catch (e) {
+      if (process.env.TRACE) console.log(`  tap ${key} failed: ${String(e.message).split('\n').filter((l) => /intercepts|visible|stable|waiting for/.test(l)).slice(-2).join(' | ')}`);
+    }
   }
+  return false;
 }
 
 function report(name, problems, extra = '') {

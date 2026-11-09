@@ -27,7 +27,7 @@ export function createTabs(ctx) {
     bar.appendChild(el);
   }
   ctx.L.tabs.appendChild(bar);
-  createUnlockCard(ctx);
+  const unlockCard = createUnlockCard(ctx);
 
   return {
     el: bar,
@@ -39,6 +39,7 @@ export function createTabs(ctx) {
       if (it) pulseClass(it.el, 'bump', 200);
     },
     update(s) {
+      unlockCard.update(s);
       const list = ctx.game.tabs(s);
       for (const t of list) {
         const it = items[t.id];

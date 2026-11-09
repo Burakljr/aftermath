@@ -78,7 +78,11 @@ export function createBroadcast(ctx) {
     frame(s) {
       if (!on || dropId == null) return;
       ctx.project(`district:${dropId}`, P);
-      const vis = P.visible && stage === 'tv'; // the profile shot of the fall needs no marker
+      // review 2 m1: never in the TV shot or the profile shot (it floated in the sky); only once the gameplay framing is
+      // live after the impact, and only when the district is inside the band
+      const a = s && s.attack;
+      const H = ctx.root.clientHeight || 844;
+      const vis = P.visible && !!a && a.t >= game.ATTACK.TL.settle[0] && P.y > ctx.band.top + 30 && P.y < H - ctx.band.bottom;
       C(track, 'show', vis);
       if (vis) S(track, 'transform', `translate3d(${P.x.toFixed(1)}px,${P.y.toFixed(1)}px,0)`);
     },

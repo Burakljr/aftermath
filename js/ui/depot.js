@@ -207,7 +207,7 @@ export function createDepot(ctx) {
       T(note, d.riza.note);
       show(dna, !!d.dnaText);
       if (d.dnaText) T(dna.lastChild, d.dnaText);
-      all.set({ label: d.riza.allText, primary: d.riza.enabled && ctx.primaryOK(), enabled: d.riza.enabled, reason: d.riza.reason, key: 'sellAll:riza' });
+      all.set({ label: d.riza.allText, sub: d.riza.heldText || '', primary: d.riza.enabled && ctx.primaryOK(), enabled: d.riza.enabled, reason: d.riza.reason, key: 'sellAll:riza' });
       void S;
     },
   };

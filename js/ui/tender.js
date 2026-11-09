@@ -174,14 +174,19 @@ export function createTenderSheet(ctx) {
         h('div.env-side.riv', h('span.num', { text: row.rival }), h('span.ebar', h('i', { style: `--w:${rw.toFixed(3)}` })))));
     });
     const tmax = Math.max(1, rv.total.you, rv.total.rival);
+    // review 2 F8: the totals stay blank until the three rows are done, then count up with their bars
+    const youTot = h('span.num', { text: '' });
+    const rivTot = h('span.num', { text: '' });
     const total = h('div.env-row.env-total', { style: '--i:3' },
       h('div.env-row__label', { text: rv.total.label }),
-      h('div.env-side.you', h('span.num', { text: rv.total.youText }), h('span.ebar', h('i', { style: `--w:${Math.max(0.04, rv.total.you / tmax).toFixed(3)}` }))),
-      h('div.env-side.riv', h('span.num', { text: rv.total.rivalText }), h('span.ebar', h('i', { style: `--w:${Math.max(0.04, rv.total.rival / tmax).toFixed(3)}` }))));
+      h('div.env-side.you', youTot, h('span.ebar', h('i', { style: `--w:${Math.max(0.04, rv.total.you / tmax).toFixed(3)}` }))),
+      h('div.env-side.riv', rivTot, h('span.ebar', h('i', { style: `--w:${Math.max(0.04, rv.total.rival / tmax).toFixed(3)}` }))));
     const stamp = h(`div.reveal-stamp.${rv.stampKind}`, h('span', { text: rv.stamp }));
     const main = button({ icon: rv.win ? 't-check' : 'g-carcass', onTap: (e, b) => ctx.act(rv.button.action.id, null, b) });
     main.classList.add('block');
     const sec = rv.secondary ? button({ cls: 'ghost', label: rv.secondary.label, onTap: (e, b) => ctx.act(rv.secondary.action.id, null, b) }) : null;
+    // the next actions sit right under the reason and appear ~300 ms after the stamp has landed (review 2 F8)
+    const cta = h('div.tender__cta.reveal-cta', main, sec);
     box.append(h('div.grabber'), h('div.tender__scroll.scroll.reveal',
       h('div.docline', h('span.doc-org', icon('g-municipal', 16), 'Körfezkent Belediyesi'), h('span', { text: 'Zarflar açıldı' })),
       h('div.title.tender__title', { text: 'İhale sonucu' }),
@@ -190,9 +195,24 @@ export function createTenderSheet(ctx) {
         h('div.env.you', icon('g-crate', 18), h('b', { text: rv.names.you })),
         h('div.env.riv', icon('g-broom', 18), h('b', { text: rv.names.rival }))),
       rowsEl, total,
-      h('div.reveal-foot', stamp, h('div.reveal-why', h('b', { text: rv.why }), rv.line ? h('p', { text: rv.line }) : null))),
-    h('div.tender__cta.reveal-cta', main, sec));
-    return { main };
+      h('div.reveal-foot', stamp, h('div.reveal-why', h('b', { text: rv.why }), rv.line ? h('p', { text: rv.line }) : null)),
+      cta));
+    return { main, cta, youTot, rivTot, t0: performance.now(), tot: rv.total };
+  }
+  const T_TOTAL = 1.3;
+  const T_CTA = 1.85;
+  /** counts an integer total up over 300 ms; non-integer texts just appear */
+  function countText(text, value, k) {
+    if (k <= 0) return '';
+    if (k >= 1 || !/^\d+$/.test(String(text))) return text;
+    return String(Math.round(value * k));
+  }
+  function revealStep(r) {
+    const e = (performance.now() - r.t0) / 1000;
+    const k = Math.max(0, Math.min(1, (e - T_TOTAL) / 0.3));
+    T(r.youTot, countText(r.tot.youText, r.tot.you, e < T_TOTAL ? 0 : k));
+    T(r.rivTot, countText(r.tot.rivalText, r.tot.rival, e < T_TOTAL ? 0 : k));
+    C(r.cta, 'on', e >= T_CTA);
   }
 
   return {
@@ -208,6 +228,7 @@ export function createTenderSheet(ctx) {
         const r = keyed(box, `rev${t.no}`, () => buildReveal(rv));
         r.main.set({ label: rv.button.label, primary: ctx.primaryOK(), key: rv.button.action.id });
         el.classList.add('revealing');
+        revealStep(r);
         return;
       }
       el.classList.remove('revealing');
@@ -219,6 +240,9 @@ export function createTenderSheet(ctx) {
     },
     onHide() {
       closeConfirm();
+    },
+    frame(s) {
+      if (s.tender && s.tender.reveal && box.__refs && box.__refs.cta) revealStep(box.__refs);
     },
   };
 }

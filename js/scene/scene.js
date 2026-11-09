@@ -131,11 +131,13 @@ export function createScene(canvas, opts = {}) {
     if (!targets.length) targets = [{ x: D.cx, y: 4, z: D.cz }];
     const want = kind === 'fire' ? [12, 30] : kind === 'rubble' ? [9, 22] : [0, 0];
     const sp = rubble ? rubble.streetPile(id) : null;
+    const heapsN = rubble && rubble.heaps ? rubble.heaps(id) : null;
     const caps = placement ? placement.capsules : null;
     const scored = [];
     for (const c of cand) {
       if (caps && capsDist(c.x, c.z, caps) < 7) continue;
       if (sp && Math.hypot(c.x - sp.x, c.z - sp.z) < 11) continue;
+      if (heapsN && heapsN.some(([hx, hz]) => Math.hypot(c.x - hx, c.z - hz) < 15)) continue; // not inside a street heap
       let best = 1e9, aim = targets[0];
       for (const t of targets) {
         let dd = Math.hypot(t.x - c.x, t.z - c.z);
@@ -192,6 +194,7 @@ export function createScene(canvas, opts = {}) {
     if (d.applied || !d.plan) return;
     jobs.finish('d' + did);
     const cd = city.districts[did], geo = cd.mesh.geometry;
+    if (rebuildAt[did] >= 0 || cd.mesh.scale.y !== 1) { rebuildAt[did] = -1; cd.mesh.scale.y = 1; cd.mesh.updateMatrix(); }
     geo.setAttribute('aDmg', new THREE.BufferAttribute(d.plan.aDmg, 4));
     geo.setAttribute('aBite', new THREE.BufferAttribute(d.plan.aBite, 2));
     cd.mesh.material = city.matD;
@@ -206,6 +209,17 @@ export function createScene(canvas, opts = {}) {
     traffic.setDamaged(did, true);
     d.applied = true;
     updateGroundCaps();
+  }
+  const rebuildAt = [-1, -1, -1, -1, -1, -1];
+  function stepRebuild() {
+    for (let did = 0; did < 6; did++) {
+      if (rebuildAt[did] < 0) continue;
+      const k = Math.min(1, Math.max(0, (vt - rebuildAt[did]) / 1.8));
+      const m = city.districts[did].mesh;
+      m.scale.y = 0.05 + 0.95 * (1 - Math.pow(1 - k, 3));
+      m.updateMatrix();
+      if (k >= 1) { rebuildAt[did] = -1; m.scale.y = 1; m.updateMatrix(); }
+    }
   }
   function cleanDistrict(did, juice) {
     const d = dmg[did];
@@ -224,11 +238,19 @@ export function createScene(canvas, opts = {}) {
     traffic.setDamaged(did, false);
     const wasApplied = d.applied;
     d.plan = null; d.applied = false; d.props = null; d.ready = false;
+    if (!juice && rebuildAt[did] >= 0) { rebuildAt[did] = -1; cd.mesh.scale.y = 1; cd.mesh.updateMatrix(); }
     if (juice && wasApplied) {
       districts.lightsWave(did);
       traffic.carsOut(did, vt);
       const D = layout.DISTRICTS[did];
-      for (let k = 0; k < 4; k++) fx.dust(D.cx + (k % 2 ? 30 : -30), 1, D.cz + (k < 2 ? 25 : -25), 4, { size: 6, spread: 8, rise: 2 });
+      // review 2 F3: the block is rebuilt in front of the player (it popped from ruin to new in one frame): the
+      // intact block rises out of a dust cloud over 1.8 s, a puff at each building's foot, the window wave follows
+      rebuildAt[did] = vt;
+      cd.mesh.scale.y = 0.05; cd.mesh.updateMatrix();
+      const bs = cd.buildings;
+      const stepN = Math.max(1, Math.ceil(bs.length / 10));
+      for (let k = 0; k < bs.length; k += stepN) fx.dust(bs[k].x, 1, bs[k].z, 3, { size: 8 + bs[k].w * 0.25, spread: 6, rise: 3, life: 2.4 });
+      fx.ring(D.cx, D.cz, 60, 14);
     }
     updateGroundCaps();
   }
@@ -246,8 +268,14 @@ export function createScene(canvas, opts = {}) {
     fx.ring(c.x, c.z, placement.length * 0.35 + 30, 24);
     fx.ring(n.x, n.z, 40, 16);
     for (const did of a.sectors || []) if (!a.chain.includes(did)) { const p = dmg[did].plan; if (p) fx.ring(p.caps[0].ax, p.caps[0].az, 30, 12); }
-    // a short (120 ms) flash at the contact point, not a long bloom whiteout over the body (review V3)
-    if (!reducedMotion) { rig.shake(0.85); fx.flash(c.x, 12, c.z, 42, 0.12); }
+    // review 2 F2/M3: no bloom sprite over the body (it read as a white ball); the impact is a ground-level dust burst
+    // along the whole body, debris arcs and a camera kick. The UI's full-frame flash is the only white (≤ 0.1 s peak).
+    if (!reducedMotion) rig.shake(1.0);
+    const L = placement.length, dx = placement.dir.x, dz = placement.dir.z;
+    for (let u = 0.05; u < 1; u += 0.15) {
+      const px = n.x - dx * u * L, pz = n.z - dz * u * L;
+      fx.dust(px, 1.5, pz, 4, { size: 12 + L * 0.04, spread: 14 + L * 0.05, rise: 4, life: 2.6 });
+    }
     fx.debris([{ x: n.x, z: n.z, dx: placement.dir.x, dz: placement.dir.z }, { x: c.x, z: c.z, dx: -placement.dir.z, dz: placement.dir.x }, { x: c.x, z: c.z, dx: placement.dir.z, dz: -placement.dir.x }]);
   }
 
@@ -260,7 +288,7 @@ export function createScene(canvas, opts = {}) {
   function syncState(s, dt, juice) {
     lastState = s;
     env.setLook(lookFor(s), !juice);
-    traffic.setPhase(s.phase);
+    traffic.setPhase(s.phase === 'calm' && s.result ? 'result' : s.phase); // nobody walks in before the receipt is collected
     const a = s.attack;
     if (a && a.n !== attackN) startAttack(a);
     if (a && s.phase === 'attack') {
@@ -499,6 +527,7 @@ export function createScene(canvas, opts = {}) {
       rubble.update(vdt);
       yard.update(vdt, vt);
       traffic.update(vt);
+      stepRebuild();
       fx.update();
       if (actors) actors.update(state, vdt, vt);
       refitJob(state);

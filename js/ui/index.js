@@ -75,10 +75,18 @@ export function createUI(root, deps = {}) {
   };
 
   /** every player action goes through here: act -> toast + shake on a rule refusal, nothing on an FTUE refusal */
+  // review 2 (M2): money-spending taps are debounced 600 ms (a double tap must never buy twice)
+  const SPEND = new Set(['buyVehicle', 'buyUpgrade', 'signUpkeep', 'sellAll', 'acceptOffer']);
+  let lastSpend = -1e9;
   function act(id, arg, el) {
     const s = ctx.s;
     if (!s) return { ok: false, code: 'nostate' };
+    if (SPEND.has(id)) {
+      const t = performance.now();
+      if (t - lastSpend < 600) return { ok: false, code: 'debounce' };
+    }
     const r = game.act(s, id, arg);
+    if (r.ok && SPEND.has(id)) lastSpend = performance.now();
     ctx.dirty = true;
     if (!r.ok && r.code === 'rule') refuse(el, r.reason, true);
     return r;
@@ -275,8 +283,9 @@ export function createUI(root, deps = {}) {
   on('contract-done', () => buzz('contract'));
   on('tender-result', () => buzz('reveal'));
   on('sale', () => buzz('sale'));
-  // a purchase is seen in the yard (review V5): the page steps aside while the new vehicle drives in, then comes back
-  let purchaseTimer = 0;
+  // a purchase is seen in the yard (review V5, review 2 F7): the page steps aside while the new vehicle drives in,
+  // then comes back. Timed on the game clock, so stepped captures and slow phones see the same 2.6 s.
+  let purchaseBack = null;
   on('purchase', () => {
     buzz('purchase');
     const st = nowState();
@@ -285,14 +294,15 @@ export function createUI(root, deps = {}) {
     ctx.view.settings = false;
     ctx.dirty = true;
     scene.frame('yard', { zoom: 'district', duration: 0.6 });
-    clearTimeout(purchaseTimer);
-    purchaseTimer = setTimeout(() => {
-      const s2 = nowState();
-      if (!s2 || ctx.view.tab !== 'city' || ctx.view.sel != null || s2.phase === 'attack' || s2.phase === 'tender') return;
-      scene.frame('city', { zoom: 'city', duration: 0.8 });
-      openTab('company');
-    }, 2200);
+    purchaseBack = st.clock + 2.6;
   });
+  function purchaseStep(s) {
+    if (purchaseBack == null || s.clock < purchaseBack) return;
+    purchaseBack = null;
+    if (ctx.view.tab !== 'city' || ctx.view.sel != null || s.phase === 'attack' || s.phase === 'tender' || s.result) return;
+    scene.frame('city', { zoom: 'city', duration: 0.8 });
+    openTab('company');
+  }
   on('unlock', () => buzz('unlock'));
   on('stage-done', ({ stage }) => buzz(stage === 'fire' ? 'fireOut' : stage === 'rubble' ? 'roadOpen' : 'clean'));
   const dirtyOn = ['phase', 'call', 'tender-open', 'tender-result', 'contract-start', 'contract-done', 'payment', 'sale', 'purchase',
@@ -323,6 +333,7 @@ export function createUI(root, deps = {}) {
     ctx.s = s;
     ctx.now = now;
     syncView(s);
+    purchaseStep(s);
     if (ctx.dirty || now - lastPanel >= PANEL_MS) {
       ctx.dirty = false;
       lastPanel = now;

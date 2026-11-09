@@ -39,6 +39,10 @@ export function measureBand(root, L, attack) {
   const ob = L.objective.firstElementChild;
   let top = 0;
   if (ob && ob.offsetParent) top = topOf(ob, root) + ob.offsetHeight + 8;
+  // the objective line (or the headline laid over it) is always reserved, even while the bar is hidden for a moment,
+  // so chips never clamp under it and the job framing does not jump (review 2 m9)
+  const hud = L.hud.firstElementChild;
+  if (hud && hud.offsetParent) top = Math.max(top, topOf(hud, root) + hud.offsetHeight + 54);
   let minTop = H;
   const cands = [L.tabs.firstElementChild, ...L.panel.children];
   // sheet slots are full-screen wrappers: measure the box inside the active one

@@ -611,7 +611,8 @@ function spreadStep(s, dt) {
     }
     if (sec.warnTo == null) {
       sec.spreadT += dt;
-      if (sec.spreadT >= BAL.spreadUnattended) {
+      // review 2 M4: one spread countdown at a time; the next waits until the current one is resolved
+      if (sec.spreadT >= BAL.spreadUnattended && !job.some((j) => s.sectors[j].warnTo != null)) {
         const to = spreadTarget(s, sec);
         if (to != null) {
           sec.warnTo = to;
@@ -946,17 +947,28 @@ export function rizaTotal(s, item, qty) {
   return t;
 }
 
+// review 2 m7: stock that a live buyer offer pays more for is kept out of "sell all to Rıza"
+export function offerHeld(s, k) {
+  let q = 0;
+  const r = rizaUnit(s, k, 0);
+  for (const o of s.offers) if (o.item === k && s.clock < o.until && o.unit > r) q += o.qty;
+  return Math.min(q, s.inv[k]);
+}
+
 export function rizaAll(s) {
   let total = 0;
   let qty = 0;
+  let held = 0;
   for (const k of ITEM_KEYS) {
-    const n = s.inv[k];
+    const h = s.inv[k] > 0 ? offerHeld(s, k) : 0;
+    const n = s.inv[k] - h;
+    held += h;
     if (n > 0) {
       total += rizaTotal(s, k, n);
       qty += n;
     }
   }
-  return { total: Math.round(total), qty };
+  return { total: Math.round(total), qty, held };
 }
 
 export function sellToRiza(s, item, qty) {

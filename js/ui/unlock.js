@@ -16,14 +16,29 @@ export function createUnlockCard(ctx) {
   const reward = h('span.unlock__reward');
   const card = h('div.unlock.glass', icon('t-check', 18, 'c-temiz'), h('div', h('div.unlock__kicker', { text: 'Hedef tamamlandı' }), reward));
   ctx.L.bubble.appendChild(card);
-  let timer = 0;
+  // review 2 m5: goal cards queue, wait while the receipt / tender sheet is open, and push the toasts below them
+  const pending = [];
+  let until = 0;
   on('goal', ({ id }) => {
     const g = ctx.game.goalById(id);
     if (!g || !g.reward) return;
-    T(reward, g.reward);
-    card.classList.add('on');
-    clearTimeout(timer);
-    timer = setTimeout(() => card.classList.remove('on'), 2600);
+    pending.push(g.reward);
   });
-  return card;
+  return {
+    card,
+    update() {
+      const t = performance.now();
+      const blocked = ctx.activeSheet === 'receipt' || ctx.activeSheet === 'tender' || ctx.modal;
+      const on_ = card.classList.contains('on');
+      // a sheet that opens over a showing card sends it back to the queue (it is shown again after the sheet)
+      if (on_ && blocked && until - t > 900) { pending.unshift(reward.textContent); card.classList.remove('on'); }
+      else if (on_ && t >= until) card.classList.remove('on');
+      if (!card.classList.contains('on') && pending.length && !blocked) {
+        T(reward, pending.shift());
+        card.classList.add('on');
+        until = t + 2600;
+      }
+      ctx.root.classList.toggle('goal-on', card.classList.contains('on'));
+    },
+  };
 }

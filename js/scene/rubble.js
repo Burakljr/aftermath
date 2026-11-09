@@ -60,7 +60,7 @@ export function createRubble(scene, { fx, quality }) {
     if (!plan.rubble.length) return;
     const R = rng(seed * 17 + did * 3 + 1);
     const items = [];
-    const addPile = ({ x, z, radius, height, count, sx = 1, sz = 1, color }) => {
+    const addPile = ({ x, z, radius, height, count, sx = 1, sz = 1, color, light = 0.8 }, layer) => {
       for (let i = 0; i < count; i++) {
         const a = R() * Math.PI * 2, dd = Math.pow(R(), 0.7);
         const px = x + Math.cos(a) * dd * radius * sx, pz = z + Math.sin(a) * dd * radius * sz;
@@ -71,43 +71,64 @@ export function createRubble(scene, { fx, quality }) {
         const s = size * (slab ? 2.6 : 1.6);
         const y = 0.2 + mound * (0.5 + R() * 0.5) + s * 0.1;
         let col = LIGHT[Math.floor(R() * LIGHT.length)];
-        if (R() < 0.2) col = color; // mostly light concrete: the heaps read apart from the dark carcass (review V6)
-        items.push({ proto, x: px, y, z: pz, rx: (R() - 0.5) * (slab ? 1.4 : 3), ry: R() * 6.28, rz: (R() - 0.5) * (slab ? 1.4 : 3), sx: s * (0.8 + R() * 0.5), sy: s * (0.7 + R() * 0.5), sz: s * (0.8 + R() * 0.5), col, h: mound });
+        if (R() > light) col = color; // mostly light concrete: the heaps read apart from the dark carcass (review V6)
+        items.push({ proto, x: px, y, z: pz, rx: (R() - 0.5) * (slab ? 1.4 : 3), ry: R() * 6.28, rz: (R() - 0.5) * (slab ? 1.4 : 3), sx: s * (0.8 + R() * 0.5), sy: s * (0.7 + R() * 0.5), sz: s * (0.8 + R() * 0.5), col, h: mound, layer });
       }
     };
-    for (const sd of plan.rubble) addPile(sd);
-    // one street pile on the perimeter road nearest the source: it visibly blocks the road
+    // collapsed-building piles inside the block: thirds by height (the tallest go first)
+    const inner = plan.rubble.slice().sort((a, b) => a.height - b.height);
+    inner.forEach((sd, i) => addPile(sd, Math.min(2, Math.floor((i / Math.max(1, inner.length)) * 3))));
+    // review 2 F4: three big pale heaps on the street in front of the block, one per third of the job. Each step
+    // removes a whole heap (with a dust puff), and the barriers go when the last one is gone ("Yol açık")
     const src = plan.caps[0];
     const sp = streetPileSpot(did, (src.ax + src.bx) / 2, (src.az + src.bz) / 2, plan.caps[0].r > 3 ? plan.caps : null);
-    addPile({ x: sp.x, z: sp.z, radius: 8, height: 4.6, count: 58, sx: sp.axis === 'z' ? 0.8 : 1.2, sz: sp.axis === 'z' ? 1.2 : 0.8, color: 0x8a8278 });
+    const al = sp.axis === 'z' ? [0, 1] : [1, 0];
+    const heaps = [];
+    for (let k = 0; k < 3; k++) {
+      const o = (k - 1) * 30;
+      let hx = sp.x + al[0] * o, hz = sp.z + al[1] * o;
+      const D = DISTRICTS[did];
+      hx = Math.max(D.x0 - 4, Math.min(D.x1 + 4, hx)); hz = Math.max(D.z0 - 4, Math.min(D.z1 + 4, hz));
+      if (plan.caps[0].r > 3 && capsDist(hx, hz, plan.caps) < 10) continue;
+      heaps.push({ x: hx, z: hz });
+    }
+    if (!heaps.length) heaps.push({ x: sp.x, z: sp.z });
+    // the heap nearest the spot stays until the end (layer 0); the outer ones go first
+    heaps.sort((a, b) => Math.hypot(a.x - sp.x, a.z - sp.z) - Math.hypot(b.x - sp.x, b.z - sp.z));
+    const heapC = [[], [], []];
+    heaps.forEach((hp, k) => {
+      const layer = heaps.length === 1 ? 0 : heaps.length === 2 ? k * 2 : k;
+      addPile({ x: hp.x, z: hp.z, radius: 13, height: 7.5, count: 64, sx: sp.axis === 'z' ? 0.75 : 1.25, sz: sp.axis === 'z' ? 1.25 : 0.75, color: 0x9a9284, light: 0.92 }, layer);
+      heapC[layer].push([hp.x, hp.z]);
+    });
     yield;
-    items.sort((a, b) => a.h - b.h);
+    items.sort((a, b) => a.layer - b.layer || a.h - b.h);
     const B = new Builder(did * 7 + 9);
     const steps = [0, 0, 0];
     let v = 0;
-    items.forEach((it, i) => {
+    items.forEach((it) => {
       _e.set(it.rx, it.ry, it.rz); _q.setFromEuler(_e); _s.set(it.sx, it.sy, it.sz); _p.set(it.x, it.y, it.z);
       _m.compose(_p, _q, _s);
       B.geo(it.proto, it.col, _m, { jitter: 0.3 });
       v += it.proto.attributes.position.count;
-      const layer = Math.min(2, Math.floor((i / items.length) * 3));
-      steps[layer] = v;
+      for (let L = it.layer; L < 3; L++) steps[L] = v;
     });
     yield;
     const mesh = new THREE.Mesh(B.build(), mat);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'pile' + did; mesh.visible = false;
     scene.add(mesh);
-    // cones across the road on both sides of the street pile, barriers in front of them
+    // cones across the road beyond both ends of the heaps, barriers in front of them
     const cs = coneState[did];
     cs.items = [];
-    const along = sp.axis === 'z' ? [0, 1] : [1, 0], across = sp.axis === 'z' ? [1, 0] : [0, 1];
+    const along = al, across = sp.axis === 'z' ? [1, 0] : [0, 1];
     const hw = sp.axis === 'z' && sp.x === XR.A ? 7 : 5;
+    const reach = heaps.reduce((m, hp) => Math.max(m, Math.abs((hp.x - sp.x) * al[0] + (hp.z - sp.z) * al[1])), 0) + 22;
     for (const side of [-1, 1]) {
-      const cx = sp.x + along[0] * side * 12, cz = sp.z + along[1] * side * 12;
+      const cx = sp.x + along[0] * side * reach, cz = sp.z + along[1] * side * reach;
       for (let k = 0; k < CONES_PER / 2; k++) { const o = -hw + (2 * hw * k) / (CONES_PER / 2 - 1); cs.items.push({ kind: 0, x: cx + across[0] * o, z: cz + across[1] * o, ry: 0 }); }
       for (let k = 0; k < BARR_PER / 2; k++) { const o = (k - 0.5) * hw; cs.items.push({ kind: 1, x: cx + along[0] * side * 2.2 + across[0] * o, z: cz + along[1] * side * 2.2 + across[1] * o, ry: sp.axis === 'z' ? 0 : Math.PI / 2 }); }
     }
-    piles[did] = { mesh, steps, level: 3, sp, centers: plan.rubble.slice(0, 4).map((r) => [r.x, r.z]).concat([[sp.x, sp.z]]) };
+    piles[did] = { mesh, steps, level: 3, sp, heapC, centers: plan.rubble.slice(0, 4).map((r) => [r.x, r.z]).concat(heaps.map((hp) => [hp.x, hp.z])) };
     setLevelRaw(did, 3);
   }
   function setLevelRaw(did, L) {
@@ -147,8 +168,13 @@ export function createRubble(scene, { fx, quality }) {
       const L = frac > 0.66 ? 3 : frac > 0.33 ? 2 : frac > 0.0001 ? 1 : 0;
       if (L === p.level) return false;
       const down = L < p.level;
+      const was = p.level;
       setLevelRaw(did, L);
-      if (down && juice && fx) for (const [x, z] of p.centers) fx.dust(x, 1.2, z, 8, { size: 6, spread: 5, rise: 5 });
+      // the removed heap goes up in a dust puff (review 2 F4)
+      if (down && juice && fx) {
+        for (let k = L; k < was && k < 3; k++) for (const [x, z] of p.heapC[k]) fx.dust(x, 1.5, z, 10, { size: 11, spread: 9, rise: 6 });
+        for (const [x, z] of p.centers.slice(0, 2)) fx.dust(x, 1.2, z, 4, { size: 6, spread: 5, rise: 4 });
+      }
       return true;
     },
     setCones(did, on, juice = true) {
@@ -170,6 +196,7 @@ export function createRubble(scene, { fx, quality }) {
     },
     level: (did) => (piles[did] ? piles[did].level : 0),
     streetPile: (did) => (piles[did] ? piles[did].sp : null),
+    heaps: (did) => (piles[did] ? piles[did].heapC.flat() : []),
     centers: (did) => (piles[did] ? piles[did].centers : []),
     meshes: () => piles.filter(Boolean).map((p) => p.mesh),
   };

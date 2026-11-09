@@ -235,6 +235,11 @@
 .upkeep__rate b { display: block; font-weight: 760; font-stretch: 78%; font-size: 24px; margin-top: 4px; }
 .upkeep__note { font-size: 13.5px; color: var(--beton); margin-bottom: 10px; }
 .upkeep__next { font-weight: 640; font-size: 14px; margin: 4px 0 10px; }
+/* review 2 (M2): the calm upkeep sheet sits above the tab bar; the upgrade is a secondary button up with the tier info */
+.sheet-upkeep .sheet-box { bottom: var(--tabs-h); border-radius: var(--r-sheet); max-height: calc(100% - var(--safe-top) - 160px - var(--tabs-h)); }
+.btn.upkeep__up { width: 100%; justify-content: center; margin: 0 0 10px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 8px; color: var(--tebesir); --h: 48px; }
+.btn.upkeep__up small { display: block; color: var(--beton); font-weight: 560; }
+.upkeep__ok { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 12px; border-radius: 8px; background: rgba(70, 196, 133, .14); border: 1px solid rgba(70, 196, 133, .45); color: var(--temiz); font-weight: 700; font-size: 16px; }
 
 /* tab pages (Depo, Fabrika, Şirket): above the tab bar */
 .page { top: calc(var(--safe-top) + 104px); bottom: var(--tabs-h); }
@@ -460,7 +465,11 @@
 .reveal-why { animation: fadeIn 250ms var(--ease) both; animation-delay: 1.6s; }
 .reveal-why b { font-weight: 700; font-size: 15.5px; }
 .reveal-why p { font-size: 14px; color: var(--beton); margin-top: 4px; max-width: 300px; }
-.reveal-cta { animation: liftIn 260ms var(--ease) both; animation-delay: 1.5s; }
+.reveal-cta { margin-top: 14px; opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity 260ms var(--ease), transform 260ms var(--ease); }
+.reveal-cta.on { opacity: 1; transform: none; }
+#ui .reveal-cta:not(.on) .btn { pointer-events: none; } /* review 2 F8: the actions arrive after the stamp */
+/* each row's numbers arrive with its bar (review 2 F8: every value was readable at 0 ms) */
+.env-row .env-side .num { animation: fadeIn 260ms var(--ease) both; animation-delay: calc(400ms + var(--i) * 300ms); }
 .sheet-tender.revealing .sheet-box { animation: tshake 220ms linear 1.38s; }
 @keyframes tshake { 25% { translate: -3px 1px; } 50% { translate: 3px -1px; } 75% { translate: -2px 0; } }
 @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
@@ -543,7 +552,7 @@
 /* ================= NPC ================= */
 .npc { position: absolute; left: 10px; bottom: calc(var(--npc-bottom, 300px) + 2px); max-width: 300px; display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 10px 14px 10px 10px;
   border-radius: var(--r-card); text-align: left; opacity: 0; transform: translateY(10px); transition: opacity 220ms var(--ease), transform 220ms var(--ease); pointer-events: none; }
-.npc.top { bottom: auto; top: calc(var(--safe-top) + 108px); }
+.npc.top { bottom: auto; top: calc(var(--safe-top) + 172px); } /* below the page header (review 2 m5c) */
 .npc.on { opacity: 1; transform: none; pointer-events: auto; }
 #ui .npc:not(.on) { pointer-events: none; } /* the card is a button: '#ui button' would otherwise keep the faded card catching taps */
 .npc__who { font-size: 12px; color: var(--beton); font-weight: 620; }
@@ -554,6 +563,8 @@
 .wanchor.off { display: none; }
 .wanchor > * { position: absolute; left: 0; bottom: 0; transform: translate(-50%, 0); }
 .wanchor > *::after { content: ''; position: absolute; left: 50%; bottom: -10px; width: 2px; height: 10px; margin-left: -1px; background: linear-gradient(#c9ced1, #6c7377); border-radius: 0 0 1px 1px; }
+/* job chips stand on a longer stem down to their work anchor (review 2 F6); plates keep the short one */
+.wanchor > .wchip::after { height: var(--stem, 10px); bottom: calc(-1 * var(--stem, 10px)); background: linear-gradient(rgba(201, 206, 209, .9), rgba(108, 115, 119, .35)); }
 .wanchor > * { margin-bottom: 10px; }
 .wchip { width: 104px; border-radius: 6px; overflow: visible; background: rgba(18, 22, 25, .93); box-shadow: 0 6px 16px rgba(0, 0, 0, .5); border: 1px solid rgba(255, 255, 255, .08); text-align: left; display: block; }
 .wchip__head { display: flex; align-items: center; justify-content: space-between; gap: 4px; background: var(--tabela); padding: 3px 6px 3px 7px; border-radius: 5px 5px 0 0; }
@@ -567,7 +578,7 @@
 .wchip.paused .wchip__flag { background: #c9cecb; color: #15191b; }
 .wchip.rival .wchip__flag { background: var(--rakip); color: #120c30; }
 .wchip.done .wchip__head { background: #1f6b47; }
-.wchip.done { animation: chipFade 2.2s linear forwards; }
+.wchip.done { } /* the fade is driven on the game clock by world.js (review 2 F3) */
 #ui .wchip.done { pointer-events: none; } /* a finished district needs no tap; the faded chip must not swallow taps */
 @keyframes chipFade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 .wchip.attention { border-color: rgba(255, 90, 31, .85); box-shadow: 0 0 0 2px rgba(255, 90, 31, .35), 0 6px 16px rgba(0, 0, 0, .5); }
@@ -581,6 +592,9 @@
 .wchip.spreading { border-color: #ff3b1f; animation: spreadPulse .5s linear infinite alternate; }
 .wchip.spreading .wchip__ring { display: block; }
 .wchip.spreading .wchip__flag { background: #ff3b1f; color: #fff; }
+.wchip.threat .wchip__flag { background: rgba(255, 90, 31, .85); color: #1d0a02; }
+.wchip.working:not(.sel) { opacity: .74; transition: opacity 250ms; }
+.wchip.compact.spreading { max-width: 124px; }
 @keyframes spreadPulse { 0% { box-shadow: 0 0 0 2px rgba(255, 59, 31, .6), 0 6px 16px rgba(0, 0, 0, .5); } 100% { box-shadow: 0 0 0 6px rgba(255, 59, 31, .15), 0 6px 16px rgba(0, 0, 0, .5); } }
 .wanchor.edge .wchip { transform: translate(-50%, 0) scale(.92); opacity: .97; }
 /* compact pill (review V4 / playtest M10): name + crew + one bar, the 3D work below stays visible */
@@ -646,6 +660,8 @@
 
 /* ================= toasts ================= */
 #toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: calc(var(--safe-top) + 104px); }
+#ui.goal-on #toasts { padding-top: calc(var(--safe-top) + 164px); } /* the goal card owns the line under the objective */
+#ui[data-sheet="receipt"] .unlock, #ui[data-sheet="tender"] .unlock { opacity: 0; }
 .toast { display: flex; align-items: center; gap: 8px; max-width: calc(100% - 40px); padding: 9px 14px 9px 10px; border-radius: 10px; background: rgba(14, 17, 19, .95); box-shadow: var(--lift);
   font-weight: 620; font-size: 14px; line-height: 1.3; animation: rise 180ms var(--ease) both; transition: opacity 200ms; border-left: 3px solid var(--beton); }
 .toast .i { flex: none; color: var(--beton); }
@@ -707,8 +723,8 @@
 .bc-track span { margin-top: -2px; }
 .bc-track b { margin-top: -4px; font-size: 13px; }
 .bc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; display: none; }
-.bc-flash.go { display: block; animation: flash 260ms ease-out; }
-@keyframes flash { 0% { opacity: .75; } 100% { opacity: 0; } }
+.bc-flash.go { display: block; animation: flash 200ms ease-out both; }
+@keyframes flash { 0% { opacity: .6; } 40% { opacity: .12; } 100% { opacity: 0; } } /* review 2 F2: the white peak lasts < 0.1 s */
 
 /* ================= title card ================= */
 .title-wrap { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, rgba(8, 10, 12, .55), rgba(8, 10, 12, .9)); opacity: 0; visibility: hidden;

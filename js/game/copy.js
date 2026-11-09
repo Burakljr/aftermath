@@ -25,7 +25,7 @@ export const FTUE_COPY = {
   deliver: { objective: 'Ödemeyi al' },
   sell: { objective: 'Parçaları sat', bubble: 'Parçalar depoda.' },
   buy: { objective: 'İkinci itfaiye aracını al', npc: 'Göze iyi para verdim, haberin olsun.' },
-  done: { npc: 'Radar yeni bir sinyal aldı. Bu sefer iki bölge.' },
+  done: { npc: 'Radar yeni bir sinyal aldı. Bu sefer üç bölge.' },
 };
 
 /* ---------------- Calls (Nevin, siz) ---------------- */
@@ -130,12 +130,15 @@ export const TOAST = {
 
 export const STAGE_NAME = { fire: 'Yangın', rubble: 'Enkaz', carve: 'Kesim' };
 export const SEG_NAME = { head: 'Kafa', body: 'Gövde', tail: 'Kuyruk' };
+// district sheet carve note (review 2 m11): says what lies in this district, not a lone body-part word
+export const SEG_HERE = { head: 'Kafa burada', body: 'Gövde burada', tail: 'Kuyruk burada' };
 export const CHIP_LABEL = {
   radar: 'RADAR', alarm: 'ALARM', cagri: 'ÇAĞRI', ihale: 'İHALE', teslim: 'TESLİM',
   gecikme: 'GECİKME', rival: 'SÜPÜRGE ÇALIŞIYOR', edildi: 'TESLİM EDİLDİ',
 };
 export const DISTRICT_STATE = {
   spreading: 'Sıçramak üzere',
+  risk: 'Yangın riski',
   paused: 'Durdu',
   upkeepPaused: 'Bakım durdu',
   clean: 'Temiz',
@@ -187,7 +190,7 @@ export const TENDER = {
   cancel: 'Vazgeç',
   bubbles: [
     'Her kutu bir teklif. Yeşil kolay kazanır, az kazandırır.',
-    (est) => `Filonla bu iş ${est} sürer. Daha kısa söz verme.`,
+    (est) => `Filonla bu iş en çok ${est} sürer. Daha kısa söz verme.`,
     'Süpürge Holding genelde liste fiyatı verir.',
   ],
   revealRows: ['Fiyat', 'Süre', 'Güven'],
@@ -215,6 +218,7 @@ export const CALM = {
   next: 'Sıradaki iş',
   eta: (t) => `Radar ${t}`,
   line: 'Kıyıya yaklaşıyor.',
+  linePaused: 'Radar bekliyor.',
   lineMutant: 'Radar alışılmadık bir iz görüyor.',
   skip: 'Sıradaki işe geç',
   sellParts: (n) => `Depoda ${fmtInt(n)} parça var`,
@@ -286,7 +290,7 @@ export const GOAL_COPY = {
   G5: { text: 'Fabrikada ilk kemik betonu üret', reward: 'Ödül: İhaleler' },
   G6: { text: "Süpürge Holding'i bir ihalede yen", reward: 'Ödül: Bakım sözleşmeleri' },
   G7: { text: 'Bir bölgenin bakımını üstlen', reward: 'Ödül: Sen yokken gelir' },
-  G8: { text: '4. sözleşmeyi tamamla', reward: 'Ödül: Alıcılar ve zırh plakası' },
+  G8: { text: 'Belediyeye 4 iş teslim et', reward: 'Ödül: Alıcılar ve zırh plakası' },
   G9: { text: 'Bir alıcıya 5 parça sat', reward: 'Ödül: Enerji hücresi' },
   G10: { text: 'Bir işi altın bölgede bitir', reward: 'Ödül: Ekipman ve ikinci hat' },
   G11: { text: 'Filoda 3 kesim ekibi olsun', reward: 'Ödül: Vardiya şefi ve müze eseri' },

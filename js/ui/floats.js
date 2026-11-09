@@ -99,6 +99,9 @@ export function createFloats(ctx) {
     }
   }
 
+  // the rare card holds 1.5 s of game time, then flies to the Depo slot (review 2 m5: it ran on the wall clock and could
+  // cross the receipt); a full-screen sheet removes it and any part icon still in flight
+  let rare = null;
   function rareCard(item, pt) {
     const names = { eye: 'Göz', dna: 'Etiketsiz tüp' };
     const W = ctx.root.clientWidth || 390;
@@ -109,13 +112,25 @@ export function createFloats(ctx) {
     const y = Math.max(ctx.band.top + 60, p.y - 90);
     card.style.transform = `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`;
     fly.appendChild(card);
-    setTimeout(() => {
-      if (reduced()) {
-        card.remove();
-        return;
-      }
-      flyArc(card, { x, y }, depotTarget(), { duration: 700, lift: 40, scaleTo: 0.25 });
-    }, 1500);
+    if (rare) rare.card.remove();
+    const st = ctx.s;
+    rare = { card, x, y, t0: st ? st.clock : null, w0: performance.now(), flown: false };
+  }
+  function rareStep(s) {
+    if (!rare) return;
+    const age = rare.t0 != null && s ? s.clock - rare.t0 : (performance.now() - rare.w0) / 1000;
+    if (!rare.flown && age >= 1.5) {
+      rare.flown = true;
+      if (reduced()) { rare.card.remove(); rare = null; return; }
+      const anim = flyArc(rare.card, { x: rare.x, y: rare.y }, depotTarget(), { duration: 700, lift: 40, scaleTo: 0.25 });
+      const c = rare.card;
+      if (anim) anim.addEventListener('finish', () => { c.remove(); if (rare && rare.card === c) rare = null; });
+      else { c.remove(); rare = null; }
+    }
+  }
+  function clearFlights() {
+    if (rare) { rare.card.remove(); rare = null; }
+    for (const el of fly.querySelectorAll('.flyer, .rare-card')) el.remove();
   }
 
   return {
@@ -123,7 +138,11 @@ export function createFloats(ctx) {
     flyItem,
     frame(s, now) {
       // part icons never fly across a full-screen sheet (the receipt): pending flights are dropped (playtest M9)
-      if (ctx.activeSheet && ctx.activeSheet !== 'district') queue.length = 0;
+      if (ctx.activeSheet && ctx.activeSheet !== 'district' && ctx.activeSheet !== 'upkeep') {
+        queue.length = 0;
+        if (rare || fly.querySelector('.flyer')) clearFlights();
+      }
+      rareStep(s);
       if (queue.length && now - lastPart >= 120) {
         lastPart = now;
         const q = queue.shift();

@@ -50,6 +50,8 @@ export function createObjective(ctx) {
   on('goal', () => pulseClass(bar, 'flash', 700));
 
   let hlShown = '';
+  let hlKey = '';
+  let hlAt = 0;
   return {
     update(s) {
       const o = game.objective(s);
@@ -65,7 +67,17 @@ export function createObjective(ctx) {
       const fv = game.ftueView(s);
       // nor in the first 8 s of a contract, when the player needs to know what to do (playtest m6)
       const early = s.phase === 'cleanup' && s.contract && s.contract.elapsed < 8;
-      const n = attack || early || (fv && fv.dim) ? null : game.headline(s);
+      // review 2 m6: the bar keeps its objective while a call, tender, receipt or tail start is pending, and a headline
+      // owns the line for 4 s at most (the archive keeps it)
+      const tailStart = s.phase === 'rival' && s.rival && s.rival.t < 8;
+      const busy = s.phase === 'tender' || !!s.result || tailStart || ctx.activeSheet === 'receipt';
+      const raw = game.headline(s);
+      if (!raw) hlKey = '';
+      let n = attack || early || busy || (fv && fv.dim) ? null : raw;
+      if (n) {
+        if (n.text !== hlKey) { hlKey = n.text; hlAt = s.clock; }
+        if (s.clock - hlAt > 4) n = null;
+      }
       const ht = n ? n.text : '';
       if (ht !== hlShown) {
         hlShown = ht;

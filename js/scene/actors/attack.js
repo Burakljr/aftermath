@@ -26,7 +26,7 @@ export function createAttack(world, { corpse }) {
   robot.group.visible = false;
   world.scene.add(robot.group);
   const shards = createShards(world);
-  const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _tgt = new THREE.Vector3();
+  const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _tgt = new THREE.Vector3(), _com = new THREE.Vector3();
   let setupKey = '', F = null;           // fight geometry for the current attack
   let owning = false, framedChain = false, lastT = -99, lastKey = '';
   let preview = null;
@@ -180,20 +180,28 @@ export function createAttack(world, { corpse }) {
       // the topple in profile (review V3): a low 3/4 shot from the end of the body axis nearer the gameplay camera,
       // ~25 deg elevation, so the 160 t body visibly rolls onto its side; hard cut to the gameplay framing at the hit
       const pl = sidePl;
-      const sg = pl.dir.x * Math.sin(GAME_AZ) + pl.dir.z * Math.cos(GAME_AZ) >= 0 ? 1 : -1;
-      const c35 = Math.cos(0.6), s35 = Math.sin(0.6) * fitSide;
+      // from the head end, 43 deg off the body axis on the side the body rolls away from: the sunlit shell tips over
+      // and the belly and legs come up into view (review 2 F2: explored in scratchpad/v2/fixer2/tcfg.cjs)
+      const sg = 1;
+      const th = 0.75;
+      const c35 = Math.cos(th), s35 = -Math.sin(th) * fitSide;
       const dx = sg * (pl.dir.x * c35 - pl.dir.z * s35), dz = sg * (pl.dir.z * c35 + pl.dir.x * s35);
+      // review 2 F2/M3: sized by the monster, not by a 400-unit floor (the first, single-district Magmadon was a
+      // 90 px speck in a high aerial): the body fills about half the band, the camera pushes in a little and follows
+      // the centre of mass as it rolls, so the topple reads
       const k = smooth(TL.cut, TL.hit, at);
-      const D = Math.max(400, pl.length * 2.3, 200 * F.S) * (1.0 + 0.06 * k);
-      camera.position.set(pl.x + dx * D * 0.9, D * 0.42, pl.z + dz * D * 0.9);
-      camera.up.set(0, 1, 0); camera.lookAt(pl.x, 14 * F.S * (1 - 0.5 * k), pl.z);
+      const D = Math.max(pl.length * 1.7, 150 * F.S) * (1.08 - 0.12 * k);
+      model.worldPoint('shellTop', _w);
+      _tgt.set((_w.x + model.group.position.x) * 0.5, Math.max(4 * F.S, _w.y * 0.5), (_w.z + model.group.position.z) * 0.5);
+      _com.copy(_tgt); // a pure function of t (deterministic stepped frames)
+      camera.position.set(_com.x + dx * D * 0.9, D * 0.5 + 6 * F.S, _com.z + dz * D * 0.9);
+      camera.up.set(0, 1, 0); camera.lookAt(_com);
     } else {
       const d = 0.8 + 0.2 * smooth(TL.cut, a.end, at);
       camera.position.copy(rig.target).addScaledVector(rig.fwd, -rig.dist * d);
       camera.up.set(0, 1, 0); camera.lookAt(rig.target);
     }
   }
-  const GAME_AZ = 0.14;
   let sidePl = null, fitSide = 1;
   let curA = null, curT = 0, tvFov = false;
   function own(a, t) {
@@ -247,12 +255,12 @@ export function createAttack(world, { corpse }) {
         preview.t += dt;
         const a = preview.a; a.t = preview.t; a.hit = a.t >= TL.hit;
         preview.emitCross(a.t);
-        if (a.t >= a.end) { preview.finish(); preview = null; hide(); release(); return; }
+        if (a.t >= a.end) { preview.finish(); preview = null; hide(); release(); shards.off(); return; }
         run(a, a.t, dt);
         return;
       }
       const a = state && state.attack;
-      if (!a || state.phase !== 'attack') { hide(); release(); shards.update(-99); return; }
+      if (!a || state.phase !== 'attack') { hide(); release(); shards.off(); return; }
       run(a, a.t, dt);
     },
     event() {},
@@ -319,12 +327,12 @@ function createShards(world) {
   const seed = new Float32Array(N * 4);
   for (let i = 0; i < N * 4; i++) seed[i] = Math.random();
   g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 4));
-  const U = { uT0: { value: -99 }, uNow: { value: 0 }, uO: { value: new THREE.Vector3() }, uS: { value: 1 } };
+  const U = { uT0: { value: 1e9 }, uNow: { value: 0 }, uO: { value: new THREE.Vector3() }, uS: { value: 1 } };
   const m = new THREE.ShaderMaterial({
     uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     vertexShader: `attribute vec4 aSeed; uniform float uT0, uNow, uS; uniform vec3 uO; varying float vA, vG;
       void main(){ float t = uNow - uT0; vA = 0.0; vG = 0.0;
-        if (t < 0.0 || t > 2.2) { gl_Position = vec4(0.0, 0.0, -2.0, 1.0); return; }
+        if (uT0 > 1.0e8 || t < 0.0 || t > 2.2) { gl_Position = vec4(0.0, 0.0, -2.0, 1.0); return; }
         vec3 o = uO + vec3((aSeed.x - 0.5) * 70.0 * uS, 6.0 + aSeed.y * 22.0 * uS, (aSeed.z - 0.5) * 6.0);
         vec3 v = vec3((aSeed.x - 0.5) * 30.0, 6.0 + aSeed.w * 16.0, -10.0 - aSeed.y * 24.0) * (0.7 + 0.3 * uS);
         vec3 p = o + v * t + vec3(0.0, -18.0, 0.0) * t * t;
@@ -344,7 +352,9 @@ function createShards(world) {
   world.scene.add(mesh);
   return {
     burst(o, s, t) { U.uO.value.copy(o); U.uS.value = s; U.uT0.value = t; mesh.visible = true; },
-    update(t) { U.uNow.value = t; const a = t - U.uT0.value; mesh.visible = a >= 0 && a < 2.2; },
+    update(t) { U.uNow.value = t; const a = t - U.uT0.value; mesh.visible = U.uT0.value < 1e8 && a >= 0 && a < 2.2; },
+    // review2 F1: outside a burst the shards are switched off outright (uT0 = -99 drew all 70 at the origin)
+    off() { U.uT0.value = 1e9; mesh.visible = false; },
     count() { return mesh.visible ? N : 0; },
     dispose() { world.scene.remove(mesh); g.dispose(); m.dispose(); },
   };

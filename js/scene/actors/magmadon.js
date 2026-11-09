@@ -68,11 +68,16 @@ ${CARVE_PARS}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.86, 0.92) + vec3(0.015, 0.03, 0.035), uMutant);
   if (!gl_FrontFacing && uCarveOn > 0.5) {
-    // inside of the body seen through a cut: layered basalt with pale mineral bands (magma veins glow below)
-    float mb = carveHash(vLPc * 0.9) * 0.3 + 0.7 * fract(sin(dot(floor(vLPc * 0.3), vec3(7.1, 3.3, 5.7))) * 413.7);
-    float band = 0.5 + 0.5 * sin(vLPc.y * 1.7 + vLPc.z * 0.35 + mb * 2.0);
-    vec3 fl = mix(vec3(0.09, 0.075, 0.07), vec3(0.40, 0.33, 0.27), clamp(mb * 0.5 + band * 0.65 - 0.12, 0.0, 1.0));
-    if (mb > 0.9) fl = vec3(0.62, 0.56, 0.48);
+    // inside of the body seen through a cut (review 2 F5: it read as a flat tan slab): dark volcanic tissue (brown, never
+    // red meat: DESIGN §13 age rule) with pale mineral marbling, a pale layer under the hide and bone-pale rib bands
+    float mn = carveHash(vLPc * 0.55) * 0.6 + carveHash(vLPc * 1.7) * 0.4;
+    float marb = smoothstep(0.62, 0.8, mn + 0.25 * sin(vLPc.y * 0.9 + vLPc.x * 0.7));
+    float rib = smoothstep(0.82, 0.96, 0.5 + 0.5 * sin(vLPc.z * 0.42));
+    float fat = smoothstep(0.0, 0.25, 1.0 - clamp(gCut * 0.35, 0.0, 1.0));
+    vec3 fl = mix(vec3(0.15, 0.11, 0.09), vec3(0.24, 0.17, 0.13), carveHash(vLPc * 0.25));
+    fl = mix(fl, vec3(0.58, 0.47, 0.36), marb * 0.75);
+    fl = mix(fl, vec3(0.66, 0.60, 0.50), rib * 0.8);
+    fl = mix(fl, vec3(0.52, 0.42, 0.30), fat * 0.5);
     diffuseColor.rgb = mix(fl, fl * vec3(0.7, 1.05, 0.85), uMutant);
   }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -85,7 +90,7 @@ ${CARVE_PARS}`)
     if (!gl_FrontFacing) {
       float vn = carveHash(vLPc * 0.45 + vec3(3.1, 0.0, 1.7));
       float vein = smoothstep(0.86, 0.97, vn) * (0.6 + 0.4 * sin(uTime * 1.3 + vLPc.z * 0.2));
-      e = uGlandCol * (0.1 * exp(-gCut * 1.2) + 0.32 * vein);
+      e = uGlandCol * (0.035 * exp(-gCut * 1.2) + 0.22 * vein);
     } else if (ch < 0.5) {
       float pulse = mix(1.0, 0.7 + 0.3 * sin(uTime * 1.7 - vLP.z * 0.05), uPulseAmt);
       float smoulder = 0.75 + 0.25 * sin(uTime * 0.6 + vLP.x * 0.21 + vLP.z * 0.13);
@@ -100,12 +105,20 @@ ${CARVE_PARS}`)
     } else {
       e = uHotCol * h * h * uHeat * 0.5;
     }
+    // review 2 F5: the silhouette separates from the scorched ground: a cool sky lift on up-facing plates and a thin
+    // cool rim at grazing angles (front faces only, small values so nothing glows)
+    if (gl_FrontFacing) {
+      vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+      float upk = max(0.0, dot(normal, upV));
+      float fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 3.0);
+      e += vec3(0.045, 0.05, 0.06) * upk * upk + vec3(0.07, 0.09, 0.12) * fr;
+    }
     // cut edge: a broken, noisy ember line rather than a hard outline (review V6)
     if (gl_FrontFacing && gCut < 1.2 && uCarveOn > 0.5) { float en = carveHash(vLPc * 0.8); e += uGlandCol * 0.07 * (1.0 - gCut / 1.2) * smoothstep(0.45, 0.9, en); diffuseColor.rgb *= 0.8; }
     totalEmissiveRadiance += e;
   }`);
   };
-  m.customProgramCacheKey = () => 'magmadon-v2b';
+  m.customProgramCacheKey = () => 'magmadon-v2c';
   return m;
 }
 // shadow depth with the same cut (a carved part casts no shadow)
@@ -655,8 +668,8 @@ export function createMagmadon() {
       lr.push({ c: V3(0, 0.5 - t * (loLen - 1.4), 0), d: V3(0, -1, 0), u: V3(1, 0, 0), w: r, h: r, ex: 2, nk: 1 - t * 0.5 });
     }
     accL.geo(loft(lr, 12, { color: (t, a, P) => { const c = hideCol(t, a, P); if (Math.abs(Math.sin(t * 22)) < 0.25) c.multiplyScalar(0.8); return c; }, noise: 0.4, nfreq: 0.35, seed: 6 + L.side }));
-    const pad = new THREE.CylinderGeometry(5.6, 6.0, 1.6, 14, 1); pad.translate(0, -loLen + 0.8, 0.4);
-    accL.geo(pad, { color: PAL.hideDark });
+    // a domed, uneven sole (review 2 F5: the flat cylinder pad read as a round "pig snout" disc on the lying corpse)
+    accL.geo(ellipsoid(V3(0, -loLen + 1.3, 0.5), 5.5, 2.0, 6.0, { nr: 8, nv: 10, color: (t, a, P) => mix(C.hideDark, C.basaltLo, 0.5).multiplyScalar(0.8 + noise3(P.x * 0.6, P.y * 0.6, P.z * 0.6) * 0.4), noise: 0.9, seed: 9 + L.side }));
     for (let k = 0; k < 5; k++) {
       const a = (k - 2) * 0.42 + Math.PI / 2;
       const nail = new THREE.ConeGeometry(1.1, 2.2, 5); nail.rotateX(Math.PI / 2 + 0.3);

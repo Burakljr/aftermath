@@ -6,7 +6,8 @@ import { h, icon, setIcon, T, C, S, show, tap, bar, setBar } from './dom.js';
 const STAGE_ICON = { fire: 'g-flame', rubble: 'g-rubble', carve: 'g-carcass' };
 const CREW_ICON = { fire: 'g-firetruck', debris: 'g-excavator', carve: 'g-cleaver' };
 const MODEL_MS = 100;
-const CLEAN_HOLD = 2200;
+const CLEAN_HOLD = 2.6; // s of game time
+const LIFT = 44; // job chips float this far above the work anchor (review 2 F6)
 
 export function createWorld(ctx) {
   const layer = ctx.L.world;
@@ -44,15 +45,18 @@ export function createWorld(ctx) {
     tap(chip, () => ctx.selectDistrict(id));
     tap(plate, () => ctx.selectDistrict(id));
     layer.appendChild(node);
-    return { id, node, chip, plate, plateName, tier, name, crew, crewIcon, crewN, tIcon, tVal, b, dots, flag, ring, arrow, want: '', cleanAt: 0, prevStage: '', m: null,
-      compact: true, x: 0, top: 0, shown: false };
+    return { id, node, chip, plate, plateName, tier, name, crew, crewIcon, crewN, tIcon, tVal, b, dots, flag, ring, arrow, want: '', prevStage: '', m: null,
+      compact: true, x: 0, top: 0, shown: false, cleanAt: -1e9 };
   }
 
   function chipModel(s, c, d, now) {
-    if (d.stage === 'clean' && c.prevStage && c.prevStage !== 'clean' && c.prevStage !== 'none') c.cleanAt = now;
+    // the "Temiz" hold runs on the game clock (review 2 F3: it vanished on the wall clock between stepped frames)
+    if (d.stage === 'clean' && c.prevStage && c.prevStage !== 'clean' && c.prevStage !== 'none') c.cleanAt = s.clock;
     c.prevStage = d.stage;
     const inWork = d.stage === 'fire' || d.stage === 'rubble' || d.stage === 'carve';
-    const recentlyClean = d.stage === 'clean' && now - c.cleanAt < CLEAN_HOLD;
+    const cleanAge = s.clock - c.cleanAt;
+    const recentlyClean = d.stage === 'clean' && cleanAge >= 0 && cleanAge < CLEAN_HOLD;
+    S(c.chip, 'opacity', recentlyClean && cleanAge > CLEAN_HOLD - 0.6 ? Math.max(0, (CLEAN_HOLD - cleanAge) / 0.6).toFixed(2) : '');
     if (!inWork && !recentlyClean && !d.threatened) return '';
     T(c.name, d.name);
     show(c.crew, d.workers > 0 || recentlyClean);
@@ -87,25 +91,29 @@ export function createWorld(ctx) {
       C(dot, 'absent', st === 'absent');
     }
     // the clean state replaces the chip content (green head + "Temiz"); no second flag layer (review V4)
+    // review 2 M4/F10: the countdown sits on the burning source (the district the objective and Nevin name, where a
+    // fire truck stops it); the target only shows "Yangın riski". Chips stay compact pills even then.
     let flag = '';
     if (recentlyClean) flag = '';
-    else if (d.threatened) flag = `${d.threatened.text} · ${Math.max(1, Math.ceil(d.threatened.t))} sn`;
+    else if (d.spreading) flag = `${d.spreading.text} · ${Math.max(1, Math.ceil(d.spreading.t))} sn`;
+    else if (d.threatened) flag = d.threatened.risk;
     else if (d.paused) flag = 'Durdu';
     else if (d.rival) flag = 'Süpürge';
     T(c.flag, flag);
     show(c.flag, !!flag);
     C(c.chip, 'done', recentlyClean);
-    C(c.chip, 'spreading', !!d.threatened);
-    C(c.chip, 'source', !!d.spreading);
+    C(c.chip, 'spreading', !!d.spreading);
+    C(c.chip, 'threat', !!d.threatened && !d.spreading);
     C(c.chip, 'paused', !!d.paused);
     C(c.chip, 'rival', !!d.rival);
     C(c.chip, 'attention', d.attention);
     C(c.chip, 'pulse-on', d.attention && c.id === pulseId);
-    S(c.ring, '--p', d.threatened ? String(Math.max(0, Math.min(1, d.threatened.t / 5)).toFixed(3)) : '0');
-    // compact pill (name + crew + one bar) so the 3D work stays visible (review V4, playtest M10); the full card only
-    // while a spread countdown needs its numbers
-    c.compact = !d.threatened && !d.spreading;
-    C(c.chip, 'compact', c.compact);
+    S(c.ring, '--p', d.spreading ? String(Math.max(0, Math.min(1, d.spreading.t / 5)).toFixed(3)) : '0');
+    // a crew at work: the chip steps back so the player can watch the job (review 2 F6)
+    C(c.chip, 'working', d.workers > 0 && !d.spreading && !d.attention && ctx.view.sel !== c.id && !recentlyClean);
+    c.flagOn = !!flag;
+    c.compact = true;
+    C(c.chip, 'compact', true);
     return 'chip';
   }
 
@@ -184,6 +192,8 @@ export function createWorld(ctx) {
       // the carcass head stays visible: chips that would cover it slide sideways (review V4)
       ctx.project('corpse:head', HEAD);
       const headOn = mode === 'work' && HEAD.visible;
+      // pass 1: where each chip wants to be. Job chips float LIFT px above their work anchor on a longer stem, so the
+      // water arc, the rubble and the carcass head stay visible (review 2 F6)
       for (const c of chips) {
         c.shown = false;
         if (!c.want || hideAll) {
@@ -192,12 +202,13 @@ export function createWorld(ctx) {
         }
         ctx.project(`district:${c.id}`, P);
         const isChip = c.want === 'chip';
-        const hgt = isChip ? (c.compact ? 32 : 74) : 34;
-        const halfW = isChip ? (c.compact ? 46 : 54) : 44;
+        const lift = isChip ? LIFT : 0;
+        const hgt = isChip ? 32 + (c.flagOn ? 22 : 0) : 34;
+        const halfW = isChip ? (c.flagOn ? 62 : 48) : 44;
         let x = P.x;
-        let y = P.y;
+        let y = P.y - lift;
         let edge = false;
-        const inside = P.visible && y - hgt - 10 > top && y < bottom && x > halfW * 0.6 && x < W - halfW * 0.6;
+        const inside = P.visible && y - hgt - 10 > top && P.y < bottom && x > halfW * 0.6 && x < W - halfW * 0.6;
         if (!inside) {
           // job chips never vanish: they clamp to the band edge with a pointer toward their district (playtest M6)
           if (isChip) {
@@ -205,7 +216,7 @@ export function createWorld(ctx) {
             const px = P.visible ? P.x : x;
             const py = P.visible ? P.y : (P.y < (top + bottom) / 2 ? top : bottom);
             x = Math.max(halfW + 6, Math.min(W - halfW - 6, px));
-            y = Math.max(top + hgt + 14, Math.min(bottom - 6, py));
+            y = Math.max(top + hgt + 14, Math.min(bottom - 6, py - lift));
             const ang = Math.atan2(py - (y - hgt / 2 - 10), px - x);
             S(c.arrow, '--ang', `${ang.toFixed(3)}rad`);
           } else {
@@ -214,18 +225,44 @@ export function createWorld(ctx) {
           }
         } else if (headOn && isChip) {
           const cy0 = y - 10 - hgt - 14;
-          const cy1 = y + 6;
+          const cy1 = P.y + 6;
           if (HEAD.y > cy0 && HEAD.y < cy1 && Math.abs(HEAD.x - x) < halfW + 18) {
             x = HEAD.x + (x >= HEAD.x ? 1 : -1) * (halfW + 22);
             x = Math.max(halfW + 4, Math.min(W - halfW - 4, x));
           }
         }
-        C(c.node, 'off', false);
-        C(c.node, 'edge', edge);
-        S(c.node, 'transform', `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`);
-        c.shown = true;
+        c.edge = edge;
+        c.ax = P.y;
         c.x = x;
-        c.top = y - 10 - hgt;
+        c.y = y;
+        c.h = hgt + 10;
+        c.hw = halfW;
+        c.shown = true;
+      }
+      // pass 2: screen-space collision, chips push apart vertically (review 2 F10)
+      for (let it = 0; it < 3; it++) {
+        for (const a of chips) {
+          if (!a.shown) continue;
+          for (const b of chips) {
+            if (b === a || !b.shown || b.id < a.id) continue;
+            if (Math.abs(a.x - b.x) >= a.hw + b.hw + 4) continue;
+            const up = a.y <= b.y ? a : b;
+            const dn = up === a ? b : a;
+            const overlap = up.y - (dn.y - dn.h - 4);
+            if (overlap <= 0) continue;
+            up.y = Math.max(top + up.h + 4, up.y - overlap);
+            if (up.y - (dn.y - dn.h - 4) > 0) dn.y = Math.min(bottom - 6, up.y + dn.h + 4);
+          }
+        }
+      }
+      for (const c of chips) {
+        if (!c.shown) continue;
+        C(c.node, 'off', false);
+        C(c.node, 'edge', c.edge);
+        S(c.node, 'transform', `translate3d(${c.x.toFixed(1)}px,${c.y.toFixed(1)}px,0)`);
+        // the stem reaches back down to the work anchor
+        S(c.node, '--stem', `${Math.max(10, Math.min(140, c.ax - c.y + 10)).toFixed(0)}px`);
+        c.top = c.y - 10 - (c.h - 10);
       }
       let n = 0;
       for (const t of tagModels) {
