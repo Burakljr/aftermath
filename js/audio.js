@@ -2,7 +2,7 @@
 // ses dosyası, indirme ya da lisans yok. Saldırı sesleri sahnedeki animasyonla
 // aynı zamanlamayı kullanır (attack.t), müzik oyunun evresine göre değişir.
 import { on } from './bus.js';
-import { BAL, MONSTERS } from './data.js';
+import { BAL, MONSTERS } from './game/data.js';
 
 const PREF_KEY = 'aftermath.audio.v1';
 export const prefs = { sfx: true, music: true };
@@ -304,6 +304,36 @@ const SFX = {
     const t = now();
     tone({ t, type: 'sine', f: 1500, f2: 1800, dur: 0.25, vol: 0.05, rev: 0.5 });
     tone({ t: t + 0.3, type: 'sine', f: 1500, f2: 1800, dur: 0.25, vol: 0.03, rev: 0.5 });
+  },
+  // Araç yola çıkar: motor devri yükselir; itfaiyede tek bir siren cıvıltısı
+  dispatch(type) {
+    if (!throttle('dispatch', 120)) return;
+    const t = now();
+    tone({ t, type: 'sawtooth', f: 55, f2: 150, dur: 0.45, a: 0.06, vol: 0.07, lp: 700, curve: 'lin' });
+    tone({ t: t + 0.02, type: 'square', f: 82, f2: 210, dur: 0.4, a: 0.05, vol: 0.025, lp: 900, detune: 7, curve: 'lin' });
+    noise({ t, dur: 0.5, a: 0.05, vol: 0.06, type: 'lowpass', f: 300, f2: 700 });
+    if (type === 'fire') {
+      const c = t + 0.18;
+      tone({ t: c, type: 'triangle', f: 760, f2: 1500, dur: 0.16, vol: 0.05, lp: 3000, rev: 0.3 });
+      tone({ t: c + 0.17, type: 'triangle', f: 1500, f2: 820, dur: 0.18, vol: 0.04, lp: 3000, rev: 0.3 });
+    }
+  },
+  // Yangın söndü: 0,4 sn tiz buhar
+  hiss() {
+    noise({ dur: 0.4, a: 0.02, vol: 0.12, type: 'highpass', f: 2500, f2: 5200, curve: 'lin', rev: 0.2 });
+  },
+  // Geri sayım: kısa tık
+  tick() {
+    const t = now();
+    tone({ t, type: 'square', f: 2000, dur: 0.012, a: 0.001, vol: 0.035, lp: 6000 });
+    noise({ t, dur: 0.01, a: 0.001, vol: 0.04, type: 'highpass', f: 4000 });
+  },
+  // Enkaz yığını bir kademe iner: alçak gürültü darbesi
+  thud() {
+    if (!throttle('thud', 150)) return;
+    const t = now();
+    tone({ t, type: 'sine', f: 110, f2: 40, dur: 0.25, vol: 0.22 });
+    noise({ t, dur: 0.22, vol: 0.16, f: 500, f2: 90 });
   },
 };
 
@@ -721,13 +751,6 @@ function bindEvents() {
   on('sfx', ({ name, arg }) => play(name, arg));
   on('toast', ({ kind }) => {
     if (kind === 'bad') play('error');
-  });
-  on('float', ({ text }) => {
-    if (text.includes('Yangın sıçradı')) play('fireSpread');
-    else if (text.includes('boşa çıktı')) play('done');
-    else if (text.includes('Göz')) play('rare');
-    else if (text.startsWith('+1')) play('part');
-    else if (text.includes('Seviye')) play('build');
   });
 }
 

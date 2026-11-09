@@ -3,44 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#181b26">
+  <meta name="theme-color" content="#0b0d0e">
+  <meta name="color-scheme" content="dark">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Aftermath">
-  <meta name="description" content="Canavar savaşından sonra şehri temizleyen şirketi yönet.">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="description" content="Canavar düştükten sonra şehri temizleyen şirketi yönet: söndür, enkazı kaldır, kes, sat.">
   <title>Aftermath</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/archivo-latin-wdth-normal.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/archivo-latin-ext-wdth-normal.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/big-shoulders-display-latin-800-normal.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/ui/fonts/big-shoulders-stencil-display-latin-800-normal.woff2">
+  <link rel="modulepreload" href="js/main.js">
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/ui.css">
+  <link rel="stylesheet" href="css/game.css">
+  <script type="importmap">
+  { "imports": {
+    "three": "./vendor/three/build/three.module.min.js",
+    "three/addons/": "./vendor/three/addons/"
+  } }
+  </script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0d0e; overflow: hidden; overscroll-behavior: none;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; background: #0b0d0e; }
+    #ui { height: 100dvh; }
+    /* static boot plate: paints before any script runs, then the UI veil (same look) replaces it */
+    #boot { position: fixed; inset: 0; z-index: 50; }
+    #boot .loading__bar i { animation: bootbar 1.6s ease-out forwards; }
+    @keyframes bootbar { from { transform: scaleX(.04); } to { transform: scaleX(.3); } }
+    #boot .loading__line.err { color: #ff8a5c; max-width: 300px; text-align: center; }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <header id="hud">
-      <div class="hud-row">
-        <div class="stat" id="hud-money">💰 <b>0</b></div>
-        <div class="stat" id="hud-rep">⭐ <b>50</b></div>
-        <div class="stat" id="hud-income">🏙️ <b>+0/sn</b></div>
-        <button class="stat snd" data-a="snd" data-v="any" data-snd="any" aria-label="Sesi aç/kapat">🔊</button>
-      </div>
-      <div id="status"><span id="status-pill" class="calm">SAKİN</span><span id="status-text"></span></div>
-      <div id="ticker"></div>
-    </header>
-    <div id="stage">
-      <canvas id="city"></canvas>
-      <div id="hint"></div>
-    </div>
-    <main id="panel"></main>
-    <nav id="tabs">
-      <button data-tab="city" class="active">🏙️<span>Şehir</span></button>
-      <button data-tab="depot">📦<span>Depo</span></button>
-      <button data-tab="factory">🏭<span>Fabrika</span></button>
-      <button data-tab="company">🏢<span>Şirket</span></button>
-    </nav>
-    <div id="toasts"></div>
-    <div id="modal-root"></div>
+  <canvas id="scene" aria-label="Körfezkent haritası"></canvas>
+  <div id="ui"></div>
+  <div id="boot" class="loading" role="status">
+    <div class="loading__brand">AFTERMATH</div>
+    <div class="loading__sub">Enkaz ve leş kaldırma</div>
+    <div class="loading__bar"><i></i></div>
+    <div class="loading__line">Saha hazırlanıyor</div>
   </div>
+  <noscript><p style="position:fixed;inset:auto 0 40px;text-align:center;color:#a1a8a6;font:15px system-ui">Oyun için JavaScript açık olmalı.</p></noscript>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

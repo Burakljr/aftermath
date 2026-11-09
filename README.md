@@ -1,53 +1,58 @@
 # Aftermath
 
-**Herkes savaşı izler. Sen, savaştan sonrasını temizlersin.**
+**Herkes savaşı izler. Temizlik bize kalır.**
 
-Dev canavarlar şehre saldırır, savunma robotları onları yere serer. Geriye enkaz, yangın ve sokağın ortasında yatan dev bir canavar kalır. Sen, bu enkazı temizleyen şirketi yönetirsin.
+Körfezkent'e kaiju saldırır, belediyenin robotu KALKAN-07 canavarı yere serer. Geriye yangın, enkaz ve sokağın ortasında yatan dev bir Magmadon kalır. Sen bu işi üstlenen temizlik şirketini yönetirsin.
 
-## Oyun döngüsü
+Telefonda, tarayıcıda oynanır. Ana ekrana eklenebilir (PWA), kurulum ya da hesap gerekmez.
 
-1. **Saldırı:** Canavar şehre düşer. Bölgeler hasar görür, yangınlar çıkar.
-2. **İhale:** Belediye temizlik ihalesi açar. Fiyat ve teslim süresi teklif edip rakip firma Süpürge Holding ile yarışırsın.
-3. **Temizlik:** İtfaiye, enkaz ve parçalama ekiplerini bölgelere atarsın. Yangın varken ekipler yavaş çalışır, süre geçtikçe halkın öfkesi artar.
-4. **Ganimet:** Canavarın pulu, kanı, kemiği ve gözü depona girer.
-5. **Fabrika:** Ham parçaları zırh, enerji hücresi, kemik beton ve müze eserine dönüştürürsün.
-6. **Piyasa:** Fiyatlar arz ve talebe göre değişir. Fiyat patlamalarını yakalarsın.
-7. **Büyüme:** Ekip kiralarsın, ekipman alırsın, bölgelerdeki bakım sözleşmelerine yatırım yapıp pasif gelir kazanırsın.
-8. **Seçimler:** Gizli alıcılar canavar DNA'sı için servet teklif eder. Satarsan sıradaki canavar mutant olarak gelebilir.
+## Nasıl oynanır
 
-## Teknik
+Her iş dört adımdır: **söndür, enkazı kaldır, kes, sat.**
 
-- Saf HTML, CSS ve JavaScript (ES modülleri). Derleme adımı ya da bağımlılık yok.
-- Telefonda tarayıcıdan oynanır, ana ekrana eklenebilir (PWA).
-- Kayıt telefonun tarayıcısında tutulur (localStorage). Sen yokken pasif gelir birikir.
+1. **Söndür.** Bölgeye dokun, "İtfaiye gönder". Yangın sönmeden kepçe giremez.
+2. **Enkazı kaldır.** Enkaz ekibi yolu açar. Yol açılmadan kesim ekibi giremez.
+3. **Kes.** Kesim ekibi canavarı parçalar. Pul, kemik, magma özü ve göz depoya girer.
+4. **Sat.** Depoda Hurdacı Rıza her şeyi alır ama ucuza. Daha iyi alıcılar ve fabrika ileride açılır.
 
-```
-index.html            sayfa iskeleti
-css/style.css         görünüm
-js/data.js            oyun verileri ve denge ayarları (yeni canavar, ürün, ekip buraya eklenir)
-js/sim.js             simülasyon: ekonomi, saldırı, ihale, temizlik
-js/render.js          şehir, canavar ve efekt çizimleri (Canvas)
-js/ui.js              paneller, pencereler, bildirimler
-js/state.js           oyun durumu ve kayıt
-js/main.js            oyun döngüsü
-tools/serve.mjs       bilgisayarda test için yerel sunucu
-```
+Parayla yeni araç alırsın; araç çoğaldıkça işler hızlanır. İş süresini erken bitirirsen prim alırsın, geç kalırsan ödeme kesilir.
+
+İlk işi Nevin Aksoy (Belediye Afet Koordinatörü) adım adım gösterir. Sonra ekranın üstündeki **Hedef** çubuğu bir sonraki işi söyler. Depo, Şirket, Fabrika, ihaleler ve bakım sözleşmeleri sırayla açılır. Fabrikada ilk ürünü çıkarınca işler ihaleyle gelmeye başlar: rakibin Süpürge Holding'dir. Tablodaki kazanma şansları gerçektir.
+
+Kayıt telefonun tarayıcısında tutulur. Bakım sözleşmesi aldıktan sonra sen yokken de gelir birikir.
 
 ## Bilgisayarda çalıştırma
 
+Derleme adımı ya da bağımlılık yok. Node 18 veya üstü yeterli:
+
 ```bash
-node tools/serve.mjs
+node tools/serve.mjs              # http://localhost:5173
+PORT=8080 node tools/serve.mjs    # başka port
 ```
 
-Ardından tarayıcıda `http://localhost:5173` adresini aç.
+Tarayıcıda telefon görünümünü aç (390 × 844). Konsolda `aftermath.step(10)` oyunu 10 saniye ileri sarar, `aftermath.scenario('tender')` hazır bir durumu yükler.
 
-Test için tarayıcı konsolunda `aftermath.step(10)` oyunu 10 saniye ileri sarar.
+## Testler
 
-## Yol haritası
+```bash
+node tests/logic/run.mjs          # oyun kuralları (Node)
+node tests/e2e/ftue.cjs           # ilk oturum, sadece vurgulanan öğeye dokunarak (Playwright, iPhone 13)
+node tests/e2e/smoke.cjs          # açılış, 2. ve 3. iş, kayıt/yükleme, ayarlar, kalite
+node tests/e2e/run.cjs            # hepsi
+node tests/shots.cjs              # inceleme ekran görüntüleri
+```
 
-- Yeni canavar türleri: buz, deniz, uzaylı istilası, böcek sürüsü
-- Yeni şehirler ve şehirler arası genişleme
-- Ses ve müzik
-- İngilizce ve diğer diller
-- Haftalık küresel saldırı etkinlikleri
-- Play Store / App Store paketi
+## Dosyalar
+
+```
+index.html, js/main.js     kabuk ve yapıştırıcı: açılış, döngü, dokunma, kayıt, kalite
+js/game/                   oyun kuralları (DOM ve 3B yok, Node'da çalışır)
+js/scene/                  3B şehir, araçlar, Magmadon, KALKAN-07 (three.js)
+js/ui/                     arayüz ("Saha" sistemi), css/ ve assets/ui/
+js/audio.js                tüm sesler ve müzik, Web Audio ile anında üretilir
+docs/DESIGN.md, docs/ARCH.md   tasarım ve mimari
+```
+
+## Lisanslar
+
+Kod, sesler, 3B modeller ve oyun ikonları bu projeye özgüdür. Dışarıdan alınanlar (three.js MIT, Archivo ve Big Shoulders OFL, Tabler Icons MIT) ve lisans metinlerinin yerleri [LICENSES.md](LICENSES.md) dosyasındadır. Atıf gerektiren (CC-BY) hiçbir malzeme kullanılmaz.

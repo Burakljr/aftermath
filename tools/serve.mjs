@@ -16,12 +16,20 @@ const types = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
 };
 
 http
   .createServer(async (req, res) => {
     try {
       let path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+      if (path === '/favicon.ico') path = '/icons/icon.svg';
       if (path.endsWith('/')) path += 'index.html';
       const file = normalize(join(root, path));
       if (file !== root && !file.startsWith(root + sep)) {
