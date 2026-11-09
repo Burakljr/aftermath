@@ -465,9 +465,9 @@
 .reveal-why { animation: fadeIn 250ms var(--ease) both; animation-delay: 1.6s; }
 .reveal-why b { font-weight: 700; font-size: 15.5px; }
 .reveal-why p { font-size: 14px; color: var(--beton); margin-top: 4px; max-width: 300px; }
-.reveal-cta { margin-top: 14px; opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity 260ms var(--ease), transform 260ms var(--ease); }
-.reveal-cta.on { opacity: 1; transform: none; }
+.reveal-cta { margin-top: 14px; opacity: 0; transform: translateY(12px); pointer-events: none; } /* faded in on the game clock by tender.js */
 #ui .reveal-cta:not(.on) .btn { pointer-events: none; } /* review 2 F8: the actions arrive after the stamp */
+.tender__scroll.reveal:not(.go) * { animation-play-state: paused !important; } /* scrubbed on the game clock by tender.js */
 /* each row's numbers arrive with its bar (review 2 F8: every value was readable at 0 ms) */
 .env-row .env-side .num { animation: fadeIn 260ms var(--ease) both; animation-delay: calc(400ms + var(--i) * 300ms); }
 .sheet-tender.revealing .sheet-box { animation: tshake 220ms linear 1.38s; }

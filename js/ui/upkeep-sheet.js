@@ -82,14 +82,14 @@ export function createUpkeepSheet(ctx) {
       for (const t of r.tiers.children) C(t, 'on', i++ < u.tier);
       T(r.rate, u.rateText);
       const confirming = !!done && done.id === id;
+      const sign = u.tier === 0 && !!u.nextCostText && !confirming;
+      const upgrade = u.tier > 0 && !!u.nextCostText && !confirming;
       T(r.next, u.nextCostText || 'Son kademede');
-      show(r.next, !confirming);
+      show(r.next, !confirming && !upgrade); // the upgrade button's sub line carries the cost
       T(r.paused, u.pausedText || '');
       show(r.paused, !!u.pausedText && !confirming);
       T(r.ok.lastChild, confirming ? `Kademe ${done.tier} imzalandı.` : '');
       show(r.ok, confirming);
-      const sign = u.tier === 0 && !!u.nextCostText && !confirming;
-      const upgrade = u.tier > 0 && !!u.nextCostText && !confirming;
       show(r.btn, sign);
       show(r.up, upgrade);
       if (sign) r.btn.set({ label: u.button, primary: u.enabled && ctx.primaryOK(), enabled: u.enabled, reason: u.reason, key: `signUpkeep:${id}` });

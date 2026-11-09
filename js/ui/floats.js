@@ -108,8 +108,9 @@ export function createFloats(ctx) {
     const p = pt || { x: W / 2, y: ctx.band.top + 120 };
     const card = h('div.rare-card', h('span.rare-card__glow'), h('span.tile.rare', icon(ITEM_ICON[item] || 't-dna', 28, 'c-sinyal')),
       h('div', h('div.rare-card__k', { text: 'Nadir parça' }), h('div.rare-card__n', { text: names[item] || 'Nadir parça' })));
+    // at the top of the band, not over the district: the clean and the "Temiz" chip below it stay visible (review 2)
     const x = Math.max(110, Math.min(W - 110, p.x));
-    const y = Math.max(ctx.band.top + 60, p.y - 90);
+    const y = ctx.band.top + 46;
     card.style.transform = `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`;
     fly.appendChild(card);
     if (rare) rare.card.remove();

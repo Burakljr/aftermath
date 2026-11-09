@@ -124,6 +124,9 @@ export function createFtueView(ctx) {
         if (!P.visible) return;
         x = P.x;
         y = P.y - 86;
+        // above the district's chip and its flag, never over them (review 2 F10)
+        const ct = ctx.chipTop ? ctx.chipTop(anchor.id) : null;
+        if (ct) { x = ct.x; y = Math.min(y, ct.y - 6); }
         if (spot) {
           S(veil, '--sx', `${P.x.toFixed(0)}px`);
           S(veil, '--sy', `${(P.y + 30).toFixed(0)}px`);

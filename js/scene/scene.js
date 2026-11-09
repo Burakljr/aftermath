@@ -250,7 +250,6 @@ export function createScene(canvas, opts = {}) {
       const bs = cd.buildings;
       const stepN = Math.max(1, Math.ceil(bs.length / 10));
       for (let k = 0; k < bs.length; k += stepN) fx.dust(bs[k].x, 1, bs[k].z, 3, { size: 8 + bs[k].w * 0.25, spread: 6, rise: 3, life: 2.4 });
-      fx.ring(D.cx, D.cz, 60, 14);
     }
     updateGroundCaps();
   }

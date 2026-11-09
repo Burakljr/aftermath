@@ -21,7 +21,12 @@ function planInPage() {
   if (s.phase === 'tender' && s.tender) {
     const t = s.tender;
     if (t.kind === 'call') return { key: 'acceptCall' };
-    if (t.reveal) return { key: t.reveal.win ? 'startWork' : 'takeTail' };
+    if (t.reveal) {
+      // the next actions fade in after the stamp (game clock, review 2 F8)
+      const k = t.reveal.win ? 'startWork' : 'takeTail';
+      const b = key(k);
+      return b && b.closest('.reveal-cta.on') ? { key: k } : { wait: 0.5, why: 'reveal' };
+    }
     const bub = document.querySelector('.tbubble.on');
     if (vis(bub)) return { click: '.tbubble.on', why: 'tender bubble' };
     const conf = document.querySelector('.confirm .btn.primary');

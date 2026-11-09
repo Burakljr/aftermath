@@ -77,6 +77,7 @@ function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   if (live && s) game.tick(s, dt);
+  else if (s && s.tender && s.tender.reveal) s.clock += dt; // the reveal plays on the game clock (review 2 F8)
   scene.tick(s);
   ui.render(s, now);
   if (rafOn) requestAnimationFrame(loop);

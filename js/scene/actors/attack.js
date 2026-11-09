@@ -57,7 +57,8 @@ export function createAttack(world, { corpse }) {
     // TV camera: low, over the water west of the fight, looking east along the promenade
     // closer than proto-B so KALKAN-07 fills ~40 % of the band at the punch (review V7), low 3/4 front
     const cam = new THREE.Vector3(P.x - 128 * S, 17 * S + 4, QUAY - 22 * S);
-    const camT = new THREE.Vector3(P.x + 4 * S, 27 * S, P.z + 2 * S);
+    // aimed ~10 % toward KALKAN-07 so the robot is fully in frame at contact (review 2 F11)
+    const camT = new THREE.Vector3(P.x + 4 * S, 27 * S, P.z - 5 * S);
     F = { S, RS, P, M, R, cam, camT, shardO, wadeFrom: new THREE.Vector3(M.x - 20 * S, 0, M.z - 105 * S) };
   }
 
@@ -204,26 +205,35 @@ export function createAttack(world, { corpse }) {
   }
   let sidePl = null, fitSide = 1;
   let curA = null, curT = 0, tvFov = false;
+  // the promenade palms read as black sticks in front of the TV camera (review 2 F12): hidden for the TV shot only
+  let palms;
+  function palmsOn(on) {
+    if (palms === undefined) palms = world.scene.getObjectByName('palms') || null;
+    if (palms && palms.visible !== on) palms.visible = on;
+  }
   function own(a, t) {
     curA = a; curT = t;
+    palmsOn(t >= TL.cut);
     if (!owning) { world.cam.override(camFn); owning = true; tvFov = false; }
     if (t < TL.cut && !tvFov) { world.cam.setVisFov(34); tvFov = true; framedChain = false; }
     if (t >= TL.cut && !framedChain) { world.cam.setVisFov(26); world.cam.frame('chain', { instant: true }); framedChain = true; tvFov = false; }
   }
-  function release() { if (owning) { world.cam.override(null); owning = false; } curA = null; framedChain = false; tvFov = false; }
+  function release() { if (owning) { world.cam.override(null); owning = false; } curA = null; framedChain = false; tvFov = false; palmsOn(true); }
 
   // ---------------------------------------------------------------- one-shot juice on time crossings
   function juice(a, t0, t1) {
     const cross = (T) => t0 < T && t1 >= T;
     if (cross(TL.land)) {
-      world.fx.ring(F.R.x, F.R.z, 30 * F.RS, 16);
-      world.fx.steam(F.R.x, 1, F.R.z, 8, { size: 14 * F.RS, spread: 12, life: 2.2 });
+      // a few short-lived puffs at the feet, not a haze slab over the lower third (review 2 F12: the ground ring's
+      // 26-38 m puffs lived 6-9 s and filled the shot)
+      world.fx.dust(F.R.x, 1, F.R.z, 6, { size: 4 + 7 * F.RS, spread: 12, rise: 2, life: 1.6 });
+      world.fx.steam(F.R.x, 1, F.R.z, 4, { size: 6 * F.RS, spread: 8, life: 1.2 });
       world.cam.shake(0.35);
     }
     if (cross(TL.contact)) {
       world.fx.flash(F.P.x, F.P.y, F.P.z, 12 * F.S, 0.22);
       world.fx.sparks(F.P.x, F.P.y, F.P.z, 16, { speed: 22, size: 0.9 });
-      world.fx.ring(F.P.x, F.P.z + 6 * F.S, 55 * F.S, 22);
+      world.fx.ring(F.P.x, F.P.z + 6 * F.S, 55 * F.S, 12);
       world.cam.shake(0.7);
       shards.burst(F.shardO, F.S, t1);
     }

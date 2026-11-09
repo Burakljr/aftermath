@@ -172,9 +172,11 @@ void main(){
   float T = a.r, soot = a.g, mask = a.b;
   vec3 col = vec3(0.0);
   col = mix(col, vec3(0.55, 0.06, 0.015) * 1.4, smoothstep(0.12, 0.3, T));
-  col = mix(col, vec3(1.0, 0.36, 0.05) * 3.4, smoothstep(0.3, 0.55, T));
-  col = mix(col, vec3(1.0, 0.82, 0.45) * 6.5, smoothstep(0.62, 0.9, T));
-  float emitA = smoothstep(0.08, 0.3, T) * mask;
+  col = mix(col, vec3(1.0, 0.36, 0.05) * 3.0, smoothstep(0.3, 0.6, T));
+  // review 2 F13: a warmer, less blown-out core and soft tongue edges (they read as hard white cones)
+  col = mix(col, vec3(1.0, 0.7, 0.32) * 4.2, smoothstep(0.66, 0.95, T));
+  float edge = smoothstep(0.0, 0.22, vUv.x) * smoothstep(1.0, 0.78, vUv.x) * smoothstep(1.0, 0.7, vUv.y);
+  float emitA = smoothstep(0.06, 0.4, T) * mask * edge;
   float sootA = soot * 0.55 * mask;
   col *= (1.0 - vFog * 0.85);
   gl_FragColor = vec4(col * emitA, sootA * (1.0 - vFog));

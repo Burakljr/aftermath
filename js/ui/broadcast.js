@@ -1,7 +1,7 @@
 // Aftermath v2 UI: attack broadcast (UI-SPEC 2-attack, ARCH §7.3). Letterbox 120 / 284 px, "CANLI · Körfez Haber" bug and
 // clock, red grade + scanlines over the TV shot, lower third with hazard stripe, KAİJU ALARMI strap, D64 MAGMADON, one
 // sentence, three facts; "Tahmini düşüş" tracking label; "Geç" pill (not on the first attack). Timing from s.attack.t.
-import { h, icon, T, C, S, show, tap } from './dom.js';
+import { h, icon, T, C, show, tap } from './dom.js';
 
 export function createBroadcast(ctx) {
   const { game } = ctx;
@@ -29,7 +29,6 @@ export function createBroadcast(ctx) {
     track, flash);
   ctx.L.broadcast.appendChild(root);
 
-  const P = { x: 0, y: 0, visible: false };
   let on = false;
   let stage = '';
   let flashed = -1;
@@ -75,16 +74,10 @@ export function createBroadcast(ctx) {
         setTimeout(() => flash.classList.remove('go'), 320); // the white layer exists only while it flashes
       }
     },
-    frame(s) {
-      if (!on || dropId == null) return;
-      ctx.project(`district:${dropId}`, P);
-      // review 2 m1: never in the TV shot or the profile shot (it floated in the sky); only once the gameplay framing is
-      // live after the impact, and only when the district is inside the band
-      const a = s && s.attack;
-      const H = ctx.root.clientHeight || 844;
-      const vis = P.visible && !!a && a.t >= game.ATTACK.TL.settle[0] && P.y > ctx.band.top + 30 && P.y < H - ctx.band.bottom;
-      C(track, 'show', vis);
-      if (vis) S(track, 'transform', `translate3d(${P.x.toFixed(1)}px,${P.y.toFixed(1)}px,0)`);
+    frame() {
+      // review 2 m1: the floating "Tahmini düşüş" marker is gone. In the TV and profile shots it hung in the sky, and
+      // after the fall an estimate means nothing; the facts row under the headline names the district instead.
+      if (track.classList.contains('show')) C(track, 'show', false);
     },
   };
 }

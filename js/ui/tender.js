@@ -187,7 +187,7 @@ export function createTenderSheet(ctx) {
     const sec = rv.secondary ? button({ cls: 'ghost', label: rv.secondary.label, onTap: (e, b) => ctx.act(rv.secondary.action.id, null, b) }) : null;
     // the next actions sit right under the reason and appear ~300 ms after the stamp has landed (review 2 F8)
     const cta = h('div.tender__cta.reveal-cta', main, sec);
-    box.append(h('div.grabber'), h('div.tender__scroll.scroll.reveal',
+    const scrollEl = h('div.tender__scroll.scroll.reveal',
       h('div.docline', h('span.doc-org', icon('g-municipal', 16), 'Körfezkent Belediyesi'), h('span', { text: 'Zarflar açıldı' })),
       h('div.title.tender__title', { text: 'İhale sonucu' }),
       h('div.subtitle', { text: `Kazanma şansın ${rv.chanceText} idi.` }),
@@ -196,8 +196,9 @@ export function createTenderSheet(ctx) {
         h('div.env.riv', icon('g-broom', 18), h('b', { text: rv.names.rival }))),
       rowsEl, total,
       h('div.reveal-foot', stamp, h('div.reveal-why', h('b', { text: rv.why }), rv.line ? h('p', { text: rv.line }) : null)),
-      cta));
-    return { main, cta, youTot, rivTot, t0: performance.now(), tot: rv.total };
+      cta);
+    box.append(h('div.grabber'), scrollEl);
+    return { main, cta, youTot, rivTot, scrollEl, t0: null, calls: 0, tot: rv.total };
   }
   const T_TOTAL = 1.3;
   const T_CTA = 1.85;
@@ -207,12 +208,25 @@ export function createTenderSheet(ctx) {
     if (k >= 1 || !/^\d+$/.test(String(text))) return text;
     return String(Math.round(value * k));
   }
-  function revealStep(r) {
-    const e = (performance.now() - r.t0) / 1000;
+  function revealStep(r, st) {
+    // review 2 F8: the reveal runs on the game clock. Its CSS animations stay paused and are scrubbed from here, so a
+    // slow first paint or a stepped capture shows the same sequence as a phone at 60 fps
+    const now = st ? st.clock : performance.now() / 1000;
+    if (r.t0 == null) {
+      if (++r.calls < 2) { T(r.youTot, ''); T(r.rivTot, ''); C(r.cta, 'on', false); return; }
+      r.t0 = now;
+      r.anims = r.scrollEl.getAnimations ? r.scrollEl.getAnimations({ subtree: true }) : null;
+      if (!r.anims) C(r.scrollEl, 'go', true);
+    }
+    const e = Math.max(0, now - r.t0);
+    if (r.anims) for (const a of r.anims) { try { a.pause(); a.currentTime = e * 1000; } catch { /* finished or removed */ } }
     const k = Math.max(0, Math.min(1, (e - T_TOTAL) / 0.3));
     T(r.youTot, countText(r.tot.youText, r.tot.you, e < T_TOTAL ? 0 : k));
     T(r.rivTot, countText(r.tot.rivalText, r.tot.rival, e < T_TOTAL ? 0 : k));
+    const kc = Math.max(0, Math.min(1, (e - T_CTA) / 0.26));
     C(r.cta, 'on', e >= T_CTA);
+    S(r.cta, 'opacity', kc.toFixed(2));
+    S(r.cta, 'transform', `translateY(${(12 * (1 - kc) * (1 - kc)).toFixed(1)}px)`);
   }
 
   return {
@@ -228,7 +242,7 @@ export function createTenderSheet(ctx) {
         const r = keyed(box, `rev${t.no}`, () => buildReveal(rv));
         r.main.set({ label: rv.button.label, primary: ctx.primaryOK(), key: rv.button.action.id });
         el.classList.add('revealing');
-        revealStep(r);
+        revealStep(r, s);
         return;
       }
       el.classList.remove('revealing');
@@ -242,7 +256,7 @@ export function createTenderSheet(ctx) {
       closeConfirm();
     },
     frame(s) {
-      if (s.tender && s.tender.reveal && box.__refs && box.__refs.cta) revealStep(box.__refs);
+      if (s.tender && s.tender.reveal && box.__refs && box.__refs.cta) revealStep(box.__refs, s);
     },
   };
 }

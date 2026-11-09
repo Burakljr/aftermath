@@ -10,6 +10,8 @@ import { CONCRETE } from './city.js';
 import { DISTRICTS, XR, ZR } from './layout.js';
 
 const LIGHT = [0xcac2b2, 0xb8b0a0, 0xd8cfbd, 0xa8a090, 0xe0d6c2, 0x9a9282];
+// low lumpy dome for the street heaps (review 2 F4)
+const MOUND = (() => { const g = new THREE.SphereGeometry(1, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2); return g.index ? g.toNonIndexed() : g; })();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 
 function coneGeo() {
@@ -36,8 +38,9 @@ function streetPileSpot(did, x, z, caps) {
     const fz = D.z0 + 10 + (D.z1 - D.z0 - 20) * k / 8, fx = D.x0 + 10 + (D.x1 - D.x0 - 20) * k / 8;
     for (const c of [{ x: xw, z: fz, axis: 'z' }, { x: xe, z: fz, axis: 'z' }, { x: fx, z: zn, axis: 'x' }, { x: fx, z: zs, axis: 'x' }]) {
       if (caps && capsDist(c.x, c.z, caps) < 12) continue;
-      // prefer the near side (+z) and side roads: the gameplay camera sees them
-      const d = Math.hypot(c.x - x, c.z - z) - (c.z === zs ? 14 : 0) + (c.z === zn ? 12 : 0);
+      // prefer side roads (they run toward the gameplay camera and are seen along their length; review 2 F4: heaps
+      // on the near cross street hid behind the next row of buildings), then the near side (+z)
+      const d = Math.hypot(c.x - x, c.z - z) - (c.axis === 'z' ? 30 : 0) - (c.z === zs ? 6 : 0) + (c.z === zn ? 12 : 0);
       if (d < bd) { bd = d; best = c; }
     }
   }
@@ -45,7 +48,7 @@ function streetPileSpot(did, x, z, caps) {
 }
 
 export function createRubble(scene, { fx, quality }) {
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true, emissive: new THREE.Color(0x2c2822) });   // dusty heaps stay readable at blue hour
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true, emissive: new THREE.Color(0x3d372d) });   // dusty heaps stay readable at blue hour (lifted, review 2 F4)
   const P = chunkProtos();
   const piles = [];            // per district: { mesh, steps:[v1,v2,v3], level, centers }
   const CONES_PER = 10, BARR_PER = 4;
@@ -98,7 +101,10 @@ export function createRubble(scene, { fx, quality }) {
     const heapC = [[], [], []];
     heaps.forEach((hp, k) => {
       const layer = heaps.length === 1 ? 0 : heaps.length === 2 ? k * 2 : k;
-      addPile({ x: hp.x, z: hp.z, radius: 13, height: 7.5, count: 64, sx: sp.axis === 'z' ? 0.75 : 1.25, sz: sp.axis === 'z' ? 1.25 : 0.75, color: 0x9a9284, light: 0.92 }, layer);
+      const sx = sp.axis === 'z' ? 0.75 : 1.25, sz = sp.axis === 'z' ? 1.25 : 0.75;
+      // a solid pale mound under the chunks, so each heap reads as one heap and not as scattered bits
+      items.push({ proto: MOUND, x: hp.x, y: 0.1, z: hp.z, rx: 0, ry: R() * 6.28, rz: 0, sx: 12 * sx, sy: 7.5, sz: 12 * sz, col: 0xb9af9c, h: -1, layer });
+      addPile({ x: hp.x, z: hp.z, radius: 11.5, height: 8, count: 80, sx, sz, color: 0x9a9284, light: 0.92 }, layer);
       heapC[layer].push([hp.x, hp.z]);
     });
     yield;
