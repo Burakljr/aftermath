@@ -30,6 +30,9 @@ const ROB_DIR = new THREE.Vector3(-0.62, 0, 0.78).normalize();
 const QUAY = -186, SEA_Y = -1.1;
 const ROLL = 1.3;
 const FOAM_T = [1.08, 1.34, 1.6, 1.86];
+// the vent chimneys on Magmadon's spine breathe out vapour during the TV shot (pooled steam, no draw call)
+// (only once it stands in the fight: puffs released while it wades hung in the sky where it had been)
+const VENT_T = [0.55, 1.1, 1.7];
 const ROB_RATIO = 0.72;          // KALKAN-07 height / Magmadon height in the fight (review F11: 60-75 %)
 
 export function createAttack(world, { corpse }) {
@@ -41,7 +44,7 @@ export function createAttack(world, { corpse }) {
   const shards = createShards(world);
   const shock = createShockRing(world);
   const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _tgt = new THREE.Vector3(), _com = new THREE.Vector3(), _k = new THREE.Vector3();
-  const _gp = new THREE.Vector3(), _gt = new THREE.Vector3();
+  const _gp = new THREE.Vector3(), _gt = new THREE.Vector3(), _vent = new THREE.Vector3();
   const RP = newPoseR(), RP2 = newPoseR(), RP3 = newPoseR();
   let setupKey = '', F = null;           // fight geometry for the current attack
   let robGoneT = 1e9;                    // attack t at which KALKAN-07 left the frame on lift-off
@@ -90,7 +93,7 @@ export function createAttack(world, { corpse }) {
     const d = new THREE.Vector3(pl.dir.x, 0, pl.dir.z), l = new THREE.Vector3(fs * pl.dir.z, 0, -fs * pl.dir.x);
     const centre = new THREE.Vector3(pl.nose.x - d.x * pl.length * 0.5, 0, pl.nose.z - d.z * pl.length * 0.5);
     // KALKAN-07 stands on the camera side level with the head (it shoved the staggering monster over), so the settle
-    // frame is the hero shot: the robot in the foreground on one side, the head, tusks and the fires on the other,
+    // frame is the hero shot: the robot in the foreground on one side, the head (ram prow, swept horns) and the fires on the other,
     // the body receding behind them (the portrait band is narrow: the body is seen from its head end, foreshortened)
     const CR = new THREE.Vector3(pl.nose.x - d.x * 8 * S + l.x * 36 * S, 0, pl.nose.z - d.z * 8 * S + l.z * 36 * S);
     CR.y = world.groundY(CR.x, CR.z);
@@ -276,7 +279,7 @@ export function createAttack(world, { corpse }) {
       camera.up.set(0, 1, 0); camera.lookAt(_tgt);
       return;
     }
-    // settle frame: KALKAN-07 standing back on one side, the head, tusks and fires on the other; a slow push-in
+    // settle frame: KALKAN-07 standing back on one side, the head (ram prow, swept horns) and fires on the other; a slow push-in
     const ks = smooth(TL.hit, TL.settle + 0.3, at);
     const Ds = D * (1.0 - 0.04 * smooth(TL.hit, TL.out, at));
     _com.set(F.head.x, 6 * F.S, F.head.z);
@@ -359,6 +362,15 @@ export function createAttack(world, { corpse }) {
       }
     }
     if (cross(TL.roar)) world.fx.steam(F.M.x, 20 * F.S, F.M.z, 4, { size: 10 * F.S, life: 1.6 });
+    if (pose.monVisible && pose.tv && model.chimneyCount) {
+      for (let i = 0; i < VENT_T.length; i++) {
+        if (!cross(VENT_T[i])) continue;
+        for (const c of [(2 * i) % model.chimneyCount, (2 * i + 3) % model.chimneyCount]) {
+          model.chimneyTop(c, _vent);
+          world.fx.steam(_vent.x, _vent.y, _vent.z, 2, { size: 7 * F.S, spread: 1.0 * F.S, life: 0.9 });
+        }
+      }
+    }
     if (cross(TL.cut + 0.02)) world.fx.dust(F.CR.x, F.CR.y + 1, F.CR.z, 5, { size: 5 + 6 * F.RS, spread: 10, rise: 2, life: 1.8 });
     if (cross(TL.hit + 0.05)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 4, { size: 5 + 5 * F.RS, spread: 9, rise: 2, life: 1.6 });
     if (cross(LIFT0)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 6, { size: 6 + 6 * F.RS, spread: 12, rise: 3, life: 1.8 });

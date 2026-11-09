@@ -22,9 +22,9 @@ const _c = new THREE.Color();
 
 export const PAL = {
   // dark basalt greys with warm rust and pale ash highlights; magma in the seams (no turtle brown anywhere)
-  basalt: 0x4a4542, basaltHi: 0x99918a, basaltLo: 0x211e1c, ash: 0xcac1b4, rust: 0x8e4b2c, rustDark: 0x5a3326,
+  basalt: 0x3f3b39, basaltHi: 0x8a837c, basaltLo: 0x211e1c, ash: 0xcac1b4, rust: 0x8e4b2c, rustDark: 0x5a3326,
   sulfur: 0xa08a4a, crust: 0x1a0b07,
-  hideDark: 0x3a2e2b, hide: 0x584641, hideMid: 0x735a4f, belly: 0x8d766b, bellyFold: 0x6a5449,
+  hideDark: 0x382d2a, hide: 0x4f403b, hideMid: 0x67514a, belly: 0x7e6a61, bellyFold: 0x5f4d45,
   horn: 0xc2b7a8, hornDark: 0x4c4440, toe: 0xc0b6a8, nostril: 0x140c0a,
   mouth: 0x3c100c, gum: 0x6e2c27, tongue: 0x8a4446, tooth: 0xd2c6ae,
   // the inside under the bands reads volcanic (basalt layers, pale mineral, magma veins), never as red meat (DESIGN §8/§13)
@@ -367,21 +367,29 @@ function buildBands(acc, sec, list, o, out) {
     acc.plate = b.id;
     const O = [], N = [], Cl = [], Ht = [];
     for (let j = 0; j <= NW; j++) {
-      const w = j / NW, z = b.zB - w * (b.zB - b.zA), zo = z - o.ovh * w * w * w;
+      const w = j / NW;
       for (let i = 0; i <= NP; i++) {
         const u = i / NP, phi = phiAt(i);
+        // ragged band edges: the front and rear edges wander along the arc (broken rock, not a turned ring)
+        const wobF = (noise3(phi * 2.2 + b.id * 7.3, b.id * 1.9, 0.5) - 0.5) * 2 * (o.wob ?? 0);
+        const wobR = (noise3(phi * 2.2 + b.id * 3.1, b.id * 5.3, 2.5) - 0.5) * 2 * (o.wob ?? 0);
+        const z = b.zB - w * (b.zB - b.zA), zo = z - o.ovh * w * w * w + (1 - w) * wobF + w * wobR;
         const p = secPt(sec, phi, zo, V3()), n = secNrm(sec, phi, zo, V3());
         const sp = Math.sin(phi), endK = smooth(0, 0.12, Math.min(u, 1 - u));
-        const prof = o.tf + (o.tr - o.tf) * w + o.crown * (b.crownK ?? 1) * Math.pow(Math.sin(Math.PI * w), 0.8);
-        const rough = (noise3(p.x * 0.22 + b.id * 3.1, p.y * 0.22, p.z * 0.22) - 0.5) * 1.3 + (noise3(p.x * 0.6, p.y * 0.6 + b.id, p.z * 0.6) - 0.5) * 0.5;
-        const t = prof * (0.68 + 0.32 * Math.max(0, sp)) * (0.6 + 0.4 * endK) + rough * o.rough * (0.4 + 0.6 * endK);
-        // colour: lighter crest toward the spine, pale worn rear lip, dark rusty front edge, warm rust low on the flanks
-        const crest = Math.pow(Math.sin(Math.PI * w), 0.7) * (0.45 + 0.55 * Math.max(0, sp));
-        const pn = noise3(p.x * 0.09 + 4, p.y * 0.09, p.z * 0.09);
-        const c = mix(C.basalt, C.basaltHi, clamp(crest * 0.72 + (pn - 0.42) * 0.9, 0, 1));
-        c.lerp(C.ash, smooth(0.74, 1.0, w) * 0.75);
+        // a flat-topped slab with chamfered edges, thicker at the overlapping rear lip, a raised keel along the spine
+        const plate = smooth(0, 0.24, w) * smooth(1, 0.78, w);
+        const prof = o.tf + (o.tr - o.tf) * Math.pow(w, 1.5) + o.crown * (b.crownK ?? 1) * (0.55 * plate + 0.45 * Math.pow(Math.sin(Math.PI * w), 0.8));
+        const keel = (o.keel ?? 0) * Math.exp(-Math.pow((phi - Math.PI / 2) / 0.3, 2)) * (0.45 + 0.55 * plate);
+        const rough = (noise3(p.x * 0.33 + b.id * 3.1, p.y * 0.33, p.z * 0.33) - 0.5) * 1.6 + (noise3(p.x * 0.9, p.y * 0.9 + b.id, p.z * 0.9) - 0.5) * 0.6;
+        const t = prof * (0.76 + 0.24 * Math.max(0, sp)) * (0.8 + 0.2 * endK) + keel + rough * o.rough * (0.4 + 0.6 * endK);
+        // colour: dark basalt, a little lighter on the crest and the keel, pale worn rear lip, dark rusty front edge,
+        // warm rust low on the flanks
+        const crest = plate * (0.4 + 0.6 * Math.max(0, sp));
+        const pn = noise3(p.x * 0.11 + 4, p.y * 0.11, p.z * 0.11);
+        const c = mix(C.basalt, C.basaltHi, clamp(crest * 0.42 + (pn - 0.45) * 1.1 + keel * 0.12, 0, 1));
+        c.lerp(C.ash, smooth(0.76, 1.0, w) * 0.7);
         c.lerp(C.rustDark, (1 - smooth(0, 0.18, w)) * 0.5);
-        c.lerp(C.rust, clamp((0.32 - sp) * 1.5, 0, 0.6));
+        c.lerp(C.rust, (1 - endK) * 0.45 + clamp((0.1 - sp) * 1.2, 0, 0.2));
         if (o.sulfur && Math.abs(phi - Math.PI / 2) < 0.35 && noise3(p.x * 0.3 + 20, p.y * 0.3, p.z * 0.3) > 0.66) c.lerp(C.sulfur, 0.5);
         let h = 0;
         if (o.cracks) {
@@ -446,7 +454,7 @@ function buildSeams(acc, sec, ranges, o) {
       for (let i = 0; i <= NP; i++) {
         const phi = o.phiA + (o.phiB - o.phiA) * (i / NP), n = secNrm(sec, phi, z, V3());
         const p = secPt(sec, phi, z, V3()).addScaledVector(n, -0.25);
-        P.push(p); N.push(n); H.push([(r === 1 ? 1.0 : 0.35) * glowN(p), CH_MAGMA]);
+        P.push(p); N.push(n); H.push([(r === 1 ? 1.0 : 0.75) * glowN(p), CH_MAGMA]);
       }
     });
     const AT = (r, i) => r * (NP + 1) + i;
@@ -504,8 +512,8 @@ const up = (rows) => rows.map(([z, t, b, w]) => [z, t + LY, b + LY, w]);
 // trunk: long and low-slung, a deep chest and a bull's shoulder hump over the front legs, a tucked belly, sloping to the rump
 const TRUNK = makeSec(up([
   [-47, 20.0, 16.0, 3.5], [-44, 23.5, 14.4, 9.0], [-39, 26.5, 13.4, 12.6], [-31, 28.6, 13.0, 15.0], [-20, 30.4, 13.2, 16.2],
-  [-8, 32.6, 12.8, 17.0], [3, 35.6, 11.6, 17.8], [13, 38.0, 10.2, 18.4], [21, 37.6, 10.0, 17.6], [28, 34.6, 11.4, 15.4],
-  [34, 30.6, 13.6, 12.0], [38.5, 26.5, 16.2, 7.4], [41, 23.5, 18.5, 3.0],
+  [-8, 32.6, 12.8, 17.0], [3, 36.4, 11.6, 17.8], [13, 39.6, 10.2, 18.4], [21, 38.8, 10.0, 17.6], [28, 35.2, 11.4, 15.4],
+  [34, 30.8, 13.6, 12.0], [38.5, 26.5, 16.2, 7.4], [41, 23.5, 18.5, 3.0],
 ]), 2.4, 0.45);
 const NECKS = makeSec(up([[20, 34.0, 11.0, 11.4], [28, 33.6, 11.6, 10.8], [34, 32.8, 12.6, 10.0], [40, 31.6, 14.0, 9.2], [44, 30.4, 15.0, 8.6]]), 2.2, 0.5);
 const TAILS = makeSec(up([
@@ -514,12 +522,12 @@ const TAILS = makeSec(up([
 ]), 2.2, 0.45);
 // head-local skull: a long, low wedge, broad at the jaw muscles, descending to a blunt snout under the ram plate
 const SKULL = makeSec([
-  [-6, 10.2, -6.8, 8.6], [-1, 11.0, -7.0, 10.2], [4, 10.2, -5.6, 10.6], [9, 8.2, -4.0, 10.0], [14, 6.6, -3.2, 9.2],
-  [18, 5.4, -2.9, 8.6], [21.5, 4.6, -2.8, 8.2], [23, 3.8, -2.6, 7.2],
+  [-6, 11.8, -6.8, 8.6], [-1, 13.0, -7.0, 10.2], [4, 11.8, -5.6, 10.6], [9, 9.0, -4.0, 9.6], [14, 6.8, -3.2, 8.2],
+  [18, 5.8, -2.9, 6.8], [21.5, 5.2, -2.8, 5.6], [23, 4.4, -2.6, 4.8],
 ], 3.0, 0.5);
 
 // eight back bands, the boundaries 9 units apart; chimneys on the six middle bands, glands under three
-const ZB = [-40, -31, -22, -13, -4, 5, 14, 23, 32], GAP = 2.0;
+const ZB = [-40, -32.5, -24.5, -16, -7, 2.5, 12.5, 22.5, 32], GAP = 2.6;
 const CHIM = [null, { h: 2.6, rb: 2.8 }, { h: 2.9, rb: 3.0 }, { h: 3.2, rb: 3.2 }, { h: 3.4, rb: 3.4 }, { h: 3.4, rb: 3.4 }, { h: 3.0, rb: 3.1 }, null];
 const BACK = ZB.slice(0, -1).map((z, i) => ({ zA: z + GAP / 2, zB: ZB[i + 1] - GAP / 2, id: i + 1, chim: CHIM[i], gland: i % 2 === 1, crownK: 0.75 + 0.5 * Math.sin((i / 7) * Math.PI * 0.8) }));
 const BACK_ARC = { phiA: -20 * D2R, phiB: 200 * D2R };
@@ -576,7 +584,7 @@ export function createMagmadon() {
     for (let z = -36; z <= 32; z += 4) zs.push(z);
     zs.push(34.5, 37, 39.2, 41);
     buildHide(acc, TRUNK, zs, 36, { color: hideCol, skip: bandSkip(BACK_ARC, ZB[0], ZB[8]), noise: 0.45, nfreq: 0.18, fold: 0.35 });
-    const PB = { ...BACK_ARC, NP: 34, NW: 7, tf: 0.9, tr: 2.4, crown: 1.7, ovh: 0.7, rough: 1.35, cracks: 0.7, sulfur: true };
+    const PB = { ...BACK_ARC, NP: 26, NW: 6, tf: 0.6, tr: 2.8, crown: 1.5, ovh: 0.35, keel: 1.5, wob: 0.9, rough: 1.2, cracks: 0.7, sulfur: true };
     buildBands(acc, TRUNK, BACK, PB, info);
     const seams = [[ZB[0], BACK[0].zA + 0.6]];
     for (let i = 0; i < BACK.length - 1; i++) seams.push([BACK[i].zB - 0.6, BACK[i + 1].zA + 0.6]);
@@ -600,7 +608,7 @@ export function createMagmadon() {
     const acc = new Acc(5);
     info.owner = neck;
     buildHide(acc, NECKS, [20, 24, 28, 31.5, 34.5, 37.5, 41, 44], 24, { color: hideCol, skip: bandSkip(COLLAR_ARC, 31.5, 37.5), noise: 0.5, nfreq: 0.22, fold: 0.4, caps: [false, false] });
-    const PC = { ...COLLAR_ARC, NP: 22, NW: 5, tf: 0.8, tr: 1.9, crown: 1.3, ovh: 0.5, rough: 0.8, cracks: 0.5 };
+    const PC = { ...COLLAR_ARC, NP: 18, NW: 5, tf: 0.6, tr: 2.4, crown: 1.2, ovh: 0.8, keel: 1.0, wob: 0.6, rough: 0.9, cracks: 0.5 };
     buildBands(acc, NECKS, COLLAR, PC, info);
     buildSeams(acc, NECKS, [[31.5, 32.4], [36.6, 37.5]], PC);
     buildUnder(acc, NECKS, COLLAR, { ...COLLAR_ARC, NPf: 12, NWf: 3, depth: 2.4, rib: 0.8 }, glands);
@@ -622,53 +630,66 @@ export function createMagmadon() {
       },
       noise: 0.3, nfreq: 0.35,
     });
-    // two small nasal bands on the snout ridge (the band language reaches the head), glowing seams between them
-    const PN = { phiA: 28 * D2R, phiB: 152 * D2R, NP: 12, NW: 4, tf: 0.4, tr: 1.0, crown: 0.75, ovh: 0.3, rough: 0.4 };
-    const nasal = [{ zA: 10.5, zB: 14.3, id: 0 }, { zA: 15.0, zB: 18.8, id: 0 }];
-    buildBands(acc, SKULL, nasal, PN, { plates: [], chimneys: [], top: V3(), owner: head });
-    buildSeams(acc, SKULL, [[9.8, 11.0], [13.8, 15.5], [18.3, 19.4]], PN);
-    // the ram plate: a thick, flat-fronted basalt prow wider and taller than the snout, pale worn front and edges
-    const prow = [[21.4, 7.6, 4.6], [22.2, 8.8, 5.4], [24.6, 9.0, 5.5], [25.5, 8.2, 4.8], [26.0, 6.4, 3.4]]
-      .map(([z, w, h]) => ({ c: V3(0, -0.4, z), d: V3(0, 0, 1), u: V3(1, 0, 0), w, h, ex: 4.2 }));
-    acc.geo(loft(prow, 16, {
-      color: (t, a, P, i) => mix(C.basalt, C.ash, (i >= 3 ? 0.62 : 0.2 + 0.4 * Math.pow(Math.abs(Math.sin(2 * a)), 3)) + (noise3(P.x * 0.7, P.y * 0.7, P.z * 0.7) - 0.5) * 0.5),
-      noise: 0.28, nfreq: 0.45, seed: 3,
-    }));
+    // rough basalt scales along the snout ridge, stepping down from the brow to the ram
+    [[11.0, 3.2, 7.7], [15.0, 2.7, 6.5], [18.6, 2.2, 5.6]].forEach(([z, r, y], k) => {
+      const sc = new THREE.DodecahedronGeometry(r, 0); sc.scale(1.45, 0.42, 1.05); sc.rotateX(-0.22); sc.translate(0, y, z);
+      acc.geo(sc, { color: mix(C.basalt, C.basaltHi, 0.25 + k * 0.1).getHex() });
+    });
+    // the ram plate: a thick basalt battering prow capping the snout, a little wider and taller than it, worn pale rims
+    // faceted like an axe head: two broad flat cheeks meeting in a vertical, pale worn keel (a blunt V seen from
+    // above, the top raked back), so from the front it reads as a battering ram and never as a flat snout disc
+    {
+      const B = [V3(5.4, 4.7, 20.4), V3(5.8, 0.6, 20.4), V3(5.4, -3.4, 20.4)];          // back ring, +x side (top, mid, bottom)
+      const M = [V3(5.9, 4.9, 22.6), V3(6.5, 0.6, 22.6), V3(5.9, -3.8, 22.6)];          // widest ring
+      const K = [V3(0, 4.2, 25.0), V3(0, 0.6, 26.4), V3(0, -3.6, 25.6)];                // keel: top, mid, bottom
+      const mir = (v) => V3(-v.x, v.y, v.z), ctr = V3(0, 0.6, 23);
+      const cB = C.basalt.clone(), cM = mix(C.basalt, C.basaltHi, 0.3), cK = mix(C.basaltHi, C.ash, 0.65);
+      const q4 = (a, b, c, d, ca, cb, cc, cd) => { const h = a.clone().add(b).add(c).add(d).multiplyScalar(0.25).sub(ctr); quad(acc, a, b, c, d, ca, cb, cc, cd, Z2, Z2, Z2, Z2, h, 0.06); };
+      const t3 = (a, b, c, ca, cb, cc) => { const h = a.clone().add(b).add(c).multiplyScalar(1 / 3).sub(ctr); triO(acc, a, b, c, ca, cb, cc, Z2, Z2, Z2, h, 0.06); };
+      for (const s of [1, -1]) {
+        const f = s > 0 ? (v) => v : mir, b = B.map(f), m = M.map(f);
+        q4(b[0], b[1], m[1], m[0], cB, cB, cM, cM); q4(b[1], b[2], m[2], m[1], cB, cB, cM, cM);
+        q4(m[0], m[1], K[1], K[0], cM, cM, cK, cK); q4(m[1], m[2], K[2], K[1], cM, cM, cK, cK);
+      }
+      const bL = B.map(mir), mL = M.map(mir);
+      q4(B[0], bL[0], mL[0], M[0], cB, cB, cM, cM); t3(M[0], mL[0], K[0], cM, cM, cK);          // top
+      q4(B[2], bL[2], mL[2], M[2], cB, cB, cM, cM); t3(M[2], mL[2], K[2], cM, cM, cK);          // bottom
+    }
     // nostrils just behind the prow: dark slits with an ember glow
-    for (const s of [-1, 1]) { const ns = new THREE.BoxGeometry(0.55, 0.45, 1.7); ns.rotateY(s * 0.3); ns.translate(s * 2.8, 5.0, 19.8); acc.geo(ns, { color: PAL.nostril, heat: [0.5, CH_MAGMA] }); }
+    for (const s of [-1, 1]) { const ns = new THREE.BoxGeometry(0.55, 0.45, 1.7); ns.rotateY(s * 0.3); ns.translate(s * 2.3, 5.5, 19.6); acc.geo(ns, { color: PAL.nostril, heat: [0.5, CH_MAGMA] }); }
     // one heavy frowning brow ridge across the skull, low in the middle, overhanging the eyes
     {
       const rings = [];
       for (let i = 0; i <= 8; i++) {
         const t = i / 8, x = lerp(-10.4, 10.4, t), c = Math.abs(t - 0.5) * 2;
-        rings.push({ c: V3(x * 1.04, 8.5 + 1.3 * Math.pow(c, 1.2), 9.4 - 1.4 * c), d: V3(1, 0, 0), u: V3(0, 0, 1), w: 2.8 - 0.5 * c, top: 2.1, bot: 1.8, ex: 1.6 });
+        rings.push({ c: V3(x * 1.04, 8.9 + 1.4 * Math.pow(c, 1.2), 9.4 - 1.4 * c), d: V3(1, 0, 0), u: V3(0, 0, 1), w: 2.8 - 0.5 * c, top: 2.1, bot: 1.8, ex: 1.6 });
       }
-      acc.geo(loft(rings, 6, { color: (t, a, P) => mix(C.basalt, C.ash, 0.15 + noise3(P.x * 0.6, P.y * 0.6, P.z * 0.6) * 0.45 + (Math.sin(a) > 0.5 ? 0.15 : 0)), noise: 0.3, nfreq: 0.5, seed: 4 }));
+      acc.geo(loft(rings, 6, { color: (t, a, P) => mix(C.basalt, C.ash, noise3(P.x * 0.6, P.y * 0.6, P.z * 0.6) * 0.3 + (Math.sin(a) > 0.6 ? 0.25 : 0)), noise: 0.3, nfreq: 0.5, seed: 4 }));
     }
     for (const s of [-1, 1]) {
       // thick ridged horns from behind the brow, sweeping back and out along the neck (not forward, not up)
-      const hp = [V3(s * 7.4, 10.0, 5.0), V3(s * 10.6, 11.6, 0.8), V3(s * 13.6, 12.2, -3.6), V3(s * 15.8, 11.8, -7.8), V3(s * 16.8, 10.9, -11.2)];
-      acc.geo(tube(hp, [3.4, 2.9, 2.2, 1.3, 0.4], 7, (t, a, P, i) => {
+      const hp = [V3(s * 7.4, 10.8, 5.0), V3(s * 10.6, 12.4, 0.8), V3(s * 13.6, 13.0, -3.6), V3(s * 15.8, 12.6, -7.8), V3(s * 16.8, 11.7, -11.2)];
+      acc.geo(tube(hp, [3.7, 3.2, 2.5, 1.5, 0.45], 7, (t, a, P, i) => {
         const c = mix(C.rustDark, C.horn, smooth(0.0, 0.3, t)).lerp(C.hornDark, smooth(0.7, 1.0, t) * 0.8);
         return i % 3 === 0 ? c.multiplyScalar(0.72) : c;      // growth ridges
       }));
-      { const bo = new THREE.DodecahedronGeometry(2.7, 0); bo.scale(1.0, 0.8, 1.15); bo.translate(s * 7.6, 10.0, 5.0); acc.geo(bo, { color: PAL.basalt }); }
+      { const bo = new THREE.DodecahedronGeometry(2.7, 0); bo.scale(1.0, 0.8, 1.15); bo.translate(s * 7.6, 10.8, 5.0); acc.geo(bo, { color: PAL.basalt }); }
       // cheek plates over the jaw muscles
       { const sc = new THREE.DodecahedronGeometry(2.2, 0); sc.scale(0.55, 1.0, 1.4); sc.translate(s * 10.2, -2.6, 0.2); acc.geo(sc, { color: mix(C.basalt, C.rust, 0.3).getHex() }); }
       { const sc = new THREE.DodecahedronGeometry(1.8, 0); sc.scale(0.55, 0.9, 1.4); sc.translate(s * 9.8, -3.6, 4.8); acc.geo(sc, { color: PAL.basalt }); }
       // small, deep-set eye under the brow: a dark socket and a narrow glowing slit, inner corner low (angry)
-      const sock = new THREE.SphereGeometry(1.4, 8, 6); sock.scale(1.45, 0.8, 0.9); sock.rotateZ(s * 0.3); sock.translate(s * 8.0, 6.05, 9.9);
+      const sock = new THREE.SphereGeometry(1.4, 8, 6); sock.scale(1.15, 0.65, 0.75); sock.rotateZ(s * 0.3); sock.translate(s * 7.1, 6.0, 9.7);
       acc.geo(sock, { color: 0x0e0806 });
-      const eye = new THREE.SphereGeometry(1, 8, 4); eye.scale(1.5, 0.36, 0.5); eye.rotateZ(s * 0.3); eye.translate(s * 8.35, 6.0, 10.4);
+      const eye = new THREE.SphereGeometry(1, 8, 4); eye.scale(1.7, 0.46, 0.6); eye.rotateZ(s * 0.3); eye.translate(s * 8.4, 6.0, 10.5);
       acc.geo(eye, { color: 0x1a0d08, heat: [1, CH_EYE] });
       // the mouth seam glows from inside along the upper lip
       const lip = [];
-      for (const z of [3.5, 8, 12.5, 16.5, 19.5]) { const ph = s > 0 ? -28 * D2R : 208 * D2R; lip.push(secPt(SKULL, ph, z, V3()).addScaledVector(secNrm(SKULL, ph, z, V3()), 0.1)); }
+      for (const z of [5, 8.5, 12, 15, 17.5]) { const ph = s > 0 ? -28 * D2R : 208 * D2R; lip.push(secPt(SKULL, ph, z, V3()).addScaledVector(secNrm(SKULL, ph, z, V3()), 0.1)); }
       acc.geo(tube(lip, [0.42, 0.42, 0.38, 0.32, 0.2], 5, C.crust, [0.6, CH_MAGMA]));
     }
     // forehead plate between the horn roots with a thin glowing seam
-    acc.geo(ellipsoid(V3(0, 11.0, 2.6), 5.2, 1.8, 4.4, { nr: 6, nv: 10, color: (t, a, P) => mix(C.basalt, C.basaltHi, noise3(P.x * 0.4, P.y * 0.4, P.z * 0.4) * 0.8), noise: 0.3, seed: 9 }));
-    acc.geo(ellipsoid(V3(0, 10.6, 2.6), 5.6, 1.1, 4.8, { nr: 4, nv: 10, color: () => C.crust, heat: () => [0.75, CH_MAGMA] }));
+    acc.geo(ellipsoid(V3(0, 12.5, 2.0), 5.2, 1.8, 4.4, { nr: 6, nv: 10, color: (t, a, P) => mix(C.basalt, C.basaltHi, noise3(P.x * 0.4, P.y * 0.4, P.z * 0.4) * 0.8), noise: 0.3, seed: 9 }));
+    acc.geo(ellipsoid(V3(0, 12.1, 2.0), 5.6, 1.1, 4.8, { nr: 4, nv: 10, color: () => C.crust, heat: () => [0.75, CH_MAGMA] }));
     // mouth roof + glowing throat
     const roof = new THREE.PlaneGeometry(14, 19); roof.rotateX(Math.PI / 2); roof.translate(0, -2.0, 10.5);
     acc.geo(roof, { color: PAL.mouth, heat: [0.85, CH_WET] });
@@ -680,8 +701,8 @@ export function createMagmadon() {
     // lower jaw: a heavy mandible tucked under the prow (no tusks, no chin club), blunt teeth, glowing lip seam
     const acc = new Acc(11);
     const jr = [
-      { z: -2, w: 9.0, top: 0.9, bot: 4.6 }, { z: 4, w: 9.2, top: 0.9, bot: 4.4 }, { z: 10, w: 8.6, top: 0.9, bot: 3.4 },
-      { z: 15, w: 8.0, top: 0.9, bot: 2.8 }, { z: 19, w: 7.4, top: 0.9, bot: 2.5 }, { z: 20.6, w: 6.4, top: 0.9, bot: 2.1 },
+      { z: -2, w: 9.0, top: 0.9, bot: 5.4 }, { z: 4, w: 9.2, top: 0.9, bot: 5.2 }, { z: 10, w: 8.2, top: 0.9, bot: 4.2 },
+      { z: 15, w: 6.8, top: 0.9, bot: 3.5 }, { z: 19, w: 5.4, top: 0.9, bot: 3.1 }, { z: 20.6, w: 4.4, top: 0.9, bot: 2.6 },
     ].map((r) => ({ ...r, c: V3(0, 0, r.z), d: V3(0, 0, 1), u: V3(1, 0, 0), ex: 2.7 }));
     acc.geo(loft(jr, 14, {
       color: (t, a, P) => { const sa = Math.sin(a); const c = sa < 0 ? mix(C.hideMid, C.belly, -sa * 0.9) : mix(C.hide, C.rustDark, 0.3); return mix(c, C.basalt, smooth(14, 22, P.z) * 0.6).multiplyScalar(0.88 + noise3(P.x * 0.5, P.y * 0.5, P.z * 0.5) * 0.24); },
@@ -691,10 +712,10 @@ export function createMagmadon() {
     acc.geo(floor, { color: PAL.mouth, heat: [0.85, CH_WET] });
     acc.geo(ellipsoid(V3(0, 1.4, 8.5), 3.6, 0.9, 6.6, { nr: 6, nv: 8, color: () => C.tongue, heat: () => [0.25, CH_WET] }));
     for (let k = 0; k < 4; k++) for (const s of [-1, 1]) {
-      const tg = new THREE.CylinderGeometry(0.35, 0.75, 1.4, 5); tg.translate(s * lerp(7.2, 5.2, k / 3), 1.5, 5 + k * 4.0);
+      const tg = new THREE.CylinderGeometry(0.35, 0.75, 1.4, 5); tg.translate(s * lerp(7.2, 4.4, k / 3), 1.5, 5 + k * 4.0);
       acc.geo(tg, { color: PAL.tooth });
     }
-    for (const s of [-1, 1]) acc.geo(tube([V3(s * 8.3, 0.6, 1.5), V3(s * 8.4, 0.6, 5), V3(s * 7.9, 0.6, 10), V3(s * 7.3, 0.6, 14.5), V3(s * 6.6, 0.6, 18)], [0.35, 0.38, 0.38, 0.32, 0.24], 5, C.crust, [0.55, CH_MAGMA]));
+    for (const s of [-1, 1]) acc.geo(tube([V3(s * 8.3, 0.6, 1.5), V3(s * 8.4, 0.6, 5), V3(s * 7.6, 0.6, 10), V3(s * 6.3, 0.6, 14.5), V3(s * 5.0, 0.6, 18)], [0.35, 0.38, 0.38, 0.32, 0.24], 5, C.crust, [0.55, CH_MAGMA]));
     mk(acc.build(), jaw, null);
   }
 
@@ -703,13 +724,12 @@ export function createMagmadon() {
   for (const L of LEGS) {
     const hip = new THREE.Group(); hip.position.copy(L.p).sub(BODY); body.add(hip);
     const upLen = 10.8, loLen = LEGLEN - upLen, fr = L.front ? 1.06 : 1, sd = L.side * 3 + (L.front ? 1 : 0);
-    const ku = upLen / 9, kl = loLen / 7.5;
     const accU = new Acc(20 + sd), accL = new Acc(40 + sd);
     const skin = (t, a, P) => mix(C.hide, C.hideDark, 0.3 + 0.4 * t).multiplyScalar(0.86 + noise3(P.x * 0.35, P.y * 0.35, P.z * 0.35) * 0.28);
     const crustC = (n) => (t, a, P, i) => {
       const c = mix(C.basalt, C.basaltHi, noise3(P.x * 0.3 + 5, P.y * 0.3, P.z * 0.3) * 0.8);
       c.lerp(C.rust, smooth(0.55, 0.8, noise3(P.x * 0.18, P.y * 0.18 + 9, P.z * 0.18)) * 0.55);
-      if (i === 0 || i === n - 1) c.lerp(C.ash, 0.4);
+      if (i === 0 || i === n - 1) c.lerp(C.ash, 0.22);
       return c;
     };
     const crustH = (t, a, P) => [(1 - smooth(0, 0.03, Math.abs(noise3(P.x * 0.12 + sd, P.y * 0.12, P.z * 0.12) - 0.5))) * 0.32, CH_MAGMA];
@@ -717,11 +737,12 @@ export function createMagmadon() {
     accU.geo(ellipsoid(V3(-L.side * 0.8, 2.6, 0), 7.0 * fr, 7.8 * fr, 7.6 * fr, { nr: 8, nv: 12, color: skin, noise: 0.6, seed: sd }));
     const ur = []; for (let i = 0; i <= 4; i++) { const t = i / 4; ur.push(ring(-t * upLen, lerp(6.4, 5.5, t) * fr)); }
     accU.geo(loft(ur, 12, { color: skin, noise: 0.4, nfreq: 0.3, seed: 4 + sd }));
-    const us = [[-0.6, 7.7], [-2.4, 7.6], [-4.3, 7.3], [-6.0, 7.0], [-7.3, 6.9]].map(([y, r]) => ring(y * ku, r * fr, 1.3));
+    // long sleeves (shoulder to knee, knee to ankle): only a narrow band of hide shows at the knee
+    const us = [[-0.5, 7.8], [-3.2, 7.6], [-6.0, 7.2], [-8.6, 6.8], [-10.5, 6.4]].map(([y, r]) => ring(y, r * fr, 1.3));
     accU.geo(loft(us, 12, { color: crustC(us.length), heat: crustH, noise: 1.0, nfreq: 0.3, seed: 7 + sd, caps: [false, false] }));
     const lr = []; for (let i = 0; i <= 4; i++) { const t = i / 4; lr.push(ring(0.6 - t * (loLen - 1.2), lerp(5.4, 5.0, t) * fr)); }
     accL.geo(loft(lr, 12, { color: skin, noise: 0.4, nfreq: 0.35, seed: 6 + sd }));
-    const ls = [[-0.9, 6.8], [-2.3, 6.7], [-3.6, 6.6], [-4.8, 6.9]].map(([y, r]) => ring(y * kl, r * fr, 1.3));
+    const ls = [[-0.3, 6.7], [-2.5, 6.5], [-4.75, 6.4], [-7.0, 6.8]].map(([y, r]) => ring(y, r * fr, 1.3));
     accL.geo(loft(ls, 12, { color: crustC(ls.length), heat: crustH, noise: 1.0, nfreq: 0.34, seed: 9 + sd, caps: [false, false] }));
     // a domed, uneven sole (review 2 F5: a flat pad read as a round "pig snout" disc on the lying corpse)
     accL.geo(ellipsoid(V3(0, -loLen + 1.4, 0.6), 6.5 * fr, 2.2, 6.9 * fr, { nr: 8, nv: 10, color: (t, a, P) => mix(C.hideDark, C.basaltLo, 0.5).multiplyScalar(0.8 + noise3(P.x * 0.6, P.y * 0.6, P.z * 0.6) * 0.4), noise: 0.9, seed: 9 + sd }));
@@ -744,7 +765,7 @@ export function createMagmadon() {
     info.owner = tail;
     const zs = [-33, -36, -38.6, -42.6, -46.9, -50.8, -54.2, -57.2, -59, -60.5];
     buildHide(acc, TAILS, zs, 24, { color: hideCol, skip: bandSkip(TAIL_ARC, -57.2, -38.6), noise: 0.4, nfreq: 0.25, caps: [false, true] });
-    const PT = { ...TAIL_ARC, NP: 20, NW: 4, tf: 0.6, tr: 1.5, crown: 1.0, ovh: 0.5, rough: 0.6, cracks: 0.4 };
+    const PT = { ...TAIL_ARC, NP: 16, NW: 4, tf: 0.4, tr: 1.9, crown: 0.9, ovh: 0.8, keel: 0.8, wob: 0.4, rough: 0.7, cracks: 0.4 };
     buildBands(acc, TAILS, TAILB, PT, info);
     const seams = [];
     for (let i = 0; i < TAILB.length - 1; i++) seams.push([TAILB[i + 1].zB - 0.5, TAILB[i].zA + 0.5]);
@@ -791,12 +812,12 @@ export function createMagmadon() {
   function worldPoint(name, out = new THREE.Vector3()) {
     group.updateMatrixWorld(true);
     if (name === 'head') return head.localToWorld(out.set(0, 3.5, 9));
-    if (name === 'snout') return head.localToWorld(out.set(0, -0.4, 26));
+    if (name === 'snout') return head.localToWorld(out.set(0, -0.8, 26));
     if (name === 'mouth') return head.localToWorld(out.set(0, -2.4, 13.5));
     if (name === 'jawTip') return jaw.localToWorld(out.set(0, -1, 18.5));
-    if (name === 'eye') return head.localToWorld(out.set(8.35, 6.0, 10.4));
-    if (name === 'brow') return head.localToWorld(out.set(0, 9.2, 9));
-    if (name === 'hornTip') return head.localToWorld(out.set(16.8, 10.9, -11.2));
+    if (name === 'eye') return head.localToWorld(out.set(8.4, 6.0, 10.5));
+    if (name === 'brow') return head.localToWorld(out.set(0, 9.6, 9));
+    if (name === 'hornTip') return head.localToWorld(out.set(16.8, 11.7, -11.2));
     if (name === 'backTop') return restToWorld(body, backTop, out);
     return out;
   }

@@ -1,10 +1,10 @@
 // Magmadon corpse (A3): placed from world.placement() (layout.corpsePlacement is the single source of
-// truth), lying on its side with the belly and the open jaw toward the camera and the flank plates to
+// truth), lying on its side with the belly and the open jaw toward the camera and the banded flank to
 // the sky. ONE baked mesh for every chain shape (scaled to the placement; mirrored when the belly must
 // face the other way) and ONE draw call whatever the carving state:
 //   - each district owns the body between its [u0, u1) and loses it in 4 visible steps (25/50/75/100 %)
 //     cut from its tail-side end toward the head (the head goes last, so 'corpse:head' stays valid);
-//   - plates ahead of the cut are lifted off (flesh, ribs and the glowing magma gland show underneath);
+//   - armour bands ahead of the cut are lifted off (flesh, a rib arch and the glowing magma gland show underneath);
 //   - back faces seen through the cut render as raw flesh with a hot rim (no blood, no gore).
 // Fissures cool from the impact heat to a dull red over ~10 s, three steam vents puff while it lies there.
 import * as THREE from 'three';
@@ -14,8 +14,8 @@ const ROLL = 1.3, SINK = 2.6;
 const VENTS = [1, 3, 5];                // chimney indices (rump to shoulders) that steam on the carcass
 const CAM_DIR = { x: Math.sin(0.14), z: Math.cos(0.14) };
 const KEY_GAME = new THREE.Vector3(0.085, 1.2, 0.61).normalize();
-// the head rolls back toward upright on the dead body, so from the gameplay camera the brow, the hooked beak and the
-// tusks face the sky (polish A3); attack.js topples into exactly this pose
+// the head rolls back toward upright on the dead body, so from the gameplay camera the brow, the ram prow and the swept
+// horns face the sky (polish A3); attack.js topples into exactly this pose
 export const LOOK = { neck: [0.55, 0, -0.35], head: [0.4, 0.1, -0.75] };
 
 export function createCorpse(world) {
