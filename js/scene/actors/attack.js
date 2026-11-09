@@ -30,9 +30,6 @@ const ROB_DIR = new THREE.Vector3(-0.62, 0, 0.78).normalize();
 const QUAY = -186, SEA_Y = -1.1;
 const ROLL = 1.3;
 const FOAM_T = [1.08, 1.34, 1.6, 1.86];
-// the vent chimneys on Magmadon's spine breathe out vapour during the TV shot (pooled steam, no draw call)
-// (only once it stands in the fight: puffs released while it wades hung in the sky where it had been)
-const VENT_T = [0.55, 1.1, 1.7];
 const ROB_RATIO = 0.72;          // KALKAN-07 height / Magmadon height in the fight (review F11: 60-75 %)
 
 export function createAttack(world, { corpse }) {
@@ -44,7 +41,7 @@ export function createAttack(world, { corpse }) {
   const shards = createShards(world);
   const shock = createShockRing(world);
   const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _tgt = new THREE.Vector3(), _com = new THREE.Vector3(), _k = new THREE.Vector3();
-  const _gp = new THREE.Vector3(), _gt = new THREE.Vector3(), _vent = new THREE.Vector3();
+  const _gp = new THREE.Vector3(), _gt = new THREE.Vector3();
   const RP = newPoseR(), RP2 = newPoseR(), RP3 = newPoseR();
   let setupKey = '', F = null;           // fight geometry for the current attack
   let robGoneT = 1e9;                    // attack t at which KALKAN-07 left the frame on lift-off
@@ -362,15 +359,6 @@ export function createAttack(world, { corpse }) {
       }
     }
     if (cross(TL.roar)) world.fx.steam(F.M.x, 20 * F.S, F.M.z, 4, { size: 10 * F.S, life: 1.6 });
-    if (pose.monVisible && pose.tv && model.chimneyCount) {
-      for (let i = 0; i < VENT_T.length; i++) {
-        if (!cross(VENT_T[i])) continue;
-        for (const c of [(2 * i) % model.chimneyCount, (2 * i + 3) % model.chimneyCount]) {
-          model.chimneyTop(c, _vent);
-          world.fx.steam(_vent.x, _vent.y, _vent.z, 2, { size: 7 * F.S, spread: 1.0 * F.S, life: 0.9 });
-        }
-      }
-    }
     if (cross(TL.cut + 0.02)) world.fx.dust(F.CR.x, F.CR.y + 1, F.CR.z, 5, { size: 5 + 6 * F.RS, spread: 10, rise: 2, life: 1.8 });
     if (cross(TL.hit + 0.05)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 4, { size: 5 + 5 * F.RS, spread: 9, rise: 2, life: 1.6 });
     if (cross(LIFT0)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 6, { size: 6 + 6 * F.RS, spread: 12, rise: 3, life: 1.8 });
