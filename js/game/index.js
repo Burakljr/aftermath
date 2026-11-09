@@ -2,7 +2,7 @@
 import { FACTORIES, RULES, factoryByIndex } from './config.js';
 import { freshState, loadState, serialize, freshFactory, freshGoals, LANGS, QUALITIES } from './state.js';
 import {
-  stepLine, incomePerSec, upgradeCost, stationValue, cycleTime, milestoneInfo,
+  stepLine, incomePerSec, upgradeCost, stationValue, stationGain, cycleTime, milestoneInfo,
   isMilestone, toyValue, bottleneckIndex,
 } from './sim.js';
 import { updateGoals, visibleGoalIndices, allClaimed, goalMeasure, GOAL_TEXT_KEYS } from './goals.js';
@@ -246,6 +246,7 @@ export function createGame({ save = null, now = Date.now, lang } = {}) {
       level: s.level,
       value: stationValue(sc, s.level),
       nextValue: stationValue(sc, s.level + 1),
+      gain: stationGain(sc, s.level),
       time: cycleTime(sc, s.level),
       nextTime: cycleTime(sc, s.level + 1),
       cost,

@@ -44,7 +44,7 @@ export function createGoals(ctx) {
   const fName = el('div', 'goals-name');
   const fCount = el('div', 'gp-count num');
   const fFill = el('span', 'gp-bar-fill');
-  const fStars = [0, 1, 2].map((i) => el('span', 'gp-star s' + i, { html: ICONS.star }));
+  const fStars = [0, 1, 2].map((i) => el('span', 'gp-star s' + i, { html: `<span class="st-e">${ICONS.starSlot}</span><span class="st-f">${ICONS.star}</span>` }));
   const fBar = el('div', 'gp-bar', null, [fFill, el('span', 'gp-bar-div d1'), el('span', 'gp-bar-div d2'), ...fStars]);
   const head = el('div', 'gp-head', null, [fMedal, el('div', 'gp-head-main', null, [el('div', 'gp-head-row', null, [fName, fCount]), fBar])]);
   const list = el('div', 'gp-list');

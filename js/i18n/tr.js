@@ -53,7 +53,8 @@ export default {
 
   'upgrades.title': 'Yükseltmeler',
   'upgrades.buy': 'Yükselt',
-  'upgrades.gain': 'Oyuncak başı +{n}',
+  'upgrades.gain': '+{n}',
+  'upgrades.perToy': '/ oyuncak',
   'upgrades.slowest': 'En yavaş',
   'upgrades.tip': 'Hızlı almak için butona basılı tut',
 

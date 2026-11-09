@@ -26,7 +26,8 @@ export function createUpgrades(ctx) {
       const name = el('span', 'up-name');
       const slow = el('span', 'up-slow');
       const gainNum = otext('up-gain-num num');
-      const gain = el('span', 'up-gain', null, [icon('coin', 'up-gain-coin'), gainNum]);
+      const gainPer = el('span', 'up-gain-per');
+      const gain = el('span', 'up-gain', null, [icon('coin', 'up-gain-coin'), gainNum, gainPer]);
       const sub = el('span', 'up-sub');
       const stars = el('span', 'up-stars');
       for (let k = 0; k < 4; k++) stars.appendChild(el('span', 'star', { html: ICONS.star }));
@@ -38,11 +39,11 @@ export function createUpgrades(ctx) {
       ]);
       const row = el('div', 'up-row', { 'data-station': sc.id }, [
         el('span', 'up-tilewrap', null, [tile, lv]),
-        el('div', 'up-mid', null, [el('div', 'up-namerow', null, [name, slow]), el('div', 'up-subrow', null, [gain, sub, stars])]),
+        el('div', 'up-mid', null, [el('div', 'up-namerow', null, [name, stars, slow]), el('div', 'up-subrow', null, [gain, sub])]),
         btn,
       ]);
       list.appendChild(row);
-      const r = { id: sc.id, row, tile, lv, name, slow, gain, gainNum, sub, stars, btn, btnTop, btnCost, level: -1, reached: -1 };
+      const r = { id: sc.id, row, tile, lv, name, slow, gain, gainNum, gainPer, sub, stars, btn, btnTop, btnCost, level: -1, reached: -1 };
       const press = () => {
         const v = ctx.game.select.stationView(r.id);
         if (!v) return false;
@@ -76,6 +77,7 @@ export function createUpgrades(ctx) {
       if (!v) continue;
       setText(r.name, ctx.tx(v.nameKey));
       toggle(r.row, 'is-locked', !v.open);
+      toggle(r.row, 'is-soon', v.locked);
       toggle(r.slow, 'is-hidden', !v.bottleneck);
       setText(r.slow, ctx.tx('upgrades.slowest'));
       if (v.open) {
@@ -84,7 +86,9 @@ export function createUpgrades(ctx) {
           r.level = v.level;
         }
         setText(r.lv, ctx.tx('mark.level', { n: v.level }));
-        setText(r.gainNum, ctx.tx('upgrades.gain', { n: ctx.num(v.nextValue - v.value) }));
+        // the number gets the room; the "per toy" note shrinks with an ellipsis if needed
+        setText(r.gainNum, ctx.tx('upgrades.gain', { n: ctx.num(v.gain) }));
+        setText(r.gainPer, ctx.tx('upgrades.perToy'));
         toggle(r.gain, 'is-hidden', false);
         toggle(r.sub, 'is-hidden', true);
         toggle(r.stars, 'is-hidden', false);
@@ -134,7 +138,7 @@ export function createUpgrades(ctx) {
     mp.ribbon.set(ctx.tx('upgrades.title'));
     mp.closeBtn.setAttribute('aria-label', ctx.tx('card.close'));
     setText(tip, ctx.tx('upgrades.tip'));
-    for (const r of rows) for (const k of ['name', 'slow', 'gainNum', 'sub', 'btnTop', 'lv']) r[k]._t = null;
+    for (const r of rows) for (const k of ['name', 'slow', 'gainNum', 'gainPer', 'sub', 'btnTop', 'lv']) r[k]._t = null;
     if (mp.isOpen()) refresh(true);
   }
 

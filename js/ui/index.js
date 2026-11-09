@@ -95,7 +95,15 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
       const y = top - 30 - 52;
       return y >= hb + 4 ? Math.round(Math.max(hb + 10, y - 6)) : -1;
     }
-    return card.isOpen() ? card.root.offsetTop - 78 : menu.root.offsetTop - 60;
+    let y = card.isOpen() ? card.root.offsetTop - 78 : menu.root.offsetTop - 60;
+    // never under the tutorial bubble: go above it, or let the bubble step aside for a moment
+    const br = tutorial && tutorial.bubbleRect();
+    if (br && y + 52 > br.top - 4 && y < br.bottom + 4) {
+      const above = br.top - 58;
+      if (above >= hud.bottom() + 6) y = above;
+      else tutorial.hush(2.2);
+    }
+    return y;
   };
   ctx.firstDoneGoal = () => goals.firstDoneTile();
   const panelOpen = () => upgrades.isOpen() || goals.isOpen() || factories.isOpen();
@@ -111,6 +119,9 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
       const r = e.getBoundingClientRect();
       // point just under the badge / at the tip of the sign's stem so the hand never hides the text
       // (the sign: ring at the tip of its pointer, so the price stays readable)
+      const chip = e === m.sign && (m.root.classList.contains('is-chip') || m.root.classList.contains('is-locked'));
+      // a chip stands on its plot: ring around it, hand just under it
+      if (r.width > 0 && chip) return { x: r.left + r.width / 2, y: r.bottom + 4, h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, preferBelow: true };
       if (r.width > 0 && e === m.sign) return { x: r.left + r.width / 2, y: r.bottom + 38, h: 8, ring: { x: r.left + r.width / 2, y: r.bottom + 32 }, preferBelow: true };
       if (r.width > 0) return { x: r.left + r.width / 2, y: r.bottom + 2, h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
     }
@@ -305,9 +316,12 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
     if (saleAcc > 0 && saleT <= 0) {
       saleT = 0.3;
       const a = ctx.anchor('truck');
-      if (a && a.visible !== false) {
-        floats.floatText(a.x, a.y - 30, '+' + ctx.num(saleAcc));
-        if (coinT <= 0) { coinT = 0.45; floats.coinFlight(a.x, a.y - 20, 1); }
+      // no sale floats over a panel (the money still counts up in the HUD), and none over
+      // the station card when it covers the truck; keep them inside the screen edges
+      if (a && a.visible !== false && !ctx.modalOpen() && a.y - 40 < ctx.panelTop()) {
+        const x = Math.max(44, Math.min(window.innerWidth - 44, a.x));
+        floats.floatText(x, a.y - 30, '+' + ctx.num(saleAcc));
+        if (coinT <= 0) { coinT = 0.45; floats.coinFlight(x, a.y - 20, 1); }
       }
       saleAcc = 0;
     }

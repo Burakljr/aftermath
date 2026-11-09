@@ -45,25 +45,25 @@ export const INSETS = UI_INSETS; // alias
 
 /**
  * Normalised screen positions (0..1 of the canvas CSS size, y down) of
- * scene.anchor() on a 390 x 844 portrait screen with UI_INSETS and safe areas
- * of 47 px (top) / 34 px (bottom), measured from the scene. Only for rough
- * placement before the scene is ready; use scene.anchor() for real positions.
+ * scene.anchor() on a 390 x 844 portrait screen with the real HUD and bottom bar
+ * (no safe areas), measured from the scene. Only for rough placement before the
+ * scene is ready (and for the no-WebGL stand-in); use scene.anchor() for real positions.
  * stations: anchors of open stations (just above the machine);
- * plots: anchors of locked plots (where the "Open" sign points).
+ * plots: anchors of locked plots (low over the plot: the UI's price chip / Open sign).
  */
 export const SCREEN = {
   stations: [
-    { x: 0.337, y: 0.200 },
-    { x: 0.663, y: 0.273 },
-    { x: 0.337, y: 0.380 },
-    { x: 0.663, y: 0.454 },
+    { x: 0.300, y: 0.159 },
+    { x: 0.700, y: 0.250 },
+    { x: 0.300, y: 0.383 },
+    { x: 0.700, y: 0.474 },
   ],
   plots: [
-    { x: 0.337, y: 0.246 },
-    { x: 0.663, y: 0.319 },
-    { x: 0.337, y: 0.426 },
-    { x: 0.663, y: 0.510 },
+    { x: 0.300, y: 0.270 },
+    { x: 0.700, y: 0.362 },
+    { x: 0.300, y: 0.489 },
+    { x: 0.700, y: 0.592 },
   ],
-  truck: { x: 0.387, y: 0.595 },
-  coins: { x: 0.5, y: 0.09 },
+  truck: { x: 0.377, y: 0.693 },
+  coins: { x: 0.5, y: 0.05 },
 };

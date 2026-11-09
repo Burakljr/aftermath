@@ -145,7 +145,7 @@ async function main() {
     const l1 = await S(page, () => window.toy.game.state.factory.stations[2].level);
     check(l1 >= l0 + 5, `holding a list button repeats (Paint ${l0} -> ${l1})`);
     check(/Lv \d+/.test(await page.locator('.up-row[data-station="paint"] .up-lv').textContent()), 'list rows show the level');
-    check(/\+.+ per toy/.test(await page.locator('.up-row[data-station="paint"] .up-gain').textContent()), 'list rows show the gain per toy');
+    check(/\+\d[^ ]*\s*per toy/.test(await page.locator('.up-row[data-station="paint"] .up-gain').textContent()), 'list rows show the gain per toy');
     await S(page, () => { window.toy.game.state.money = 100; window.toy.step(0.15); });
     check(await page.locator('.up-btn[data-station="wrap"].is-disabled').count() === 1, 'Gift Wrap row: Open button is grey until affordable');
     await S(page, () => { window.toy.game.state.money = 1e6; window.toy.step(0.15); });

@@ -30,8 +30,8 @@ export function createFactories(ctx) {
     const go = el('button', 'fp-go b3 b3-green is-ready', { type: 'button' }, [goText]);
     const node = el('div', 'fp-node' + (i % 2 ? ' is-right' : ''), null, [
       el('span', 'fp-medalwrap', null, [medal, num, lock]),
-      el('div', 'fp-info', null, [label, name, status, stars]),
-      tag, go,
+      el('div', 'fp-info', null, [el('div', 'fp-labelrow', null, [label, tag]), name, status, stars]),
+      go,
     ]);
     map.appendChild(node);
     onTap(go, () => {

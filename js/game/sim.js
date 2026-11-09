@@ -38,6 +38,13 @@ export function stationValue(sc, level) {
   return Math.round(sc.baseValue * level * Math.pow(g, level - 1));
 }
 
+/** Smooth (unrounded) value gain of the next level, for display: it never drops from one
+ * level to the next, while the rounded per-level gain can jitter (+2, +1, +2). */
+export function stationGain(sc, level) {
+  const g = RULES.valueGrowth || 1;
+  return sc.baseValue * ((level + 1) * Math.pow(g, level) - level * Math.pow(g, level - 1));
+}
+
 export function upgradeCost(sc, level) {
   return Math.round(sc.baseCost * Math.pow(RULES.costGrowth, level - 1));
 }

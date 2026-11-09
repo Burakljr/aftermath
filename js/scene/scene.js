@@ -157,6 +157,7 @@ export function createScene(canvas, opts = {}) {
 
   const BADGE_PX = 42;
   let fitTop = 0;
+  const lastFit = {};
   function badgeOver(h, top) {
     let over = -Infinity;
     for (let i = 0; i < 2; i++) {
@@ -190,13 +191,17 @@ export function createScene(canvas, opts = {}) {
     cam.fit(w, h, ins, framePts, opts.zoom || 1);
     // the DOM level badges (about BADGE_PX tall above the anchor) of the top two machines
     // must stay below the HUD on every screen height: grow the top inset until they do
-    for (let k = 0; k < 4 && stations; k++) {
-      const over = badgeOver(h, ins.top);
+    // (measured against the HUD bottom itself, not the grown inset: comparing with the grown
+    // inset made the top inset run away and left a wide empty band under the HUD)
+    const hudTop = ins.top;
+    for (let k = 0; k < 6 && stations; k++) {
+      const over = badgeOver(h, hudTop);
       if (over <= 0.5) break;
       ins.top += over + 1;
       cam.fit(w, h, ins, framePts, opts.zoom || 1);
     }
-    fitTop = ins.top;
+    fitTop = hudTop;
+    lastFit.w = w; lastFit.h = h; lastFit.top = ins.top; lastFit.bottom = ins.bottom; lastFit.left = ins.left; lastFit.right = ins.right;
     if (forklift) forklift.group.visible = forkliftOn();
     // constant-pixel ink outlines (thinner on small screens)
     const wpp = (camera.right - camera.left) / w;
@@ -492,7 +497,7 @@ export function createScene(canvas, opts = {}) {
     if (!stations) return { x: 0, y: 0, visible: false };
     if (id === 'truck') {
       // above the bed of the PARKED truck (sale floats stay put while the truck drives off)
-      _v2.set(TRUCK[0], 1.9, TRUCK[1] - 0.5);
+      _v2.set(TRUCK[0], 1.35, TRUCK[1] - 0.45);
       return project(_v2);
     }
     const i = indexOf(id);
@@ -548,7 +553,7 @@ export function createScene(canvas, opts = {}) {
     /** extension: enable / disable the automatic drop to Low quality */
     setAutoQuality(on) { autoQuality = !!on; monitor.enabled = !!on; },
     /** extension: internals for the scene lab and tests */
-    debug: { renderer, scene, camera, get stations() { return stations; }, get items() { return items; }, get truck() { return truck; }, get workers() { return workers; }, get forklift() { return forklift; }, fxSystem: fx, project },
+    debug: { renderer, scene, camera, fit: lastFit, framePts, get stations() { return stations; }, get items() { return items; }, get truck() { return truck; }, get workers() { return workers; }, get forklift() { return forklift; }, fxSystem: fx, project },
     dispose() {
       try { window.removeEventListener('resize', onWinResize); window.removeEventListener('orientationchange', onWinResize); } catch (e) { /* ignore */ }
       try { if (ro) ro.disconnect(); } catch (e) { /* ignore */ }

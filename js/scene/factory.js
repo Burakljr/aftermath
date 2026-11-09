@@ -544,7 +544,7 @@ function buildDecor(d, t) {
   SHADOW_SPOTS.push([FORK.stack[0], FORK.stack[1], 1.0]);
   // water cooler (a carrier takes a break here when not needed)
   {
-    const wx = 2.6, wz = 5.5;
+    const wx = 4.0, wz = 5.6;
     d.add(G.box(0.4, 0.62, 0.36, 0.08), PAL.cream, wx, 0.31, wz);
     d.add(G.box(0.3, 0.1, 0.04, 0.02), 0x3d3357, wx, 0.44, wz + 0.19, { ol: 0 });
     d.add(G.cyl(0.05, 0.05, 0.05, 6), PAL.red, wx - 0.08, 0.5, wz + 0.2, { rx: PI / 2, ol: 0 });
@@ -645,7 +645,7 @@ export function chibiHead(b, skin, cap, capBand, hair, s = 1) {
 // ------------------------------------------------------------------- truck
 const TRUCK_CAP = 12; // two layers of 6 on the bed
 const TRUCK_AWAY = 11; // distance the truck drives off along +Z
-const TRUCK_MIN_PARK = 8; // seconds parked at least, so the dock is rarely empty
+const TRUCK_MIN_PARK = 10; // seconds parked at least, so the dock is rarely empty
 const T_LEAVE = 0.9, T_AWAY = 0.15, T_ARRIVE = 1.0;
 
 export function createTruck(theme) {

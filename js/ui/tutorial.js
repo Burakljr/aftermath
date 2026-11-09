@@ -60,7 +60,7 @@ export function createTutorial(ctx) {
     } else if (p.y < H * 0.62 && (roomRight >= bubbleW || roomLeft >= bubbleW)) {
       // beside the hand
       x = roomRight >= bubbleW ? p.x + gap : p.x - gap - bubbleW;
-      y = ring.y - bubbleH / 2;
+      y = (p.bubbleY ?? ring.y) - bubbleH / 2;
     } else if (p.preferBelow && p.y + 70 + bubbleH < ctx.panelTop() - 12) {
       // under the hand (an Open sign sits above the target, so "above" would cover it)
       x = p.x - bubbleW / 2;
@@ -76,6 +76,19 @@ export function createTutorial(ctx) {
     x = Math.max(12, Math.min(W - 12 - bubbleW, x));
     y = Math.max(8, Math.min(H - 8 - bubbleH, y));
     setStyle(bubble, 'transform', `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`);
+    bubbleTop = y;
+  }
+  let bubbleTop = -1;
+  let hushT = 0;
+  /** where the bubble is (null when hidden), so a toast can avoid it */
+  function bubbleRect() {
+    if (!visible || hushT > 0 || bubble.classList.contains('is-hidden') || bubbleTop < 0) return null;
+    return { top: bubbleTop, bottom: bubbleTop + bubbleH };
+  }
+  /** fade the bubble out for a moment (a toast needs its spot) */
+  function hush(seconds) {
+    hushT = Math.max(hushT, seconds);
+    toggle(bubble, 'is-hushed', true);
   }
 
   function setVisible(on) {
@@ -83,6 +96,7 @@ export function createTutorial(ctx) {
   }
 
   function update(dt) {
+    if (hushT > 0) { hushT -= dt; if (hushT <= 0) toggle(bubble, 'is-hushed', false); }
     const g = ctx.game;
     const step = g.state.tutorial;
     if (ctx.modalOpen()) { setVisible(false); return; }
@@ -98,7 +112,11 @@ export function createTutorial(ctx) {
     const st = g.state.factory.stations;
     if (step === 0) {
       if (ctx.cardOpen()) place(buttonPoint(ctx.cardButton()), ctx.tx('tut.tapUpgrade'));
-      else place(ctx.stationPoint(st[0].id), ctx.tx('tut.tapSaw'));
+      else {
+        // ring on the machine itself (under its level badge), bubble beside the badge
+        const b = ctx.stationPoint(st[0].id);
+        place(b && b.ring ? { x: b.ring.x + 6, y: b.y + 44, h: 8, ring: { x: b.ring.x, y: b.y + 38 }, bubbleY: b.ring.y } : b, ctx.tx('tut.tapSaw'));
+      }
       return;
     }
     if (step === 1) {
@@ -126,5 +144,5 @@ export function createTutorial(ctx) {
     }
   }
 
-  return { update, pointAt, root };
+  return { update, pointAt, root, bubbleRect, hush };
 }

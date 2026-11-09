@@ -121,6 +121,7 @@ export function createCard(ctx) {
     const lang = ctx.lang();
     rb.set(ctx.tx(v.nameKey));
     toggle(root, 'is-locked', !v.open);
+    toggle(root, 'is-soon', v.locked);
     if (v.open) {
       setText(sub, ctx.tx('card.level', { n: v.level }));
       setText(lvTag, ctx.tx('mark.level', { n: v.level }));
@@ -138,7 +139,7 @@ export function createCard(ctx) {
         lastReached = v.milestone.reached;
       }
       setText(valNum, ctx.num(v.value));
-      setText(valGain, '+' + ctx.num(v.nextValue - v.value));
+      setText(valGain, '+' + ctx.num(v.gain));
       toggle(valGain, 'is-hidden', false);
       setText(timeNum, formatSeconds(v.time, lang));
       setText(timeGain, v.nextIsMilestone ? '→ ' + formatSeconds(v.nextTime, lang) : '');

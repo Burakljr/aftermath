@@ -8,9 +8,10 @@ export function createHUD(ctx) {
   const medalNum = otext('hud-medal-num num');
   const medal = el('span', 'hud-medal', null, [medalIco, medalNum]);
   const barFill = el('span', 'hud-sbar-fill');
-  const stars = [0, 1, 2].map((i) => el('span', 'hud-star s' + i, { html: ICONS.star }));
-  const bar = el('span', 'hud-sbar', null, [barFill, el('span', 'hud-sbar-div d1'), el('span', 'hud-sbar-div d2')]);
-  const badge = el('button', 'hud-badge', { type: 'button' }, [bar, ...stars, medal]);
+  // goal stars under the medal: an empty slot until earned, then a gold star
+  const stars = [0, 1, 2].map((i) => el('span', 'hud-star s' + i, { html: `<span class="st-e">${ICONS.starSlot}</span><span class="st-f">${ICONS.star}</span>` }));
+  const bar = el('span', 'hud-sbar', null, [barFill, el('span', 'hud-sbar-div d1'), el('span', 'hud-sbar-div d2'), ...stars]);
+  const badge = el('button', 'hud-badge', { type: 'button' }, [medal, bar]);
 
   // coins + income
   const coinIco = icon('coin', 'hud-coin-ico');

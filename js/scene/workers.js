@@ -28,13 +28,13 @@ const T_NODE = ROUTE.length - 1;
 // waiting spots behind each pickup and drop spots beside the truck
 // (spread about a head and a half apart on screen so the carriers never pile up)
 const QUEUE = {
-  0: [[5.0, 0.4], [5.55, -0.2], [4.6, 1.3]],
+  0: [[5.0, 0.4], [4.6, 1.3], [5.5, -0.15]],
   2: [[4.9, 4.32], [6.1, 4.5], [3.95, 4.85]],
-  4: [[8.5, 4.1], [9.25, 3.55], [9.9, 4.6]],
+  4: [[8.5, 4.1], [9.2, 3.95], [9.6, 4.75]],
 };
 const DROP = [[8.4, 5.72], [8.95, 5.55]];
 // break spot (by the water cooler) for a carrier who is not needed (short route)
-export const REST = [3.05, 5.2];
+export const REST = [4.45, 5.3];
 const REST_NODE = 2;
 
 // ------------------------------------------------------------- geometry

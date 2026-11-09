@@ -1,4 +1,4 @@
-# Toy Factory: architecture (v0)
+# Toy Factory: architecture (v0 + restyle round)
 
 Plain static HTML/CSS/JS ES modules, no build step, no network fetches at run time.
 Everything is vendored and referenced with relative paths, so the game works from a
@@ -134,9 +134,11 @@ Returns `game`:
 - `game.select.*` read helpers for the UI:
   - `incomePerSec()` steady income without boosts (bottleneck rate x toy value)
   - `toyValue()` coins per finished toy right now
-  - `stationView(id)` -> `{ id, index, nameKey, open, level, value, nextValue, time, nextTime,
+  - `stationView(id)` -> `{ id, index, nameKey, open, level, value, nextValue, gain, time, nextTime,
     cost, openCost, canAfford, missing, canOpen, locked, milestone: { prev, next, ratio, reached },
     nextIsMilestone, bottleneck, boostT, progress, tray }`
+    (`gain`, restyle addition: the smooth, unrounded value gain of the next level, for display;
+    it never drops from one level to the next, while `nextValue - value` jitters by rounding)
   - `goalViews()` -> the (up to) 3 visible goals `{ id, type, textKey, params: { n, stationKey },
     cur, target, progress, done, claimed, reward, station }`
   - `canAfford(cost)` / `canAfford({ type: 'upgrade'|'open', station })`
@@ -196,18 +198,57 @@ the cheapest upgrade, no boosts, no saving) still finishes factory 1 (~27 min): 
 
 ## Layout shared with the scene (js/scene/layout.js)
 
-- `SCREEN.stations[i]`, `SCREEN.truck`, `SCREEN.coins`: normalised portrait positions
-  (fractions of the viewport, y down) for 390x844. Design targets only; the UI always uses
-  `scene.anchor()`, and falls back to SCREEN if the scene returns nothing. The UI lab fake
-  scene returns exactly these (station anchors 46 px above the SCREEN point).
+- `SCREEN.stations[i]`, `SCREEN.plots[i]`, `SCREEN.truck`, `SCREEN.coins`: normalised portrait
+  positions (fractions of the viewport, y down) measured at 390x844 with the real HUD and bottom
+  bar (re-measured in the restyle round). Fallbacks only; the UI always uses `scene.anchor()`, and
+  falls back to SCREEN if the scene returns nothing. The UI lab fake scene derives its positions
+  from these (station anchors 46 px above the SCREEN point).
 - `UI_INSETS` / `INSETS = { top, bottom, left, right }`: CSS px covered by the HUD (top) and
   the goal strip (bottom), NOT counting safe areas (the scene adds them).
   At run time the UI measures its real HUD bottom and goal-strip top and calls
   `scene.setInsets({ top, bottom, left: 4, right: 4 })` (safe areas subtracted) on start and resize.
 - Station anchors are a little above the machine: the UI draws its DOM overlays there
-  (level badge "Lv 7", green "upgrade" arrow, and for locked plots the big "Open + price"
-  sign or a small "Soon" sign). The scene draws the plot itself but no price text and no
-  coin numbers (the UI shows floating "+coins" at `anchor('truck')`).
+  (level badge "Lv 7", green "upgrade" arrow). Locked plots have their anchor low over the plot
+  (0.3 units): the next plot shows a small price chip (lock + coin + price) standing on the plot
+  until the player can afford it, then the big green "Open + price" sign pops up with its pointer
+  on the plot; later plots show a small "Soon" chip. So signs never cover the machines while they
+  cannot be used. The scene draws the plot itself but no price text and no coin numbers (the UI
+  shows floating "+coins" at `anchor('truck')`).
+
+## Style system (restyle round)
+
+The genre's chunky casual idle-tycoon look, all drawn by us (CSS, inline SVG, procedural 3D);
+UI and 3D share one palette and one outline colour.
+
+- Tokens (`:root` in `css/app.css`, `PAL` in `js/scene/kit.js`): ink / outline `#2A1E3B`,
+  cream panel `#FFF4DC` with `#F6DFAF` edges, yellow `#FFC82E`, orange `#FF8B1F`, green
+  `#36C657` (dark `#1E9A3E`), blue `#34A3FF` (dark `#1C6FD1`), berry `#FF4F7E`, grape
+  `#8A5CF6`, coin gold `#FFB800` / `#FFE27A`, red `#FF4747`; `--ol: 3.5px` outline width.
+  Font: Fredoka 700 for everything bold (vendored).
+- Outlined text `.ot`: white fill, ink `-webkit-text-stroke` drawn under the fill
+  (`paint-order: stroke fill`, width per element via `--ots`) and a hard ink drop shadow
+  (`--otd`). Used for every number, button label, ribbon title and badge.
+- Buttons `.b3` (+ `.b3-green|blue|yellow|orange|red|purple`): vertical gradient (lighter
+  top), a glossy band on the top third (`::before`), 3 px ink outline, a darker inner bottom
+  edge plus a 4 px ink drop that compress on `:active`; `.press` = bounce, `.is-ready` =
+  gentle pulse (affordable), `.is-disabled` = grey with the same shape.
+- Panels: `.panel` / `.modal-card` (cream, 4 px ink outline, 22 px radius, inner bottom edge),
+  ribbon banner `ribbon()` (panel.js, outlined white title, folded tails, auto-shrinks long
+  titles), round red close button `.xbtn`. Menu panels are bottom sheets (`.modal.is-menu`).
+- Stickers: level badge (blue pill + green bouncing arrow), next-plot price chip, green Open
+  sign with a pointer, grey Soon chip, goal stars (`ICONS.starSlot` empty slot: dark plum with
+  a cream inner line; `ICONS.star` gold when earned).
+- Icons: `ICONS` in `js/ui/dom.js`, 24/32 px viewBox SVG drawn with `outlined()`: every part is
+  drawn first as a fat ink silhouette, then filled, so overlapping parts share one clean outline.
+- 3D outline: an inverted hull baked into each merged geometry (`kit.js` Builder, `ol` vertex
+  attribute; the toon vertex shader pushes the back faces out by a constant ~2.2 CSS px), so
+  outlines cost triangles but no draw calls. See "Scene".
+- Juice: everything pops with transform/scale animations only (WAAPI or CSS keyframes):
+  badge pop on level-up, star bursts, coin flights to the coin pill, ribbon toasts, Open sign
+  pop-in, factory complete rays + confetti from both screen edges.
+- Short screens (`max-height: 759px`, e.g. a phone browser with toolbars): the income chip
+  sits beside the coin pill (HUD about 58 px tall), the goal pill is one line and the menu
+  buttons are 54 px tall, so the factory keeps as much room as possible.
 
 ## UI (js/ui)
 
@@ -223,8 +264,10 @@ openSettings(), openMenu('upgrades'|'goals'|'factories'), tapStation(id), relabe
   3D buttons (`.b3` + `.b3-green|blue|yellow|orange|red|purple`, dark bottom edge that
   compresses on press, `is-ready` = gentle pulse, `is-disabled` = grey). All icons are our
   own inline SVG (`ICONS` in dom.js).
-- HUD: factory badge (top left; medal + 3-segment star bar = goals collected; tap: Factories
-  panel), coin pill + income chip (top middle), gear (top right).
+- HUD (3-column grid, so the coins are centred on the screen): factory badge (top left;
+  medal with the factory number, and under it a short gold bar with 3 goal stars = thirds of
+  the goals collected; tap: Factories panel), coin pill + income chip (middle; side by side on
+  short screens), gear (top right).
 - Bottom: next-goal pill (first collectable goal, else the first open one; tap collects or
   opens the Goals panel; red dot when something can be collected) above a menu bar with
   Upgrades (list of all stations, buy / hold to repeat / open), Goals (factory progress +
@@ -246,7 +289,15 @@ openSettings(), openMenu('upgrades'|'goals'|'factories'), tapStation(id), relabe
 - On a tap on the truck the UI honks and shows a toast "Each toy car sells for N coins"
   (`truck.info`, integrator addition).
 - When the tutorial points at a button in the card, its bubble sits above the card so it
-  never covers the card's numbers (integrator addition).
+  never covers the card's numbers (integrator addition). Tutorial step 0 rings the Saw machine
+  itself (under its level badge); the bubble stays beside the badge.
+- Sale floats ("+N" above the parked truck's bed, x clamped 44 px inside the screen edges) and
+  their coin flights are skipped while a panel or modal is open or when the card covers the
+  truck (the coin pill still counts up). Ribbon toasts never sit under the tutorial bubble:
+  they move above it, or the bubble fades out for the toast's 2 s.
+- Gains ("+N per toy" in the card and the Upgrades list) come from `stationView().gain`
+  (smooth, one decimal under 10). In the Upgrades list the number never shrinks; the short
+  "per toy" / "/ oyuncak" note ellipsizes first, and the milestone stars sit on the name row.
 
 ## Integration (index.html, js/main.js)
 
@@ -319,9 +370,11 @@ its own `tools/serve.mjs` on `PORT` and stops it at the end. Headless WebGL is s
   (in-page player from `tests/helpers.cjs`), Factory complete, Next factory (Teddy Bears),
   reload keeps progress, offline card after 90 min away, Türkçe and back, quality/sound/FPS
   settings survive a reload, draw-call/triangle budgets, no console errors (~1 min).
-- `timeout 600 node tests/shots.cjs <outDir>` - 9 screenshots of the real game in play
-  order at 390x844, DPR 2 (01-start-tutorial ... 09-offline-card) + `stats.json` with draw
-  calls and triangles per shot and at Low (~1 min).
+- `timeout 600 node tests/shots.cjs <outDir>` - 12 screenshots of the real game in play
+  order at 390x844, DPR 2 (01-start-tutorial, 02-station-card, 03-mid-flow, 04-all-open,
+  05-upgrades-panel, 06-goals, 07-goals-panel, 08-factory-complete, 09-teddy-factory,
+  10-settings-tr, 11-offline-card) plus 12-short-screen (a fresh game at 390x664, a phone
+  browser with toolbars) + `stats.json` with draw calls and triangles per shot and at Low (~1.5 min).
 - `timeout 600 node tests/ui/lab-play.cjs` - UI interaction checks in the UI lab (PORT, default 5301): card,
   upgrade, hold to repeat, goal pill collect, Open sign, Upgrades list, Goals panel, Factories panel,
   settings, offline, complete -> next factory, 44 px touch targets, bottom UI <= 22 %, safe areas.
@@ -356,18 +409,30 @@ Palette from the style spec (`PAL` in kit.js). Wood factory: honey plank floor, 
 with a blue wainscot, yellow top beam, windows with flower boxes, bunting, posters; teddy:
 pink checker tiles, lilac walls, berry beam. Machines: dark striped plinth, chunky rounded
 body, control panel, round emblem, big animated parts. Workers: big heads (about as big as
-the body), eyes with sparkles, brows, cheeks, open smile, hard hat / cap; feet and arms are
-separate instanced meshes so walks and work moves bounce.
+the body) tilted ~12 deg up toward the camera, big low-set eyes with sparkles, brows, cheeks,
+open smile, and a small hard hat / cap on the back of the crown (about half the head height,
+never over the eyes); feet and arms are separate instanced meshes so walks and work moves
+bounce. Carriers wear grape caps (wood) / blue caps (teddy), never the red of the machine lamps.
 
 Life: one operator per open station; 3 carriers (`workers.js`) carry finished toys from the
 last open station to the right side of the truck (visual only). On `sold` the scene first
 offers the toy to the carrier waiting at that station's pickup spot (`workers.takeSold` ->
 `items.takeWork`); he stacks up to 3, walks a fixed route (hopping over belts), throws them
 into the bed (`items.hopFrom` -> truck load), walks back and queues again. If no carrier is
-waiting, the toy rides the belt to the dock as before. When the last station is Gift Wrap /
-Ribbon Box (short walk) one carrier takes a break at the water cooler. A forklift (decor,
-hidden on Low) shuttles a pallet from a stack to the front of the truck; the truck driver sits
-in the open cab. `debug.workers.stats()` -> `{ taken, delivered, states, held }`.
+waiting, the toy rides the belt to the dock as before. Waiting carriers stand about a head
+and a half apart on screen (they never pile up), look around and wave now and then. Two
+carriers work when the line is short or slow (last station Assembly at the start, or Gift Wrap /
+Ribbon Box); the third has a break at the water cooler (bottom left, in view). A forklift (decor:
+High quality and screens at least 760 px tall only) shuttles pallets along the bottom right,
+away from the truck cab; the truck driver sits in the open cab.
+`debug.workers.stats()` -> `{ taken, delivered, states, held }`.
+
+Truck: 12 toys (two layers of 6 on the bed). It leaves only when full AND after 10 s parked,
+and the trip is short (0.9 s out, 0.15 s away, 1.0 s back), so the bed is in view about 80 %
+of the time even on the busiest line (90 % on a slow one). Toys that arrive while it is full
+but still parked hop onto the pile and sink in; while it is away they wait on the dock and
+hop in when it is back. Sale coins burst from the parked truck's bed, or from the dock pile
+while the truck is on the road.
 
 Layout: the belt is a staircase in world space that reads as a zigzag down the portrait
 screen: station 1 top-left, 2 right, 3 left, 4 right, truck dock bottom-left. Each station
@@ -397,8 +462,10 @@ it with `game.act({ type: 'setting', key: 'quality', value: q })`), `zoom` (defa
 - `pick(clientX, clientY)` -> `{ type: 'station', id }` (locked plots too) | `{ type: 'truck' }`
   | null. Generous boxes around machine + turntable + worker. Picking the truck bounces it.
 - `anchor(id | index | 'truck' | 'coins')` -> `{ x, y, visible }` in CSS px (viewport).
-  Open station: just above the machine's highest part; locked plot: 0.95 units above the plot
-  (the "Open" sign points there); truck: above the truck bed; coins: `SCREEN.coins` point.
+  Open station: just above the machine's highest part; locked plot: 0.3 units above the plot
+  (the UI's price chip stands there; the "Open" sign points there); truck: just above the bed
+  of the PARKED truck (fixed, so sale floats do not follow the truck off screen); coins:
+  `SCREEN.coins` point.
 - `setQuality('high'|'low')`: High = pixel ratio min(dpr, 2), antialias (fixed at creation),
   props and sunlight patches, full particles. Low = min(dpr, 1.25), no decor, ~45% particles.
   Auto drop: average frame time > 26 ms for 3 s on High -> Low (+ `onAutoQuality`).
@@ -408,17 +475,24 @@ it with `game.act({ type: 'setting', key: 'quality', value: q })`), `zoom` (defa
   adds `env(safe-area-inset-*)`), `setAutoQuality(bool)`, `dispose()`, `debug` (internals for
   the lab/tests).
 
-Framing keeps the machines, corners, workers and the truck inside the viewport minus
-insets + safe areas, and keeps the level badges of the top two machines below the HUD. It
-works in portrait, landscape and tablets (fit by the tighter axis, centred).
+Framing keeps the machines, corners, workers, the truck bed and the back of its cab inside
+the viewport minus insets + safe areas (the front of the cab may sit under the bottom UI;
+the forklift, pallets and water cooler never drive the fit), and keeps the level badges of
+the top two machines below the HUD. It works in portrait, landscape and tablets (fit by the
+tighter axis, centred).
 Integrator addition: after the fit, `resize()` projects the anchors of the top two
 stations and grows the top inset until a 42 px DOM badge above each anchor clears the HUD
 (on short screens such as a phone browser with toolbars the badge used to cover the income
-pill); the 0.5 s size check re-runs this when a machine grows or opens.
+pill); the 0.5 s size check re-runs this when a machine grows or opens. (Fixed in the
+restyle round: the check compared the badge with the already grown inset, so the inset ran
+away and left an empty band of about 60-120 px under the HUD; it now compares with the HUD
+bottom, and the factory is about 15 % bigger at 390x844 and 40 % bigger at 390x664.)
+`debug.fit` holds the last fit insets, `debug.framePts` the framed points.
 
-Budgets (Playwright/SwiftShader, outlines included): 33-48 draw calls, 57k-84k triangles at
-High (fresh start ~57k, all open ~72-84k, busy line with boosts and coins ~79k, factory
-complete confetti ~84k), 33-42 calls / 58k-66k at Low; ~0.06 ms of scene JS per frame. No shadow maps
+Budgets (Playwright/SwiftShader, outlines included, final restyle round): 31-50 draw calls,
+52k-89k triangles at High (fresh start ~55-58k, all open ~71-84k, busy line with goal
+confetti ~85k, factory complete confetti ~89k, teddy ~75-83k), 33-41 calls / 57k-70k at Low;
+~0.06 ms of scene JS per frame. No shadow maps
 (blob shadows), no post-processing, no scene lights (lighting is in the toon shader), merged
 static geometry, instanced workers/items/particles/turntables, no per-frame allocations.
 

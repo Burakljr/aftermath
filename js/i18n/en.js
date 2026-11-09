@@ -53,7 +53,8 @@ export default {
 
   'upgrades.title': 'Upgrades',
   'upgrades.buy': 'Upgrade',
-  'upgrades.gain': '+{n} per toy',
+  'upgrades.gain': '+{n}',
+  'upgrades.perToy': 'per toy',
   'upgrades.slowest': 'Slowest',
   'upgrades.tip': 'Hold a button to buy faster',
 
