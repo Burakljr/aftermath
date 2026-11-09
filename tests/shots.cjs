@@ -120,10 +120,11 @@ const DPR = Number(process.env.DPR || 2);
     await scenario('attack');
     await L.step(page, 0.4);
     await shot('12-attack-broadcast', 400);
-    // polish: the settle frame (t 2.95: KALKAN-07 standing back beside the head, tusks and fires), before it lifts off
+    // polish: the settle frame (t 3.05: KALKAN-07 standing back beside the head, tusks and fires; the broadcast has
+    // just opened) before it lifts off at 3.06
     await page.evaluate(() => window.aftermath.scenario('impact'));
-    await L.step(page, 0.15);
-    await shot('13-impact', 200);
+    await L.step(page, 0.25);
+    await shot('13-impact', 900);
     // multi-district contract: job framing keeps every chip in the band, compact chips leave the work visible
     await scenario('cleanup');
     await L.step(page, 3.0);
