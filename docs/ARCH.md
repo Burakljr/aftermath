@@ -337,12 +337,37 @@ Owner: scene agent. A pure view: it reads the game state every frame and plays e
 
 Files: `scene.js` (createScene, events, pick, anchors), `layout.js` (shared numbers),
 `camera.js` (orthographic 3/4 iso camera, yaw 45 deg, pitch 34 deg, fit-to-insets),
-`factory.js` (themes, floor/walls/windows/props, belt with scrolling texture, chute, dock,
-truck), `stations.js` (8 machine builders, locked plots, turntables, progress screens,
-milestone trims, glows), `workers.js` (chibi workers, instanced), `items.js` (toy stages and
-the item flow), `fx.js` (instanced particles), `quality.js` (presets, FPS, auto drop),
-`kit.js` (addition: primitive cache, part builder that merges coloured primitives into one
-geometry, toon material with a per-instance tint mask, canvas textures).
+`factory.js` (themes, floor/walls/windows/posters/bunting/props, belt with scrolling
+texture, chute, dock, truck with its driver, forklift), `stations.js` (8 machine builders,
+locked plots, turntables, progress screens, milestone trims, glows), `workers.js` (chibi
+operators and carriers, instanced), `items.js` (toy stages and the item flow), `fx.js`
+(instanced particles), `quality.js` (presets, FPS, auto drop), `kit.js` (addition: primitive
+cache, part builder that merges coloured primitives into one geometry with a baked outline
+hull, the toon shader, palette, canvas textures).
+
+Look (restyle round, the genre's chunky casual style, all our own shapes): one custom toon
+`ShaderMaterial` for everything 3D (`kit.js` `toyMaterial`, shared `TOON` uniforms):
+3-step cel shading from one warm key direction (lit = warm white, mid, shade = cool purple),
+no scene lights. Ink outlines (#2A1E3B) are an inverted hull baked into the same geometry
+(`ol` vertex attribute > 0: the vertex shader pushes it out in view space, constant ~2.2 CSS
+px, scaled down with tiny instance scales), so outlines cost triangles but no draw calls;
+`Builder.add(..., { ol: 0 })` skips tiny details, `{ fill: false }` draws only an outline.
+Palette from the style spec (`PAL` in kit.js). Wood factory: honey plank floor, sky-blue walls
+with a blue wainscot, yellow top beam, windows with flower boxes, bunting, posters; teddy:
+pink checker tiles, lilac walls, berry beam. Machines: dark striped plinth, chunky rounded
+body, control panel, round emblem, big animated parts. Workers: big heads (about as big as
+the body), eyes with sparkles, brows, cheeks, open smile, hard hat / cap; feet and arms are
+separate instanced meshes so walks and work moves bounce.
+
+Life: one operator per open station; 3 carriers (`workers.js`) carry finished toys from the
+last open station to the right side of the truck (visual only). On `sold` the scene first
+offers the toy to the carrier waiting at that station's pickup spot (`workers.takeSold` ->
+`items.takeWork`); he stacks up to 3, walks a fixed route (hopping over belts), throws them
+into the bed (`items.hopFrom` -> truck load), walks back and queues again. If no carrier is
+waiting, the toy rides the belt to the dock as before. When the last station is Gift Wrap /
+Ribbon Box (short walk) one carrier takes a break at the water cooler. A forklift (decor,
+hidden on Low) shuttles a pallet from a stack to the front of the truck; the truck driver sits
+in the open cab. `debug.workers.stats()` -> `{ taken, delivered, states, held }`.
 
 Layout: the belt is a staircase in world space that reads as a zigzag down the portrait
 screen: station 1 top-left, 2 right, 3 left, 4 right, truck dock bottom-left. Each station
@@ -360,9 +385,11 @@ it with `game.act({ type: 'setting', key: 'quality', value: q })`), `zoom` (defa
 - `update(state, dt, render = true)`: reads `state.factory.stations[i]` (`open`, `level`,
   `progress`, `tray`, `boostT`) and renders. dt is clamped to 0.1 s; all animation runs on dt
   (deterministic with a fixed step). `render === false` skips the draw (lab fast-forward).
-- `fx(event, payload)`: `pass` {from,to} and `sold` launch an item along the belt (to the next
-  tray / into the truck); without them items still appear in the trays but do not travel.
-  `cycle` (small puff + squash), `upgrade` {station, milestone} (pop, star burst; bigger with
+- `fx(event, payload)`: `pass` {from,to} launches an item along the belt to the next tray;
+  `sold` hands the toy to a waiting carrier or launches it along the belt into the truck, and
+  bursts outlined coins from the truck; without them items still appear in the trays but do
+  not travel. `cycle` (small puff + squash), `upgrade` {station, milestone} (the machine
+  squashes, jumps and wobbles, outlined star burst, floor ring, dust puffs; bigger with
   confetti on milestones), `open` (plot builds into the machine with a bounce, dust, stars,
   confetti), `boost` (sparkle burst; while `boostT > 0` a cyan glow + swirling sparkles),
   `goal`/`claim` (confetti), `factoryComplete` (big confetti + stars), `factoryStart`
@@ -389,10 +416,11 @@ stations and grows the top inset until a 42 px DOM badge above each anchor clear
 (on short screens such as a phone browser with toolbars the badge used to cover the income
 pill); the 0.5 s size check re-runs this when a machine grows or opens.
 
-Budgets (Playwright/SwiftShader, 402x874): 28-40 draw calls, 36k-60k triangles (worst case:
-all open, all boosted, 100+ particles), ~0.1 ms of JS per frame. No shadow maps (blob
-shadows), no post-processing, toon material with one hemisphere + one directional light,
-merged static geometry, instanced workers/items/particles/turntables, no per-frame allocations.
+Budgets (Playwright/SwiftShader, outlines included): 34-50 draw calls, 55k-92k triangles at
+High (fresh start ~59k, all open ~76-84k, busy line with coins ~83k, factory complete
+confetti ~92k), 31-43 calls / 54k-70k at Low; ~0.1-0.2 ms of JS per frame. No shadow maps
+(blob shadows), no post-processing, no scene lights (lighting is in the toon shader), merged
+static geometry, instanced workers/items/particles/turntables, no per-frame allocations.
 
 Scene lab: `scene-lab.html` drives the scene with a fake line simulation.
 URL: `factory=wood|teddy`, `open=1100` (per station), `levels=1,1,1,1`, `tray=0,0,0,0`,

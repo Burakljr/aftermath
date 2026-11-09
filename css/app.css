@@ -465,9 +465,9 @@ svg { overflow: visible; }
   align-items: center;
   gap: 9px;
   pointer-events: none;
-  transition: transform 0.2s ease-in, opacity 0.16s ease-in;
+  transition: transform 0.3s cubic-bezier(0.2, 1.3, 0.4, 1), opacity 0.2s ease-out;
 }
-.ui-root.card-open .bottom { transform: translateY(calc(100% + var(--safe-b) + 24px)); opacity: 0; }
+.ui-root.card-open .bottom { transform: translateY(calc(100% + var(--safe-b) + 24px)); opacity: 0; transition: transform 0.18s ease-in, opacity 0.14s ease-in; }
 .ui-root.card-open .bottom * { pointer-events: none !important; }
 .ngp {
   position: relative;
@@ -985,7 +985,7 @@ svg { overflow: visible; }
 
 /* ---------- tutorial ---------- */
 .tut { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
-.tut-hand { position: absolute; left: -22px; top: 0; width: 58px; height: 68px; will-change: transform; filter: drop-shadow(0 4px 0 rgba(42, 30, 59, 0.35)); }
+.tut-hand { position: absolute; left: -22px; top: 0; width: 58px; height: 68px; will-change: transform; }
 .tut-hand .ico { width: 100%; height: 100%; animation: tapHand 1s ease-in-out infinite; transform-origin: 40% 0; }
 .tut-ring {
   position: absolute;
@@ -1086,3 +1086,12 @@ svg { overflow: visible; }
 .ui-root.has-menu .hud { z-index: 6; }
 .ui-root.has-menu .toast { z-index: 7; }
 .card-lvtag { display: none; }
+.rb.rb-long .rb-text { font-size: 19px; --ots: 5.4px; }
+.rb.rb-xlong .rb-text { font-size: 17px; --ots: 5px; }
+.cmp .rb.rb-long .rb-text { font-size: 23px; --ots: 6.4px; }
+.cmp .rb.rb-xlong .rb-text { font-size: 20px; --ots: 5.8px; }
+.rb.rb-long .rb-band, .rb.rb-xlong .rb-band { padding-left: 16px; padding-right: 16px; }
+/* scale animations on elements that are placed with translate(): scale about the anchor point */
+.mark-badge, .mark-sign { transform-origin: 0 0; }
+.up-lv { transform-origin: 0 50%; }
+.up-lv.pop { animation: popS 0.3s ease-out; }

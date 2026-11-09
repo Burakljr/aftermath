@@ -349,7 +349,7 @@ function buildWalls(b, d, t) {
   b.add(G.box(0.4, H + 0.24, 0.4, 0.1), t.beam, wx, (H + 0.24) / 2, wz);
 
   // windows: rounded frame, sky glass with a cloud, cross bars, flower box
-  const winX = [0.75, 3.15, 5.6, 8.7];
+  const winX = [0.75, 3.15, 5.6];
   for (const x of winX) window_(b, x, wz + T / 2 + 0.01, 0);
   const winZ = [-1.45, 1.65];
   for (const z of winZ) window_(b, wx + T / 2 + 0.01, z, 1);
@@ -370,10 +370,10 @@ function buildWalls(b, d, t) {
     bb.pop();
     // flower box under the window (decor)
     d.push(x, y, z, { ry });
-    d.add(G.box(w * 0.8, 0.2, 0.26, 0.06), t.accent[Math.abs(Math.round(x * 3 + z)) % 4], 0, -h / 2 - 0.2, 0.17);
-    for (let k = 0; k < 4; k++) {
-      d.add(G.sphere(7, 5), t.plant, -0.42 + k * 0.28, -h / 2 - 0.06, 0.2, { s: 0.13, ol: 0.7 });
-      d.add(G.sphere(6, 4), k % 2 ? PAL.yellow : PAL.pink, -0.42 + k * 0.28 + 0.05, -h / 2 + 0.02, 0.29, { s: 0.06, ol: 0 });
+    d.add(G.box(w * 0.8, 0.2, 0.26, 0.03), t.accent[Math.abs(Math.round(x * 3 + z)) % 4], 0, -h / 2 - 0.2, 0.17);
+    for (let k = 0; k < 3; k++) {
+      d.add(G.sphere(6, 4), t.plant, -0.38 + k * 0.38, -h / 2 - 0.05, 0.2, { s: 0.15, ol: 0.7 });
+      d.add(G.sphere(5, 3), k % 2 ? PAL.yellow : PAL.pink, -0.38 + k * 0.38 + 0.06, -h / 2 + 0.04, 0.31, { s: 0.065, ol: 0 });
     }
     d.pop();
   }
@@ -405,7 +405,7 @@ function buildWalls(b, d, t) {
   d.push(wx + T / 2 + 0.02, 1.62, 3.3, { ry: Math.PI / 2 });
   poster(d, t, kinds[1], t.accent[2], 0.8, 0.95);
   d.pop();
-  d.push(7.15, 1.62, wz + T / 2 + 0.02);
+  d.push(7.75, 1.62, wz + T / 2 + 0.02);
   poster(d, t, kinds[2], t.accent[3], 0.8, 0.95);
   d.pop();
 }
@@ -435,7 +435,7 @@ function buildBeltFrame(b, t) {
   // corner bases (turntables sit on top, see stations.js)
   for (const [x, z] of CORNERS) {
     b.add(G.cyl(0.7, 0.74, BELT_Y - 0.06, 18), shade(t.belt, -0.2), x, (BELT_Y - 0.06) / 2 + 0.02, z, { ol: 0.9 });
-    b.add(G.torus(0.68, 0.075, 5, 20), t.rail, x, BELT_Y - 0.03, z, { rx: Math.PI / 2, ol: 0.9 });
+    b.add(G.torus(0.68, 0.075, 4, 16), t.rail, x, BELT_Y - 0.03, z, { rx: Math.PI / 2, ol: 0.9 });
     SHADOW_SPOTS.push([x, z, 1.0]);
   }
 }
@@ -449,7 +449,7 @@ function buildChute(b, t) {
   b.add(G.box(1.12, 0.8, 0.2, 0.08), 0x3a2d55, 0, 0.6, 0.3, { ol: 0 });
   // striped awning
   for (let i = 0; i < 5; i++) {
-    b.add(G.box(0.34, 0.14, 0.66, 0.05), i % 2 ? 0xffffff : t.accent[0], -0.66 + i * 0.33, 1.5, 0.32, { rx: 0.35, ol: 0.8 });
+    b.add(G.box(0.34, 0.14, 0.66, 0.03), i % 2 ? 0xffffff : t.accent[0], -0.66 + i * 0.33, 1.5, 0.32, { rx: 0.35, ol: 0.8 });
   }
   // round sign with the factory logo above
   b.add(G.cyl(0.3, 0.3, 0.08, 16), t.beam, 0, 1.98, 0.08, { rx: PI / 2 });
@@ -484,22 +484,21 @@ function buildYard(b, d, t) {
   // bushes and trees in the yard
   const r = rng(11);
   const bush = (x, z, s) => {
-    d.add(G.sphere(9, 6), t.plant, x, 0.36 * s, z, { s: 0.46 * s });
-    d.add(G.sphere(9, 6), shade(t.plant, 0.15), x + 0.3 * s, 0.3 * s, z + 0.12 * s, { s: 0.33 * s });
-    d.add(G.sphere(9, 6), shade(t.plant, -0.08), x - 0.27 * s, 0.28 * s, z + 0.16 * s, { s: 0.3 * s });
+    d.add(G.sphere(8, 6), t.plant, x, 0.36 * s, z, { s: 0.46 * s });
+    d.add(G.sphere(7, 5), shade(t.plant, 0.15), x + 0.3 * s, 0.3 * s, z + 0.12 * s, { s: 0.33 * s });
+    d.add(G.sphere(7, 5), shade(t.plant, -0.08), x - 0.27 * s, 0.28 * s, z + 0.16 * s, { s: 0.3 * s });
     SHADOW_SPOTS.push([x, z, 0.9 * s]);
   };
   const tree = (x, z, s) => {
     d.add(G.cyl(0.11 * s, 0.15 * s, 0.9 * s, 8), t.woodDark, x, 0.45 * s, z);
-    d.add(G.sphere(10, 7), t.plant, x, 1.2 * s, z, { s: 0.62 * s });
-    d.add(G.sphere(9, 6), shade(t.plant, 0.15), x + 0.28 * s, 1.42 * s, z + 0.22 * s, { s: 0.36 * s });
+    d.add(G.sphere(9, 6), t.plant, x, 1.2 * s, z, { s: 0.62 * s });
+    d.add(G.sphere(7, 5), shade(t.plant, 0.15), x + 0.28 * s, 1.42 * s, z + 0.22 * s, { s: 0.36 * s });
     SHADOW_SPOTS.push([x, z, 1.1 * s]);
   };
   bush(4.9, 7.0, 1.0);
   tree(4.1, 8.6, 1.1);
   bush(9.9, 7.5, 0.9);
   tree(10.9, 9.2, 1.0);
-  bush(5.3, 9.9, 0.8);
   for (let i = 0; i < 7; i++) {
     const fx = 4.6 + r() * 1.5, fz = 7.6 + r() * 1.6;
     d.add(G.sphere(6, 4), t.accent[i % 4], fx, 0.09, fz, { s: 0.08, ol: 0.6 });
@@ -511,9 +510,9 @@ function buildDecor(d, t) {
   const plant = (x, z, s = 1) => {
     d.add(G.cyl(0.25 * s, 0.19 * s, 0.38 * s, 12), t.pot, x, 0.19 * s, z);
     d.add(G.cyl(0.28 * s, 0.28 * s, 0.08 * s, 12), shade(t.pot, 0.25), x, 0.38 * s, z);
-    d.add(G.sphere(9, 6), t.plant, x, 0.66 * s, z, { s: 0.34 * s });
-    d.add(G.sphere(9, 6), shade(t.plant, 0.15), x + 0.17 * s, 0.82 * s, z + 0.1 * s, { s: 0.21 * s });
-    d.add(G.sphere(9, 6), shade(t.plant, -0.1), x - 0.16 * s, 0.78 * s, z + 0.08 * s, { s: 0.19 * s });
+    d.add(G.sphere(8, 6), t.plant, x, 0.66 * s, z, { s: 0.34 * s });
+    d.add(G.sphere(6, 5), shade(t.plant, 0.15), x + 0.17 * s, 0.82 * s, z + 0.1 * s, { s: 0.21 * s });
+    d.add(G.sphere(6, 5), shade(t.plant, -0.1), x - 0.16 * s, 0.78 * s, z + 0.08 * s, { s: 0.19 * s });
     SHADOW_SPOTS.push([x, z, 0.55 * s]);
   };
   const crate = (x, y, z, s = 0.5, c = t.wood) => {
@@ -538,13 +537,25 @@ function buildDecor(d, t) {
   d.add(G.box(1.6, 0.08, 0.5, 0.03), t.trim, sx, 1.35, sz);
   d.add(G.box(0.08, 1.4, 0.5, 0.03), t.trim, sx - 0.78, 0.7, sz);
   d.add(G.box(0.08, 1.4, 0.5, 0.03), t.trim, sx + 0.78, 0.7, sz);
-  for (let i = 0; i < 4; i++) d.add(G.box(0.28, 0.3, 0.3, 0.05), t.accent[i], sx - 0.5 + i * 0.34, 0.94, sz, { ol: 0.8 });
-  for (let i = 0; i < 3; i++) d.add(G.box(0.34, 0.26, 0.3, 0.05), t.box[i], sx - 0.4 + i * 0.4, 1.52, sz, { ol: 0.8 });
+  for (let i = 0; i < 4; i++) d.add(G.box(0.28, 0.3, 0.3, 0.03), t.accent[i], sx - 0.5 + i * 0.34, 0.94, sz, { ol: 0.8 });
+  for (let i = 0; i < 3; i++) d.add(G.box(0.34, 0.26, 0.3, 0.03), t.box[i], sx - 0.4 + i * 0.4, 1.52, sz, { ol: 0.8 });
   // pallet with gift boxes where the forklift loads (right of the dock)
   pallet(d, t, FORK.stack[0], FORK.stack[1], true);
   SHADOW_SPOTS.push([FORK.stack[0], FORK.stack[1], 1.0]);
+  // water cooler (a carrier takes a break here when not needed)
+  {
+    const wx = 2.6, wz = 5.5;
+    d.add(G.box(0.4, 0.62, 0.36, 0.08), PAL.cream, wx, 0.31, wz);
+    d.add(G.box(0.3, 0.1, 0.04, 0.02), 0x3d3357, wx, 0.44, wz + 0.19, { ol: 0 });
+    d.add(G.cyl(0.05, 0.05, 0.05, 6), PAL.red, wx - 0.08, 0.5, wz + 0.2, { rx: PI / 2, ol: 0 });
+    d.add(G.cyl(0.05, 0.05, 0.05, 6), PAL.blue, wx + 0.08, 0.5, wz + 0.2, { rx: PI / 2, ol: 0 });
+    d.add(G.cyl(0.17, 0.17, 0.42, 12), 0x8fdcff, wx, 0.84, wz);
+    d.add(G.cyl(0.12, 0.12, 0.06, 10), 0x5fc0ff, wx, 1.07, wz, { ol: 0.6 });
+    d.add(G.box(0.05, 0.3, 0.03, 0), 0xffffff, wx - 0.08, 0.86, wz + 0.16, { ol: 0 });
+    SHADOW_SPOTS.push([wx, wz, 0.55]);
+  }
   // traffic cones next to the dock
-  for (const [cx, cz] of [[8.75, DOCK[1] - 0.45], [6.05, DOCK[1] - 0.2]]) {
+  for (const [cx, cz] of [[10.2, 3.0], [6.25, DOCK[1] - 0.15]]) {
     d.add(G.cone(0.17, 0.42, 10), PAL.orange, cx, 0.24, cz);
     d.add(G.cyl(0.11, 0.13, 0.08, 10), 0xffffff, cx, 0.22, cz, { ol: 0 });
     d.add(G.box(0.38, 0.05, 0.38, 0.02), PAL.orange, cx, 0.025, cz, { ol: 0.7 });
@@ -557,10 +568,10 @@ function pallet(bb, t, x, z, boxes, y = 0) {
   for (const k of [-1, 0, 1]) bb.add(G.box(0.86, 0.1, 0.14, 0.02), t.woodDark, x, y + 0.05, z + k * 0.34, { ol: 0 });
   if (!boxes) return;
   const cols = t.box;
-  bb.add(G.box(0.38, 0.32, 0.38, 0.05), cols[0], x - 0.2, y + 0.32, z - 0.2);
-  bb.add(G.box(0.38, 0.32, 0.38, 0.05), cols[1], x + 0.2, y + 0.32, z - 0.2);
-  bb.add(G.box(0.38, 0.32, 0.38, 0.05), cols[2], x - 0.2, y + 0.32, z + 0.2);
-  bb.add(G.box(0.38, 0.32, 0.38, 0.05), cols[3], x + 0.2, y + 0.32, z + 0.2);
+  bb.add(G.box(0.38, 0.32, 0.38, 0.03), cols[0], x - 0.2, y + 0.32, z - 0.2);
+  bb.add(G.box(0.38, 0.32, 0.38, 0.03), cols[1], x + 0.2, y + 0.32, z - 0.2);
+  bb.add(G.box(0.38, 0.32, 0.38, 0.03), cols[2], x - 0.2, y + 0.32, z + 0.2);
+  bb.add(G.box(0.38, 0.32, 0.38, 0.03), cols[3], x + 0.2, y + 0.32, z + 0.2);
   bb.add(G.box(0.4, 0.34, 0.4, 0.05), cols[4], x, y + 0.65, z, { ry: 0.3 });
   for (const [ox, oz] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]) bb.add(G.box(0.39, 0.06, 0.07, 0.01), t.ribbon, x + ox, y + 0.48, z + oz, { ol: 0 });
 }
@@ -569,7 +580,7 @@ function buildSunPatches() {
   const b = new Builder({ ol: 0 });
   const wz = WALLS.z, wx = WALLS.x;
   // light falls toward +X +Z (in from the back windows)
-  for (const x of [0.75, 3.15, 5.6, 8.7]) {
+  for (const x of [0.75, 3.15, 5.6]) {
     b.push(x + 0.55, 0.012, wz + 1.5, { ry: -0.5 });
     b.add(G.plane(1.4, 2.4), 0xfffbe0, 0, 0, 0);
     b.pop();
@@ -618,7 +629,7 @@ function buildBeltSurface(tex) {
 // ------------------------------------------------------- chibi head (props)
 /** a small chibi head + cap for drivers (local origin = neck) */
 export function chibiHead(b, skin, cap, capBand, hair, s = 1) {
-  b.add(G.sphere(12, 9), skin, 0, 0.26 * s, 0, { s: 0.26 * s });
+  b.add(G.sphere(10, 7), skin, 0, 0.26 * s, 0, { s: 0.26 * s });
   b.add(G.sphere(8, 6), hair, 0, 0.3 * s, -0.05 * s, { sx: 0.27 * s, sy: 0.22 * s, sz: 0.25 * s, ol: 0 });
   for (const sx of [-1, 1]) {
     b.add(G.sphere(8, 6), INK, sx * 0.085 * s, 0.27 * s, 0.225 * s, { sx: 0.035 * s, sy: 0.05 * s, sz: 0.025 * s, ol: 0 });
@@ -626,7 +637,7 @@ export function chibiHead(b, skin, cap, capBand, hair, s = 1) {
     b.add(G.sphere(6, 4), 0xff8fa8, sx * 0.15 * s, 0.2 * s, 0.2 * s, { sx: 0.045 * s, sy: 0.028 * s, sz: 0.02 * s, ol: 0 });
   }
   b.add(G.torus(0.04 * s, 0.012 * s, 4, 8, PI), INK, 0, 0.19 * s, 0.245 * s, { rz: PI, ol: 0 });
-  b.add(G.hemi(12, 5), cap, 0, 0.34 * s, -0.01 * s, { sx: 0.275 * s, sy: 0.22 * s, sz: 0.275 * s });
+  b.add(G.hemi(10, 4), cap, 0, 0.34 * s, -0.01 * s, { sx: 0.275 * s, sy: 0.22 * s, sz: 0.275 * s });
   b.add(G.box(0.3 * s, 0.04 * s, 0.18 * s, 0.02), cap, 0, 0.345 * s, 0.25 * s, { rx: -0.1 });
   b.add(G.sphere(6, 4), capBand, 0, 0.56 * s, -0.01 * s, { s: 0.05 * s, ol: 0.7 });
 }
@@ -645,11 +656,11 @@ export function createTruck(theme) {
   // chassis
   b.add(G.box(1.36, 0.3, 2.9, 0.1), dark, 0, 0.42, 0);
   // cab (front = +Z): chunky rounded block with a big windscreen
-  b.add(G.box(1.56, 0.78, 1.06, 0.22), c, 0, 0.92, 0.86);
+  b.add(G.box(1.56, 0.78, 1.06, 0.19), c, 0, 0.92, 0.86);
   b.add(G.box(1.5, 0.14, 0.98, 0.07), c, 0, 1.86, 0.78);
   for (const sx of [-1, 1]) for (const sz of [0.36, 1.2]) b.add(G.box(0.1, 0.62, 0.1, 0.04), c, sx * 0.7, 1.52, sz, { ol: 0.8 });
   b.add(G.box(1.3, 0.05, 0.03, 0), 0xffffff, 0, 1.76, 1.22, { ol: 0 });
-  b.add(G.box(1.36, 0.5, 0.9, 0), 0x2e2445, 0, 1.5, 0.74, { ol: 0 }); // dark cab inside (back wall)
+  b.add(G.box(1.36, 0.56, 0.06, 0), 0x2e2445, 0, 1.52, 0.36, { ol: 0 }); // dark cab back wall
   // driver in the open cab
   b.push(0.0, 1.16, 0.86);
   b.add(G.box(0.4, 0.3, 0.3, 0.1), PAL.blue, 0, 0.1, -0.05, { ol: 0.8 });
@@ -675,7 +686,7 @@ export function createTruck(theme) {
   b.add(G.box(1.5, 0.2, 0.12, 0.05), trim, 0, 0.76, -1.36);
   b.add(G.box(1.52, 0.08, 0.14, 0.02), c, 0, 0.98, 0.36, { ol: 0 });
   // mudguards
-  for (const sx of [-1, 1]) for (const sz of [0.85, -0.85]) b.add(G.box(0.3, 0.12, 0.74, 0.05), dark, sx * 0.72, 0.72, sz);
+  for (const sx of [-1, 1]) for (const sz of [0.85, -0.85]) b.add(G.box(0.3, 0.12, 0.74, 0.03), dark, sx * 0.72, 0.72, sz, { ol: 0.7 });
   const bodyMesh = new THREE.Mesh(b.build(), toyMaterial());
   body.add(bodyMesh);
   // wheels
@@ -760,7 +771,7 @@ export function createTruck(theme) {
 
 // ---------------------------------------------------------------- forklift
 /** forklift route: pallet stack (loads here) and the spot beside the truck bed */
-export const FORK = { stack: [10.3, 5.2], drop: [8.72, 7.2] };
+export const FORK = { stack: [10.8, 5.0], drop: [8.9, 7.25] };
 
 export function createForklift(theme) {
   const group = new THREE.Group();
@@ -773,7 +784,7 @@ export function createForklift(theme) {
   b.add(G.box(0.5, 0.12, 0.4, 0.06), INK, 0, 0.6, 0.06, { ol: 0 });    // seat base
   b.add(G.box(0.36, 0.3, 0.1, 0.05), PAL.red, 0, 0.78, -0.12);         // seat back
   // roll cage
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(G.box(0.06, 0.78, 0.06, 0.02), D, sx * 0.34, 0.92, 0.1 + sz * 0.26 - 0.1, { ol: 0.7 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(G.box(0.06, 0.78, 0.06, 0), D, sx * 0.34, 0.92, 0.1 + sz * 0.26 - 0.1, { ol: 0.7 });
   b.add(G.box(0.8, 0.07, 0.66, 0.03), Y, 0, 1.33, 0.0);
   // driver
   b.push(0, 0.66, 0.05);
@@ -782,11 +793,11 @@ export function createForklift(theme) {
   b.pop();
   // wheels (static)
   for (const sx of [-1, 1]) for (const sz of [0.3, -0.38]) {
-    b.add(G.cyl(0.19, 0.19, 0.16, 12), 0x2f2840, sx * 0.4, 0.19, sz, { rz: PI / 2 });
-    b.add(G.cyl(0.09, 0.09, 0.17, 8), 0xe9e4f5, sx * 0.4, 0.19, sz, { rz: PI / 2, ol: 0 });
+    b.add(G.cyl(0.19, 0.19, 0.16, 10), 0x2f2840, sx * 0.4, 0.19, sz, { rz: PI / 2 });
+    b.add(G.cyl(0.09, 0.09, 0.17, 6), 0xe9e4f5, sx * 0.4, 0.19, sz, { rz: PI / 2, ol: 0 });
   }
   // mast
-  for (const sx of [-1, 1]) b.add(G.box(0.08, 1.2, 0.08, 0.03), D, sx * 0.24, 0.66, 0.52);
+  for (const sx of [-1, 1]) b.add(G.box(0.08, 1.2, 0.08, 0), D, sx * 0.24, 0.66, 0.52);
   b.add(G.box(0.56, 0.07, 0.08, 0.02), D, 0, 1.24, 0.52);
   const bodyMesh = new THREE.Mesh(b.build(), toyMaterial());
   group.add(bodyMesh);
@@ -805,8 +816,8 @@ export function createForklift(theme) {
   forks.add(load);
 
   // poses: L = forks in the pallet stack (facing +X), D = forks over the truck bed (facing -X)
-  const L = [FORK.stack[0] - 0.95, FORK.stack[1]], D = [FORK.drop[0], FORK.drop[1]];
-  const WAY = [FORK.stack[0] - 0.6, FORK.stack[1] + 1.1];
+  const L = [FORK.stack[0] - 0.95, FORK.stack[1]], DP = [FORK.drop[0], FORK.drop[1]];
+  const WAY = [FORK.stack[0] - 0.6, FORK.stack[1] + 1.3];
   const st = { phase: 'load', t: 0, x: L[0], z: L[1], ry: PI / 2, lift: 0, bump: 0, path: null, pi: 0, face: 0 };
   group.position.set(st.x, 0, st.z);
 
@@ -847,7 +858,7 @@ export function createForklift(theme) {
         case 'load': // forks under the pallet: lift it
           load.visible = true;
           st.lift = Math.min(1, st.t / 0.7);
-          if (st.t > 1.0) { st.phase = 'go'; st.t = 0; st.path = [WAY, D]; st.pi = 0; st.face = -PI / 2; }
+          if (st.t > 1.0) { st.phase = 'go'; st.t = 0; st.path = [WAY, DP]; st.pi = 0; st.face = -PI / 2; }
           break;
         case 'go':
           if (drive(dt)) { st.phase = 'wait'; st.t = 0; }

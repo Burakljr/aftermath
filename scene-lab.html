@@ -12,37 +12,56 @@
     src: url('assets/fonts/fredoka-latin-600-normal.woff2') format('woff2'); }
   @font-face { font-family: 'Fredoka'; font-weight: 700; font-display: swap;
     src: url('assets/fonts/fredoka-latin-700-normal.woff2') format('woff2'); }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #dff6ff; font-family: 'Fredoka', ui-rounded, system-ui, sans-serif; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  :root { --ink: #2A1E3B; --cream: #FFF4DC; --cream2: #F6DFAF; --green: #36C657; --green2: #1E9A3E; --blue: #34A3FF; --blue2: #1C6FD1; --yellow: #FFC82E; --orange: #FF8B1F; --pink: #FF4F7E; --purple: #8A5CF6; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #5cc8ff; font-family: 'Fredoka', ui-rounded, system-ui, sans-serif; font-weight: 700; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  #hud { position: fixed; left: 0; right: 0; top: 0; pointer-events: none; padding: calc(env(safe-area-inset-top) + 10px) 12px 0; box-sizing: border-box; }
-  #hud .bar { display: flex; flex-direction: column; gap: 6px; align-items: center; }
-  .pill { background: rgba(255,255,255,0.92); border-radius: 22px; padding: 8px 14px; font-weight: 700; color: #3b3355; box-shadow: 0 3px 0 rgba(60,40,110,0.18); font-size: 22px; }
-  .pill small { font-size: 14px; color: #8a7fb0; font-weight: 600; }
-  .coin { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3a8, #ffcf3a 55%, #f0a800); vertical-align: -3px; margin-right: 6px; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); }
-  #goals { position: fixed; left: 8px; right: 8px; bottom: 8px; pointer-events: none; padding: 20px 8px 8px; margin-bottom: env(safe-area-inset-bottom); box-sizing: border-box; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; background: #fff; border-radius: 26px; box-shadow: 0 5px 0 rgba(42,35,80,0.12); }
-  .goal { background: #efe9ff; border-radius: 18px; padding: 8px; min-height: 98px; box-sizing: border-box; color: #3b3355; font-weight: 600; font-size: 13.5px; display: flex; flex-direction: column; justify-content: space-between; }
-  .goal .track { margin-top: 6px; height: 9px; border-radius: 5px; background: #ece6fb; overflow: hidden; }
-  .goal .fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, #6dd36d, #4fd18b); }
-  .label { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; font-weight: 700; will-change: transform; }
-  .lvl { background: #ffffff; color: #3b3355; border-radius: 999px; min-width: 46px; min-height: 32px; box-sizing: border-box; padding: 6px 12px; font-size: 16px; text-align: center; box-shadow: 0 3px 0 rgba(42,35,80,0.22); }
-  .price { background: #fff; color: #3b3355; border-radius: 20px; padding: 7px 14px 9px; font-size: 19px; box-shadow: 0 5px 0 rgba(42,35,80,0.2); border: 3px solid #ffcf3a; white-space: nowrap; margin-top: -11px; }
-  #toggle { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 64px); z-index: 10; font: 600 12px system-ui; padding: 6px 9px; border-radius: 10px; border: 0; background: #3b3355; color: #fff; opacity: 0.8; }
-  #panel { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 96px); z-index: 10; width: 250px; max-height: 70vh; overflow: auto; background: rgba(30,24,52,0.9); color: #fff; font: 12px system-ui; border-radius: 12px; padding: 8px; display: none; }
+  /* mock HUD in the style of the restyle spec (the real UI lives in js/ui) */
+  .ol { color: #fff; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink); }
+  #hud { position: fixed; left: 0; right: 0; top: 0; pointer-events: none; padding: calc(env(safe-area-inset-top) + 8px) 10px 0; box-sizing: border-box; }
+  #hud .bar { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .money { position: relative; min-width: 150px; height: 44px; box-sizing: border-box; padding: 0 18px 0 46px; border-radius: 24px; background: rgba(42,30,59,0.55); border: 3.5px solid var(--ink); display: flex; align-items: center; font-size: 29px; }
+  .coin { position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; box-sizing: border-box; background: radial-gradient(circle at 36% 32%, #FFE27A 0 32%, #FFB800 34% 100%); border: 3.5px solid var(--ink); box-shadow: inset 0 -4px 0 #E89A00; }
+  .coin::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; border: 3px solid #FFE27A; opacity: 0.9; }
+  .income { padding: 1px 12px 2px; border-radius: 14px; background: var(--green); border: 3px solid var(--ink); font-size: 16px; box-shadow: inset 0 -3px 0 var(--green2); }
+  .badge { position: fixed; left: 10px; top: calc(env(safe-area-inset-top) + 8px); width: 58px; height: 58px; border-radius: 18px; background: var(--yellow); border: 3.5px solid var(--ink); box-shadow: inset 0 -5px 0 #E8A100; box-sizing: border-box; }
+  .badge::before { content: ''; position: absolute; left: 13px; top: 11px; width: 26px; height: 26px; background: #fff; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+  .stars { position: absolute; left: 4px; right: 4px; bottom: -12px; height: 12px; border-radius: 6px; background: #fff; border: 3px solid var(--ink); }
+  .stars i { display: block; width: 60%; height: 100%; border-radius: 4px; background: var(--yellow); }
+  .gear { position: fixed; right: 10px; top: calc(env(safe-area-inset-top) + 8px); width: 50px; height: 50px; border-radius: 16px; background: var(--blue); border: 3.5px solid var(--ink); box-sizing: border-box; box-shadow: inset 0 -5px 0 var(--blue2); }
+  .gear::after { content: ''; position: absolute; inset: 11px; border-radius: 50%; border: 6px dotted #fff; box-sizing: border-box; }
+  #goals { position: fixed; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom) + 6px); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .nextgoal { position: relative; width: 74%; box-sizing: border-box; padding: 6px 12px 7px; border-radius: 18px; background: var(--cream); border: 3.5px solid var(--ink); color: var(--ink); font-size: 14px; box-shadow: 0 4px 0 var(--ink); }
+  .nextgoal .track { margin-top: 4px; height: 10px; border-radius: 6px; background: var(--cream2); border: 2.5px solid var(--ink); overflow: hidden; }
+  .nextgoal .fill { height: 100%; width: 62%; background: var(--green); }
+  .nextgoal .dot { position: absolute; right: -6px; top: -8px; width: 18px; height: 18px; border-radius: 50%; background: #FF4747; border: 3px solid var(--ink); }
+  .menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 360px; }
+  .mbtn { position: relative; height: 70px; border-radius: 20px; border: 3.5px solid var(--ink); box-sizing: border-box; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 15px; box-shadow: 0 5px 0 var(--ink); }
+  .mbtn::before { content: ''; position: absolute; left: 6px; right: 6px; top: 5px; height: 26%; border-radius: 12px; background: rgba(255,255,255,0.35); }
+  .mbtn.b1 { background: linear-gradient(#5DB8FF, var(--blue)); box-shadow: inset 0 -6px 0 var(--blue2), 0 4px 0 var(--ink); }
+  .mbtn.b2 { background: linear-gradient(#5DDB78, var(--green)); box-shadow: inset 0 -6px 0 var(--green2), 0 4px 0 var(--ink); }
+  .mbtn.b3 { background: linear-gradient(#FFB45E, var(--orange)); box-shadow: inset 0 -6px 0 #D96A0A, 0 4px 0 var(--ink); }
+  .label { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; will-change: transform; white-space: nowrap; }
+  .lvl { background: var(--purple); border: 3px solid var(--ink); border-radius: 12px; padding: 1px 9px 3px; font-size: 16px; box-shadow: inset 0 -3px 0 #6A3FD6, 0 3px 0 var(--ink); color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+  .price { background: var(--cream); border: 3.5px solid var(--ink); border-radius: 18px; padding: 4px 12px 6px; font-size: 18px; color: var(--ink); box-shadow: 0 4px 0 var(--ink); margin-top: -11px; }
+  .price b { display: inline-block; margin-left: 6px; padding: 0 9px 2px; border-radius: 12px; background: var(--green); border: 3px solid var(--ink); color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; box-shadow: inset 0 -3px 0 var(--green2); }
+  #toggle { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 70px); z-index: 10; font: 600 12px system-ui; padding: 6px 9px; border-radius: 10px; border: 0; background: #3b3355; color: #fff; opacity: 0.8; }
+  #panel { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 102px); z-index: 10; width: 250px; max-height: 70vh; overflow: auto; background: rgba(30,24,52,0.9); color: #fff; font: 12px system-ui; border-radius: 12px; padding: 8px; display: none; }
   #panel.on { display: block; }
   #panel h4 { margin: 8px 0 4px; font-size: 12px; color: #c9bdff; }
   #panel button { font: 11px system-ui; margin: 2px; padding: 4px 6px; border-radius: 6px; border: 0; background: #5a4b9c; color: #fff; }
   #panel .row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
   #stats { white-space: pre; font: 11px ui-monospace, monospace; color: #b8ffcf; }
-  .nohud #hud, .nohud #goals, .nolabels .label { display: none; }
+  .nohud #hud, .nohud #goals, .nohud .badge, .nohud .gear, .nolabels .label { display: none; }
 </style>
 </head>
 <body>
 <canvas id="scene"></canvas>
-<div id="hud"><div class="bar"><div class="pill" style="min-width:120px;font-size:28px"><span class="coin"></span><span id="money">1.2K</span></div><div class="pill" style="background:rgba(42,35,80,.82);color:#a9ffc8;font-size:17px;padding:3px 12px">+<span id="ips">36</span> /s</div></div></div>
+<div id="hud"><div class="bar"><div class="money ol"><span class="coin"></span><span id="money">1.2K</span></div><div class="income ol">+<span id="ips">36</span>/s</div></div></div>
+<div class="badge"><div class="stars"><i></i></div></div>
+<div class="gear"></div>
 <div id="goals">
-  <div class="goal">Open the Paint booth<div class="track"><div class="fill" style="width:62%"></div></div></div>
-  <div class="goal">Upgrade the Saw to level 10<div class="track"><div class="fill" style="width:40%"></div></div></div>
-  <div class="goal">Sell 100 toys<div class="track"><div class="fill" style="width:18%"></div></div></div>
+  <div class="nextgoal">Open the Paint Booth<div class="track"><div class="fill"></div></div><div class="dot"></div></div>
+  <div class="menu"><div class="mbtn b1 ol">Upgrades</div><div class="mbtn b2 ol">Goals</div><div class="mbtn b3 ol">Factories</div></div>
 </div>
 <div id="labels"></div>
 <button id="toggle">Lab</button>
@@ -128,9 +147,11 @@ if (P.get('hud') === '0') document.body.classList.add('nohud');
 // emulate device safe areas (Playwright has none): safe=top,bottom in CSS px
 if (P.has('safe')) {
   const [st, sb] = P.get('safe').split(',').map(Number);
-  scene.setInsets({ top: 96 + st, bottom: 176 + sb });
-  document.getElementById('hud').style.paddingTop = (st + 10) + 'px';
-  document.getElementById('goals').style.bottom = (sb + 8) + 'px';
+  scene.setInsets({ top: 96 + st, bottom: 150 + sb });
+  document.getElementById('hud').style.paddingTop = (st + 8) + 'px';
+  for (const q of ['.badge', '.gear']) document.querySelector(q).style.top = (st + 8) + 'px';
+  document.getElementById('toggle').style.top = (st + 70) + 'px';
+  document.getElementById('goals').style.bottom = (sb + 6) + 'px';
 }
 if (P.get('labels') === '0') document.body.classList.add('nolabels');
 
@@ -164,9 +185,9 @@ function labels() {
     if (!el) { el = document.createElement('div'); el.className = 'label'; root.appendChild(el); labelEls[i] = el; }
     const s = state.factory.stations[i];
     const a = scene.anchor(s.id);
-    const txt = s.open ? 'Lv ' + s.level : 'Open ' + fmt(cfg.stations[i].openCost);
+    const txt = s.open ? 'Lv ' + s.level : 'Open <b>' + fmt(cfg.stations[i].openCost) + '</b>';
     const cls = 'label ' + (s.open ? 'lvl' : 'price');
-    if (el.textContent !== txt) el.textContent = txt;
+    if (el.dataset.t !== txt) { el.dataset.t = txt; el.innerHTML = txt; }
     if (el.className !== cls) el.className = cls;
     el.style.transform = `translate(${a.x.toFixed(1)}px, ${a.y.toFixed(1)}px) translate(-50%, -100%)`;
   }

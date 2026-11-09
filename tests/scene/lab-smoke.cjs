@@ -1,6 +1,6 @@
 // Fast scene smoke test (no screenshots): loads scene-lab.html for both factories,
 // runs the real-time loop briefly, fires every fx event, taps a station, checks
-// pick/anchor, budgets and that there are no console errors.
+// pick/anchor, budgets, that carriers deliver toys and that there are no console errors.
 // usage: timeout 300 node tests/scene/lab-smoke.cjs
 const http = require('http');
 const fs = require('fs');
@@ -46,13 +46,16 @@ const check = (cond, msg) => { if (!cond) fail.push(msg); };
       }
       for (const L of [10, 25, 50, 100]) { lab.state.factory.stations[0].level = L; lab.step(0.05); }
       for (let i = 0; i < 60; i++) lab.step(1 / 30);
+      // carriers: let the line run a while (no render) and check toys reach the truck by hand
+      for (let i = 0; i < 160; i++) lab.step(0.1, false);
+      const carriers = s.debug.workers.stats();
       s.setQuality('low'); lab.step(0.05);
       const low = s.stats();
       s.setQuality('high'); lab.step(0.05);
       const anchors = ids.map((id) => s.anchor(id));
       const picks = anchors.map((a) => { const h = s.pick(a.x, a.y + 35); return h && h.id; });
       return {
-        ids, anchors, picks, low, high: s.stats(),
+        ids, anchors, picks, low, high: s.stats(), carriers,
         truck: s.anchor('truck'), coins: s.anchor('coins'), byIndex: s.anchor(2), bad: s.anchor('nope'),
         none: s.pick(2, 2),
       };
@@ -66,6 +69,7 @@ const check = (cond, msg) => { if (!cond) fail.push(msg); };
     check(r.none === null, `${factory}: empty corner picks nothing`);
     check(r.low.quality === 'low' && r.high.quality === 'high', `${factory}: setQuality`);
     check(r.high.calls <= 60 && r.high.tris <= 100000, `${factory}: budget ${r.high.calls} calls ${r.high.tris} tris`);
+    check(r.carriers.taken > 0 && r.carriers.delivered > 0, `${factory}: carriers take toys and load the truck (${JSON.stringify(r.carriers)})`);
     // a real tap on the canvas boosts the station in the lab
     const a = r.anchors[0];
     await page.mouse.click(a.x, a.y + 35);

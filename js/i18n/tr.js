@@ -64,6 +64,7 @@ export default {
   'factories.doneText': 'Tüm hedefler toplandı',
   'factories.locked': 'Önce {name} fabrikasını bitir',
   'factories.soon': 'Çok yakında',
+  'factories.lockedTag': 'Kilitli',
   'factories.progress': '{n}/{total} hedef toplandı',
 
   'hud.perSec': '{n}/sn',

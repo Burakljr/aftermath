@@ -87,11 +87,13 @@ export function createFloats(ctx) {
   function toast(text, kind = '') {
     rb.set(text);
     rb.root.className = 'rb rb-' + (TOAST_KIND[kind] || 'purple');
+    rb.set(text);
     toastEl.className = 'toast ' + kind;
     // sit just above the bottom panel (goal pill or open card), near the thumb
     const top = ctx.toastTop ? ctx.toastTop() : window.innerHeight * 0.6;
     toastEl._top = Math.round(top) + 'px';
     toastEl.style.top = toastEl._top;
+    toastEl.style.visibility = top < 0 ? 'hidden' : '';
     toastPosT = 0.1;
     pulse(toastEl, 'toast-in');
     toastT = 2.0;
@@ -106,8 +108,9 @@ export function createFloats(ctx) {
       toastPosT -= dt;
       if (toastPosT <= 0 && toastT > 0 && ctx.toastTop) {
         toastPosT = 0.1;
-        const top = Math.round(ctx.toastTop()) + 'px';
-        if (toastEl._top !== top) { toastEl._top = top; toastEl.style.top = top; }
+        const y = ctx.toastTop();
+        const top = Math.round(y) + 'px';
+        if (toastEl._top !== top) { toastEl._top = top; toastEl.style.top = top; toastEl.style.visibility = y < 0 ? 'hidden' : ''; }
       }
     }
   }

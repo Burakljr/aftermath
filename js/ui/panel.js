@@ -14,7 +14,14 @@ export function ribbon(kind = 'berry', textCls = '') {
     el('span', 'rb-band', null, [text]),
     el('span', 'rb-tail rb-tail-r', { html: TAIL_R }),
   ]);
-  return { root, text, set: (s) => setText(text, s) };
+  // long titles get a smaller font so they never need an ellipsis
+  const set = (s) => {
+    setText(text, s);
+    const n = s ? s.length : 0;
+    toggle(root, 'rb-long', n > 15 && n <= 21);
+    toggle(root, 'rb-xlong', n > 21);
+  };
+  return { root, text, set };
 }
 
 export function closeButton(cls = '') {

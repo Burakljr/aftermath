@@ -89,7 +89,7 @@ export const G = {
   vplane: (w = 1, h = 1) => cached(`vpl${w}|${h}`, () => new THREE.PlaneGeometry(w, h), true),
   star: (outer = 0.5, inner = 0.22, depth = 0.12, points = 5, bevel = true) => cached(`star${outer}|${inner}|${depth}|${points}|${bevel}`, () =>
     extrude(starShape(points, outer, inner), depth, bevel ? depth * 0.35 : 0)),
-  heart: (s = 0.5, depth = 0.12) => cached(`heart${s}|${depth}`, () => extrude(heartShape(s), depth, depth * 0.3, 4)),
+  heart: (s = 0.5, depth = 0.12, bevel = false) => cached(`heart${s}|${depth}|${bevel}`, () => extrude(heartShape(s), depth, bevel ? depth * 0.3 : 0, 3)),
   octa: (r = 1) => cached(`oct${r}`, () => new THREE.OctahedronGeometry(r, 0)),
   ico: (r = 1, d = 0) => cached(`ico${r}|${d}`, () => new THREE.IcosahedronGeometry(r, d)),
 };

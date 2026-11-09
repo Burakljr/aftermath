@@ -79,13 +79,13 @@ function giftGeo(ribbon, inner = null) {
 }
 
 function teddyHead(b, fur, x, y, z, s, face = true, tint = 0) {
-  b.add(G.sphere(9, 7), fur, x, y, z, { s: 0.135 * s, tint });
+  b.add(G.sphere(8, 6), fur, x, y, z, { s: 0.135 * s, tint });
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(6, 5), fur, x + sx * 0.105 * s, y + 0.095 * s, z - 0.01 * s, { s: 0.058 * s, tint, ol: 0.6 });
+    b.add(G.sphere(6, 4), fur, x + sx * 0.105 * s, y + 0.095 * s, z - 0.01 * s, { s: 0.058 * s, tint, ol: 0.6 });
     if (face) b.add(G.sphere(6, 4), 0xffb3c8, x + sx * 0.105 * s, y + 0.095 * s, z + 0.035 * s, { s: 0.03 * s, ol: 0 });
   }
   if (face) {
-    b.add(G.sphere(7, 5), 0xfff0d8, x, y - 0.03 * s, z + 0.105 * s, { sx: 0.065 * s, sy: 0.048 * s, sz: 0.045 * s, ol: 0 });
+    b.add(G.sphere(6, 4), 0xfff0d8, x, y - 0.03 * s, z + 0.105 * s, { sx: 0.065 * s, sy: 0.048 * s, sz: 0.045 * s, ol: 0 });
     b.add(G.sphere(6, 4), PAL.ink, x, y - 0.012 * s, z + 0.15 * s, { s: 0.022 * s, ol: 0 });
     for (const sx of [-1, 1]) b.add(G.sphere(6, 4), PAL.ink, x + sx * 0.052 * s, y + 0.032 * s, z + 0.12 * s, { s: 0.021 * s, ol: 0 });
   }
@@ -115,17 +115,17 @@ function teddyStages(th) {
   // 2: stuffed blank body (no face yet)
   b = new Builder({ ol: OL });
   const blank = shade(fab, 0.3);
-  b.add(G.sphere(9, 7), blank, 0, 0.16, 0, { sx: 0.18, sy: 0.16, sz: 0.16 });
-  b.add(G.sphere(9, 7), blank, 0, 0.37, 0.0, { s: 0.13 });
-  for (const sx of [-1, 1]) b.add(G.sphere(6, 5), blank, sx * 0.095, 0.47, 0, { s: 0.048, ol: 0.6 });
+  b.add(G.sphere(8, 6), blank, 0, 0.16, 0, { sx: 0.18, sy: 0.16, sz: 0.16 });
+  b.add(G.sphere(8, 6), blank, 0, 0.37, 0.0, { s: 0.13 });
+  for (const sx of [-1, 1]) b.add(G.sphere(6, 4), blank, sx * 0.095, 0.47, 0, { s: 0.048, ol: 0.6 });
   out.push(b.build());
   // 3: teddy bear (tinted fur)
   b = new Builder({ ol: OL });
-  b.add(G.sphere(9, 7), 0xffffff, 0, 0.17, 0, { sx: 0.17, sy: 0.16, sz: 0.15, tint: 1 });
-  b.add(G.sphere(7, 5), 0xfff0d8, 0, 0.16, 0.105, { sx: 0.095, sy: 0.095, sz: 0.05, ol: 0 });
+  b.add(G.sphere(8, 6), 0xffffff, 0, 0.17, 0, { sx: 0.17, sy: 0.16, sz: 0.15, tint: 1 });
+  b.add(G.sphere(6, 4), 0xfff0d8, 0, 0.16, 0.105, { sx: 0.095, sy: 0.095, sz: 0.05, ol: 0 });
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(6, 5), 0xffffff, sx * 0.16, 0.21, 0.04, { s: 0.065, tint: 1, ol: 0.6 });   // arms
-    b.add(G.sphere(6, 5), 0xffffff, sx * 0.095, 0.055, 0.1, { s: 0.07, tint: 1, ol: 0.6 }); // legs
+    b.add(G.sphere(6, 4), 0xffffff, sx * 0.16, 0.21, 0.04, { s: 0.065, tint: 1, ol: 0 });   // arms
+    b.add(G.sphere(6, 4), 0xffffff, sx * 0.095, 0.055, 0.1, { s: 0.07, tint: 1, ol: 0 }); // legs
   }
   teddyHead(b, 0xffffff, 0, 0.4, 0.01, 1.08, true, 1);
   b.add(G.sphere(6, 4), th.ribbon, 0, 0.285, 0.12, { sx: 0.055, sy: 0.032, sz: 0.032, ol: 0 });

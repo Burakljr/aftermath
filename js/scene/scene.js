@@ -341,7 +341,7 @@ export function createScene(canvas, opts = {}) {
         const lo = lastOpenIndex();
         stations.corner(lo, _v2);
         if (!workers.takeSold(lo, _v2, items)) items.onSold(lo);
-        const n = Math.min(5, Math.floor(coinBudget));
+        const n = Math.min(4, Math.floor(coinBudget));
         if (n >= 1) {
           coinBudget -= n;
           _v.copy(truck.group.position); _v.y = 1.5; _v.z -= 0.5;
@@ -366,8 +366,9 @@ export function createScene(canvas, opts = {}) {
         if (i < 0) break;
         const big = !!p.milestone;
         stations.pop(i, big ? 2 : 1);
-        stations.anchorPoint(i, _v); _v.y -= 0.4;
-        fx.burst('star', _v, big ? 18 : 9, { speed: big ? 3.6 : 2.6, up: big ? 5.4 : 4, grav: 7.5, drag: 0.8, life: big ? 1.15 : 0.85, size: big ? 1.45 : 1.15, colors: [PAL.yellow, PAL.goldHi, 0xffffff, PAL.orange] });
+        stations.center(i, _v, 1.25);
+        _v.x += 0.35; _v.z += 0.35;
+        fx.burst('star', _v, big ? 18 : 10, { speed: big ? 3.8 : 3.0, up: big ? 5.2 : 4.2, spread: 1.2, grav: 8, drag: 0.7, life: big ? 1.15 : 0.9, size: big ? 1.45 : 1.2, colors: [PAL.yellow, PAL.goldHi, 0xffffff, PAL.orange] });
         fx.burst('sparkle', _v, big ? 12 : 5, { speed: 2.4, up: 2.8, grav: 2, drag: 1, life: 0.7, size: 1.2, colors: [0xffffff, PAL.goldHi] });
         stations.center(i, _v2, 0.06);
         fx.ring(_v2, big ? PAL.yellow : 0xffffff, big ? 2.3 : 1.8);
@@ -443,7 +444,7 @@ export function createScene(canvas, opts = {}) {
     if (needResize) resize();
     time += dt;
     lastState = state || lastState;
-    coinBudget = Math.min(20, coinBudget + dt * 18);
+    coinBudget = Math.min(16, coinBudget + dt * 12);
     stations.update(state, dt);
     truck.update(dt);
     items.update(state, dt, stations, truck);

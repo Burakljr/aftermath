@@ -21,16 +21,19 @@ const WALK_SPEED = 1.75;
 
 // carrier route (world x, z): one line from the station-2 pickup past the
 // station-3 / station-4 pickups to the right side of the truck
-const ROUTE = [[4.45, 0.62], [4.42, 2.95], [4.4, 4.35], [6.5, 4.6], [7.95, 4.4], [8.42, 5.92]];
+const ROUTE = [[5.0, 0.4], [4.42, 2.95], [4.9, 4.32], [6.5, 4.6], [8.5, 4.1], [8.4, 5.72]];
 const PICK_NODE = { 1: 0, 2: 2, 3: 4 }; // last open station index -> route node
 const T_NODE = ROUTE.length - 1;
 // waiting spots behind each pickup and drop spots beside the truck
 const QUEUE = {
-  0: [[4.45, 0.62], [4.64, 1.02], [5.1, 0.72]],
-  2: [[4.4, 4.35], [4.92, 4.78], [5.42, 4.98]],
-  4: [[7.95, 4.38], [8.6, 4.45], [9.22, 4.62]],
+  0: [[5.0, 0.4], [5.62, 0.22], [4.85, -0.28]],
+  2: [[4.9, 4.32], [5.55, 4.6], [5.15, 5.15]],
+  4: [[8.5, 4.1], [9.15, 4.25], [9.25, 3.65]],
 };
-const DROP = [[8.42, 5.92], [8.5, 6.48]];
+const DROP = [[8.4, 5.72], [8.95, 5.55]];
+// break spot (by the water cooler) for a carrier who is not needed (short route)
+export const REST = [3.05, 5.2];
+const REST_NODE = 2;
 
 // ------------------------------------------------------------- geometry
 function buildBody(c, capStyle) {
@@ -38,34 +41,32 @@ function buildBody(c, capStyle) {
   // overalls body + sleeves (shoulders) + bib, straps, buttons, pocket
   b.add(G.box(0.38, 0.3, 0.3, 0.13), c.suit, 0, 0.23, 0);
   b.add(G.box(0.34, 0.09, 0.27, 0.03), c.shirt, 0, 0.38, 0, { ol: 0 });
-  for (const sx of [-1, 1]) b.add(G.sphere(6, 5), c.shirt, sx * 0.2, 0.33, 0, { s: 0.08, ol: 0.8 });
+  for (const sx of [-1, 1]) b.add(G.sphere(6, 4), c.shirt, sx * 0.2, 0.33, 0, { s: 0.08, ol: 0.8 });
   b.add(G.box(0.22, 0.13, 0.04, 0.02), c.suit, 0, 0.33, 0.135, { ol: 0 });
   for (const sx of [-1, 1]) {
     b.add(G.box(0.05, 0.08, 0.03, 0.01), c.suit, sx * 0.085, 0.4, 0.13, { ol: 0 });
     b.add(G.sphere(6, 4), PAL.yellow, sx * 0.085, 0.37, 0.158, { s: 0.026, ol: 0 });
   }
-  b.add(G.box(0.12, 0.06, 0.03, 0.01), shade(c.suit, 0.25), 0, 0.27, 0.155, { ol: 0 });
   // head (tinted: skin tone per worker), ears, nose
   b.add(G.sphere(12, 9), 0xffffff, 0, 0.68, 0, { s: 0.3, tint: 1 });
-  for (const sx of [-1, 1]) b.add(G.sphere(6, 4), 0xffffff, sx * 0.29, 0.66, 0.0, { s: 0.065, tint: 1, ol: 0.7 });
+  for (const sx of [-1, 1]) b.add(G.sphere(6, 4), 0xffffff, sx * 0.29, 0.66, 0.0, { s: 0.065, tint: 1, ol: 0 });
   b.add(G.sphere(6, 4), 0xffffff, 0, 0.645, 0.29, { s: 0.035, tint: 1, ol: 0 });
   // hair below the cap
   b.add(G.sphere(8, 6), c.hair, 0, 0.72, -0.05, { sx: 0.31, sy: 0.27, sz: 0.29, ol: 0 });
-  for (const sx of [-1, 1]) b.add(G.sphere(6, 5), c.hair, sx * 0.23, 0.69, 0.14, { sx: 0.075, sy: 0.1, sz: 0.06, ol: 0 });
+  for (const sx of [-1, 1]) b.add(G.sphere(5, 4), c.hair, sx * 0.23, 0.69, 0.14, { sx: 0.075, sy: 0.1, sz: 0.06, ol: 0 });
   // face: big eyes with sparkles, brows, cheeks, open smile
   for (const sx of [-1, 1]) {
     b.add(G.sphere(7, 5), INK, sx * 0.105, 0.685, 0.262, { sx: 0.047, sy: 0.07, sz: 0.03, ol: 0 });
     b.add(G.sphere(6, 4), 0xffffff, sx * 0.105 + 0.016, 0.708, 0.287, { s: 0.017, ol: 0 });
     b.add(G.box(0.07, 0.018, 0.012, 0), INK, sx * 0.105, 0.778, 0.262, { rz: sx * -0.18, ol: 0 });
-    b.add(G.sphere(6, 4), 0xff7f9e, sx * 0.185, 0.615, 0.225, { sx: 0.055, sy: 0.032, sz: 0.02, ol: 0 });
+    b.add(G.sphere(5, 3), 0xff7f9e, sx * 0.185, 0.615, 0.225, { sx: 0.055, sy: 0.032, sz: 0.02, ol: 0 });
   }
   b.add(G.hemi(8, 3), INK, 0, 0.6, 0.272, { sx: 0.06, sy: 0.045, sz: 0.03, rx: PI, ol: 0 });
-  b.add(G.sphere(6, 4), 0xff6f8a, 0, 0.575, 0.288, { sx: 0.03, sy: 0.015, sz: 0.01, ol: 0 });
   // cap
   if (capStyle === 'hardhat') {
     b.add(G.hemi(12, 5), c.hat, 0, 0.77, -0.01, { sx: 0.325, sy: 0.27, sz: 0.325 });
     b.add(G.cyl(0.35, 0.36, 0.045, 14), c.hat, 0, 0.775, 0.025, { sz: 1.1 });
-    b.add(G.torus(0.2, 0.04, 4, 10, PI), c.hatBand, 0, 0.79, -0.01, { ry: PI / 2, ol: 0 });
+    b.add(G.box(0.07, 0.05, 0.5, 0), c.hatBand, 0, 1.03, -0.02, { ol: 0 });
     b.add(G.star(0.075, 0.034, 0.03, 5, false), 0xffffff, 0, 0.92, 0.27, { rx: -0.5, ol: 0 });
   } else {
     b.add(G.hemi(12, 5), c.hat, 0, 0.77, -0.01, { sx: 0.315, sy: 0.25, sz: 0.315 });
@@ -143,6 +144,7 @@ export function createWorkers(theme, path) {
   const queue = []; // carrier indices waiting (or walking back) at the pickup, in order
   let pick = -1; // route node of the current pickup (-1: no pickup)
   let pickStation = -1;
+  let delivered = 0, taken = 0;
   const spots = [];
   for (let i = 0; i < NW; i++) spots.push({ x: 0, z: 0, s: 0 });
 
@@ -208,6 +210,7 @@ export function createWorkers(theme, path) {
       if (Math.abs(c.x - _v.x) + Math.abs(c.z - _v.z) > 0.15) return false;
       const it = items.takeWork(j);
       pushStack(c, it.stage, it.tint, from);
+      taken++;
       return true;
     },
 
@@ -291,11 +294,28 @@ export function createWorkers(theme, path) {
           if (c.state === 'wait' || c.state === 'return') { leaveQueue(c); goBack(c, nearestNode(c.x, c.z)); c.path.unshift([c.x, c.z]); }
         }
       }
+      const active = lastOpen >= 3 ? 2 : N_CARRIERS;
+      for (const c of C) {
+        if (c.k >= active && (c.state === 'wait' || c.state === 'return') && !c.stack.length) {
+          leaveQueue(c);
+          c.state = 'toRest';
+          c.path = [[c.x, c.z], ...routeNodes(nearestNode(c.x, c.z), REST_NODE), REST];
+          c.pi = 0;
+        } else if (c.k < active && (c.state === 'rest' || c.state === 'toRest')) {
+          goBack(c, REST_NODE);
+          c.path.unshift([c.x, c.z]);
+        }
+      }
       let nl = nOpLimbs;
       let nc = 0;
       for (const c of C) {
         c.t += dt;
         let moved = 0;
+        if (c.state === 'rest') {
+          // sip from a cup now and then, face the viewer
+          c.ry += angleTo(c.ry, PI / 4 + Math.sin(c.t * 0.5) * 0.4) * Math.min(1, dt * 4);
+          c.flick = Math.max(c.flick, Math.sin(c.t * 0.9) > 0.75 ? 0.75 : 0);
+        }
         // decide
         if (c.state === 'wait') {
           const qi = queue.indexOf(c.k);
@@ -330,7 +350,7 @@ export function createWorkers(theme, path) {
             }
           }
         }
-        if (c.state === 'deliver' || c.state === 'return') {
+        if (c.state === 'deliver' || c.state === 'return' || c.state === 'toRest') {
           // follow the path
           let left = c.speed * dt;
           while (left > 0 && c.pi < c.path.length) {
@@ -347,6 +367,7 @@ export function createWorkers(theme, path) {
           }
           if (c.pi >= c.path.length) {
             if (c.state === 'deliver') { c.state = 'drop'; c.throwT = 0.25; c.wait = 0; }
+            else if (c.state === 'toRest') { c.state = 'rest'; c.path.length = 0; }
             else { c.state = 'wait'; c.path.length = 0; }
           }
         }
@@ -361,6 +382,7 @@ export function createWorkers(theme, path) {
             api.handPos(c, c.stack.length - 1, _v);
             if (items.hopFrom(_v, top.stage, top.tint, truck)) {
               c.stack.pop();
+              delivered++;
               c.flick = 1;
               c.throwT = 0.2;
             } else c.throwT = 0.15;
@@ -392,6 +414,7 @@ export function createWorkers(theme, path) {
           const sgn = side ? 1 : -1;
           let ax, az;
           if (carrying) { ax = -1.45 - c.flick * 0.9; az = sgn * 0.32; }
+          else if (c.state === 'rest') { ax = side ? -2.2 * c.flick : Math.sin(c.t * 1.5) * 0.1; az = sgn * (side ? 0.5 : 0.14); }
           else if (c.flick > 0) { ax = -2.4 * c.flick; az = sgn * 0.3; }
           else { ax = Math.sin(ph + side * PI) * 0.7 * mv + Math.sin(c.t * 1.5 + side * PI) * 0.1 * (1 - mv); az = sgn * 0.14; }
           _e.set(ax, 0, az, 'XYZ');
@@ -444,6 +467,9 @@ export function createWorkers(theme, path) {
       out.set(c.x + s * fwd, c.y + 0.24 * WS + k * 0.31 + Math.abs(Math.sin(c.walk)) * 0.065 * c.moving, c.z + co * fwd);
       return out;
     },
+
+    /** debug / tests: carrier counters and states */
+    stats() { return { taken, delivered, states: C.map((c) => c.state), held: C.reduce((a, c) => a + c.stack.length, 0) }; },
 
     dispose() { opBodies.geometry.dispose(); caBodies.geometry.dispose(); arms.geometry.dispose(); feet.geometry.dispose(); },
   };

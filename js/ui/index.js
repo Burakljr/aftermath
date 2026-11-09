@@ -87,7 +87,14 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   // where the ribbon toast goes: above the card's ribbon or the goal pill, or under the
   // HUD while a menu panel covers the bottom of the screen
   ctx.toastTop = () => {
-    if (panelOpen()) return Math.round(hud.bottom() + 10);
+    if (panelOpen()) {
+      // between the HUD and the open panel's ribbon; hidden (-1) when there is no room
+      let top = Infinity;
+      for (const k in menus) if (menus[k].isOpen()) top = Math.min(top, menus[k].panel.panel.offsetTop); // offsetTop ignores the pop-in scale
+      const hb = hud.bottom();
+      const y = top - 30 - 52;
+      return y >= hb + 4 ? Math.round(Math.max(hb + 10, y - 6)) : -1;
+    }
     return card.isOpen() ? card.root.offsetTop - 78 : menu.root.offsetTop - 60;
   };
   ctx.firstDoneGoal = () => goals.firstDoneTile();
@@ -104,7 +111,7 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
       const r = e.getBoundingClientRect();
       // point just under the badge / at the tip of the sign's stem so the hand never hides the text
       // (the sign: ring at the tip of its pointer, so the price stays readable)
-      if (r.width > 0 && e === m.sign) return { x: r.left + r.width / 2, y: r.bottom + 22, h: 8, ring: { x: r.left + r.width / 2, y: r.bottom + 14 } };
+      if (r.width > 0 && e === m.sign) return { x: r.left + r.width / 2, y: r.bottom + 38, h: 8, ring: { x: r.left + r.width / 2, y: r.bottom + 32 }, preferBelow: true };
       if (r.width > 0) return { x: r.left + r.width / 2, y: r.bottom + 2, h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
     }
     const a = ctx.anchor(id);

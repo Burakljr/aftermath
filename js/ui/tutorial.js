@@ -15,12 +15,6 @@ export function createTutorial(ctx) {
   let hintTarget = null;
   let visible = false;
 
-  function centerOf(e) {
-    if (!e) return null;
-    const r = e.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) return null;
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height };
-  }
   // Big buttons: point at the empty right part so the label and price stay readable.
   function buttonPoint(e) {
     if (!e) return null;
@@ -67,6 +61,10 @@ export function createTutorial(ctx) {
       // beside the hand
       x = roomRight >= bubbleW ? p.x + gap : p.x - gap - bubbleW;
       y = ring.y - bubbleH / 2;
+    } else if (p.preferBelow && p.y + 70 + bubbleH < ctx.panelTop() - 12) {
+      // under the hand (an Open sign sits above the target, so "above" would cover it)
+      x = p.x - bubbleW / 2;
+      y = p.y + 70;
     } else if (p.y > H * 0.5) {
       // above the target
       x = p.x - bubbleW / 2;
@@ -122,8 +120,9 @@ export function createTutorial(ctx) {
       }
       goalsShownFor += dt;
       if (goalsShownFor > 6) { g.act({ type: 'tutorial', step: 'done' }); setVisible(false); return; }
-      const c = centerOf(ctx.goalsRoot());
-      place(c ? { x: c.x, y: c.y, h: c.h, bubbleAbove: c.y - c.h / 2 - 6 } : null, ctx.tx('tut.goals'));
+      // point at the goal icon on the left so the goal text stays readable
+      const pr = ctx.goalsRoot() ? ctx.goalsRoot().getBoundingClientRect() : null;
+      place(pr && pr.width > 0 ? { x: pr.left + 30, y: pr.top + pr.height * 0.6, h: 8, ring: { x: pr.left + 28, y: pr.top + pr.height / 2 }, bubbleAbove: pr.top - 6 } : null, ctx.tx('tut.goals'));
     }
   }
 

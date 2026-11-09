@@ -74,7 +74,7 @@ export function createFactories(ctx) {
       toggle(n.go, 'is-hidden', !canGo);
       setText(n.goText, ctx.tx('complete.next'));
       toggle(n.tag, 'is-hidden', canGo || !!soon);
-      setText(n.tagText, done ? ctx.tx('factories.done') : here ? ctx.tx('factories.here') : ctx.tx('sign.locked'));
+      setText(n.tagText, done ? ctx.tx('factories.done') : here ? ctx.tx('factories.here') : ctx.tx('factories.lockedTag'));
     }
   }
 

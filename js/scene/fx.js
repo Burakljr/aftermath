@@ -7,8 +7,8 @@ const PI = Math.PI;
 
 function coinGeo() {
   const b = new Builder();
-  b.add(G.cyl(0.16, 0.16, 0.055, 12), PAL.gold, 0, 0, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.115, 0.115, 0.064, 12), PAL.goldHi, 0, 0, 0, { rx: PI / 2, ol: 0 });
+  b.add(G.cyl(0.16, 0.16, 0.055, 10), PAL.gold, 0, 0, 0, { rx: PI / 2 });
+  b.add(G.cyl(0.115, 0.115, 0.064, 10), PAL.goldHi, 0, 0, 0, { rx: PI / 2, ol: 0 });
   b.add(G.box(0.04, 0.12, 0.07, 0), 0xfff6c8, 0, 0, 0, { ol: 0 });
   return b.build();
 }

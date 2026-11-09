@@ -41,7 +41,7 @@ function cabinet(b, color, h, tier, icon = 'star') {
     b.add(G.box(0.02, 0.15, 0.12, 0), PAL.yellow, 0.925, 0.11, t, { rx: -0.6, ol: 0 });
   }
   // body, darker skirt, light lid
-  b.add(G.box(1.62, h, 1.62, 0.24), color, 0, 0.22 + h / 2, 0);
+  b.add(G.box(1.62, h, 1.62, 0.19), color, 0, 0.22 + h / 2, 0);
   b.add(G.box(1.67, 0.12, 1.67, 0.05), dark, 0, 0.3, 0, { ol: 0.7 });
   const top = 0.22 + h;
   b.add(G.box(1.78, 0.17, 1.78, 0.08), tier >= 3 ? GOLD : light, 0, top + 0.04, 0);
@@ -50,14 +50,14 @@ function cabinet(b, color, h, tier, icon = 'star') {
   b.add(G.box(1.06, 0.46, 0.08, 0.07), PAL.cream, -0.06, sy, 0.79, { ol: 0.8 });
   b.add(G.box(0.9, 0.3, 0.06, 0.06), 0x2b2440, -0.06, sy, 0.82, { ol: 0 });
   const by = 0.22 + h * 0.24;
-  b.add(G.cyl(0.085, 0.085, 0.09, 12), PAL.red, -0.42, by, 0.81, { rx: PI / 2, ol: 0.7 });
-  b.add(G.cyl(0.085, 0.085, 0.09, 12), PAL.yellow, -0.16, by, 0.81, { rx: PI / 2, ol: 0.7 });
-  b.add(G.cyl(0.085, 0.085, 0.09, 12), PAL.green, 0.1, by, 0.81, { rx: PI / 2, ol: 0.7 });
+  b.add(G.cyl(0.085, 0.085, 0.09, 8), PAL.red, -0.42, by, 0.81, { rx: PI / 2, ol: 0.7 });
+  b.add(G.cyl(0.085, 0.085, 0.09, 8), PAL.yellow, -0.16, by, 0.81, { rx: PI / 2, ol: 0.7 });
+  b.add(G.cyl(0.085, 0.085, 0.09, 8), PAL.green, 0.1, by, 0.81, { rx: PI / 2, ol: 0.7 });
   // round emblem on the belt side (+X face)
   const ey = 0.22 + h * 0.56;
-  b.add(G.cyl(0.29, 0.29, 0.07, 18), PAL.cream, 0.81, ey, -0.08, { rz: PI / 2, ol: 0.8 });
+  b.add(G.cyl(0.29, 0.29, 0.07, 14), PAL.cream, 0.81, ey, -0.08, { rz: PI / 2, ol: 0.8 });
   if (icon === 'heart') b.add(G.heart(0.34, 0.05), color, 0.86, ey, -0.08, { ry: PI / 2, ol: 0 });
-  else b.add(G.star(0.19, 0.085, 0.05), color, 0.86, ey, -0.08, { ry: PI / 2, ol: 0 });
+  else b.add(G.star(0.19, 0.085, 0.05, 5, false), color, 0.86, ey, -0.08, { ry: PI / 2, ol: 0 });
   // rivets on the lid corners
   for (const [x, z] of [[-0.72, 0.72], [0.72, 0.72], [0.72, -0.72]]) b.add(G.sphere(6, 4), dark, x, top + 0.13, z, { s: 0.045, ol: 0 });
   // milestone trims

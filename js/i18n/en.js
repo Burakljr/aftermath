@@ -64,6 +64,7 @@ export default {
   'factories.doneText': 'All goals collected',
   'factories.locked': 'Finish {name} first',
   'factories.soon': 'Coming soon',
+  'factories.lockedTag': 'Locked',
   'factories.progress': '{n}/{total} goals collected',
 
   'hud.perSec': '{n}/s',
