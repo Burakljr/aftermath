@@ -1,5 +1,6 @@
 // createUI(): the whole DOM UI on top of the 3D canvas.
-// createUI({ root, game, scene, audio, canvas }) -> { update(dt), openCard(id), closeCard(), destroy() }
+// createUI({ root, game, scene, audio, canvas }) -> { update(dt), openCard(id), closeCard(),
+//   openSettings(), openMenu(id), tapStation(id), relabel(), destroy() }
 import { el, toggle } from './dom.js';
 import { t as translate } from '../game/i18n.js';
 import { formatNumber } from '../game/format.js';
@@ -8,6 +9,9 @@ import { createHUD } from './hud.js';
 import { createMarks } from './marks.js';
 import { createCard } from './card.js';
 import { createGoals } from './goals.js';
+import { createMenu } from './menu.js';
+import { createUpgrades } from './upgrades.js';
+import { createFactories } from './factories.js';
 import { createTutorial } from './tutorial.js';
 import { createSettings } from './settings.js';
 import { createComplete } from './complete.js';
@@ -53,29 +57,45 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   let hintT = 0;
   ctx.upgradeHints = () => hintCache;
 
+  // menu panels are opened through ctx.openMenu (defined below, used by the HUD too)
+  ctx.openMenu = (id) => openMenu(id);
   const hud = createHUD(ctx);
   const marks = createMarks(ctx);
   const goals = createGoals(ctx);
+  const menu = createMenu(ctx, goals.pill);
   const card = createCard(ctx);
   const floats = createFloats(ctx);
+  const upgrades = createUpgrades(ctx);
+  const factories = createFactories(ctx);
   const settings = createSettings(ctx);
   const offline = createOffline(ctx);
   const complete = createComplete(ctx);
   const tutorial = createTutorial(ctx);
+  const menus = { upgrades, goals, factories };
 
   ctx.coinTarget = () => hud.coinTarget();
   ctx.hudBump = () => hud.bump();
-  ctx.openSettings = () => { closeCard(); settings.open(); };
+  ctx.goalsDone = () => goals.doneCount();
+  ctx.openCard = (id) => openCard(id);
+  ctx.openSettings = () => { closeCard(); closePanels(); settings.open(); };
   ctx.cardOpen = () => card.isOpen();
   ctx.cardStation = () => card.station();
   ctx.cardButton = () => card.button();
-  ctx.goalsRoot = () => goals.root;
+  ctx.goalsRoot = () => goals.pill;
   // offsetTop ignores the card's slide-in transform, so this is where the panel will be
-  ctx.panelTop = () => (card.isOpen() ? card.root.offsetTop : goals.root.offsetTop);
+  ctx.panelTop = () => (card.isOpen() ? card.root.offsetTop : menu.root.offsetTop);
+  // where the ribbon toast goes: above the card's ribbon or the goal pill, or under the
+  // HUD while a menu panel covers the bottom of the screen
+  ctx.toastTop = () => {
+    if (panelOpen()) return Math.round(hud.bottom() + 10);
+    return card.isOpen() ? card.root.offsetTop - 78 : menu.root.offsetTop - 60;
+  };
   ctx.firstDoneGoal = () => goals.firstDoneTile();
+  const panelOpen = () => upgrades.isOpen() || goals.isOpen() || factories.isOpen();
   ctx.blockingModal = () => offline.isOpen() || settings.isOpen();
-  ctx.modalOpen = () => offline.isOpen() || settings.isOpen() || complete.isOpen();
+  ctx.modalOpen = () => offline.isOpen() || settings.isOpen() || complete.isOpen() || panelOpen();
   ctx.closeCard = () => closeCard();
+  ctx.closePanels = () => closePanels();
   ctx.stationPoint = (id) => {
     const m = marks.elementFor(id);
     if (m) {
@@ -83,13 +103,16 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
       const e = target && target.open ? m.badge : m.sign;
       const r = e.getBoundingClientRect();
       // point just under the badge / at the tip of the sign's stem so the hand never hides the text
-      if (r.width > 0) return { x: r.left + r.width / 2, y: r.bottom + (e === m.sign ? 10 : 2), h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
+      // (the sign: ring at the tip of its pointer, so the price stays readable)
+      if (r.width > 0 && e === m.sign) return { x: r.left + r.width / 2, y: r.bottom + 22, h: 8, ring: { x: r.left + r.width / 2, y: r.bottom + 14 } };
+      if (r.width > 0) return { x: r.left + r.width / 2, y: r.bottom + 2, h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
     }
     const a = ctx.anchor(id);
     return a ? { x: a.x, y: a.y, h: 30 } : null;
   };
   ctx.coinBurst = (x, y, amount, n) => {
     floats.floatText(x, y - 10, '+' + ctx.num(amount), 'is-big');
+    floats.starBurst(x, y, 6, '#FFE27A', 0.7);
     floats.coinFlight(x, y, n);
     ctx.sfx('claim');
   };
@@ -115,6 +138,18 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   function closeCard() {
     card.hide();
     root.classList.remove('card-open');
+  }
+  function closePanels() {
+    for (const k in menus) if (menus[k].isOpen()) menus[k].close();
+  }
+  function openMenu(id) {
+    const m = menus[id];
+    if (!m) return;
+    if (offline.isOpen() || complete.isOpen() || settings.isOpen()) return;
+    closeCard();
+    for (const k in menus) if (k !== id && menus[k].isOpen()) menus[k].close();
+    if (!m.isOpen()) ctx.sfx('swish');
+    m.open();
   }
 
   function tapStation(id) {
@@ -160,6 +195,7 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   let saleT = 0;
   let coinT = 0;
   let tickT = 0;
+  let sparkT = 0;
   const on = (ev, fn) => unsubs.push(game.on(ev, fn));
   const stationName = (id) => {
     const sc = game.config().stations.find((s) => s.id === id);
@@ -172,19 +208,23 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   });
   on('upgrade', (p) => {
     hintT = 0;
+    const pt = ctx.stationPoint(p.station);
     if (p.milestone) {
       ctx.sfx('milestone');
-      const pt = ctx.stationPoint(p.station);
-      if (pt) floats.starBurst(pt.x, pt.y, 10, '#ffc93c');
+      if (pt) { floats.starBurst(pt.ring ? pt.ring.x : pt.x, pt.ring ? pt.ring.y : pt.y, 12, '#FFC82E'); floats.starBurst(pt.x, pt.y, 6, '#FFE27A', 0.7); }
       floats.toast(ctx.tx('toast.milestone', { station: stationName(p.station) }), 'is-star');
-    } else ctx.sfx('upgrade');
+    } else {
+      ctx.sfx('upgrade');
+      // small level-up sparkle on the badge (rate limited while holding the button)
+      if (pt && sparkT <= 0) { sparkT = 0.15; floats.starBurst(pt.ring ? pt.ring.x : pt.x, pt.ring ? pt.ring.y : pt.y, 5, '#FFE27A', 0.6); }
+    }
   });
   on('open', (p) => {
     hintT = 0;
     ctx.sfx('open');
     setTimeout(() => {
       const pt = ctx.stationPoint(p.station);
-      if (pt) { floats.starBurst(pt.x, pt.y, 12, '#ff5fa2'); floats.starBurst(pt.x, pt.y, 8, '#4cb8ff'); }
+      if (pt) { floats.starBurst(pt.x, pt.y, 12, '#FF4F7E'); floats.starBurst(pt.x, pt.y, 8, '#34A3FF', 0.7); }
     }, 30);
     floats.toast(ctx.tx('toast.open', { station: stationName(p.station) }), 'is-open');
   });
@@ -196,6 +236,7 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   });
   on('factoryStart', () => {
     closeCard();
+    closePanels();
     marks.rebuild();
     hintT = 0;
     floats.toast(ctx.tx(game.select.factory().nameKey), 'is-open');
@@ -211,14 +252,17 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
       document.documentElement.lang = lang();
       document.title = ctx.tx('app.title');
     } catch { /* ignore */ }
-    hud.relabel(); marks.relabel(); goals.relabel(); card.relabel(); settings.relabel(); offline.relabel(); complete.relabel();
+    hud.relabel(); marks.relabel(); goals.relabel(); menu.relabel(); card.relabel();
+    upgrades.relabel(); factories.relabel(); settings.relabel(); offline.relabel(); complete.relabel();
   }
 
   // --- tell the scene how much screen the UI covers
   let insetsDirty = true;
+  let insetsT = 0;
   // safe-area insets in px (the scene adds them itself, so we pass the UI part only)
   const safeProbe = el('div', 'safe-probe');
   root.appendChild(safeProbe);
+  let lastInsets = '';
   function syncInsets() {
     insetsDirty = false;
     if (!scene || !scene.setInsets) return;
@@ -226,22 +270,31 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
     const safeTop = parseFloat(cs.paddingTop) || 0;
     const safeBottom = parseFloat(cs.paddingBottom) || 0;
     const top = Math.round(hud.bottom() + 6 - safeTop);
-    const bottom = Math.round(window.innerHeight - goals.top() + 6 - safeBottom);
+    // the menu bar slides away while the card is open; measure its resting place (offsetTop)
+    const bottom = Math.round(window.innerHeight - menu.root.offsetTop + 6 - safeBottom);
+    const key = top + ',' + bottom;
+    if (key === lastInsets) return;
+    lastInsets = key;
     try { scene.setInsets({ top, bottom, left: 4, right: 4 }); } catch { /* ignore */ }
   }
   const onResize = () => { insetsDirty = true; };
   window.addEventListener('resize', onResize);
   unsubs.push(() => window.removeEventListener('resize', onResize));
+  // fonts change the HUD height once they load
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { insetsDirty = true; }); } catch { /* ignore */ }
 
   function update(dt) {
     if (!(dt >= 0)) dt = 0;
     dt = Math.min(dt, 0.1);
+    insetsT -= dt;
+    if (insetsT <= 0) { insetsT = 1; insetsDirty = true; }
     if (insetsDirty) syncInsets();
     hintT -= dt;
     if (hintT <= 0) { hintT = 0.25; hintCache = game.select.hints(); }
     tickT -= dt;
     saleT -= dt;
     coinT -= dt;
+    sparkT -= dt;
     if (saleAcc > 0 && saleT <= 0) {
       saleT = 0.3;
       const a = ctx.anchor('truck');
@@ -254,13 +307,17 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
     hud.update(dt);
     marks.update(dt);
     goals.update(dt);
+    menu.update(dt);
     card.update(dt);
+    upgrades.update(dt);
+    factories.update(dt);
     floats.update(dt);
     offline.update(dt);
     complete.update(dt);
     settings.update(dt);
     tutorial.update(dt);
     toggle(root, 'has-modal', ctx.modalOpen());
+    toggle(root, 'has-menu', panelOpen());
   }
 
   relabel();
@@ -271,6 +328,7 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
     openCard,
     closeCard,
     openSettings: () => ctx.openSettings(),
+    openMenu,
     tapStation,
     relabel,
     destroy() {

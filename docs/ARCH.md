@@ -39,16 +39,20 @@ js/game/i18n.js            dictionaries, detectLang(), t(), LANG_NAMES
 js/game/index.js           createGame(), EVENTS
 js/i18n/en.js, tr.js       flat key -> string objects with {name} placeholders
 js/ui/index.js             createUI()
-js/ui/hud.js               coins (rolling counter) + income + settings button + FPS meter
-js/ui/marks.js             (addition) DOM overlays at station anchors: level badge, upgrade arrow, Open sign
-js/ui/card.js              station card (bottom sheet, one big button, hold to repeat)
-js/ui/goals.js             goal strip (3 tiles, collect)
+js/ui/hud.js               factory badge (3-star goal bar) + coin pill (rolling counter) + income chip + gear + FPS meter
+js/ui/marks.js             (addition) DOM stickers at station anchors: level badge, upgrade arrow, Open sign, Soon sticker
+js/ui/card.js              station card (bottom panel with ribbon, milestone stars, one big button, hold to repeat)
+js/ui/goals.js             next-goal pill (collect / open panel) + Goals panel
+js/ui/menu.js              bottom menu bar: Upgrades, Goals, Factories (+ notification badges)
+js/ui/upgrades.js          Upgrades panel: every station with level, gain and a buy button (hold to repeat)
+js/ui/factories.js         Factories panel: map of factories (done / current / locked / coming soon)
+js/ui/panel.js             shared ribbon banner, red close button, modal panel shell
 js/ui/tutorial.js          3-step pointing hand
-js/ui/settings.js          settings sheet
-js/ui/complete.js          factory complete screen
-js/ui/offline.js           "while you were away" card
-js/ui/floats.js            +coins floats, coin flights, star bursts, toasts
-js/ui/dom.js               DOM helpers + inline SVG icons (own drawings)
+js/ui/settings.js          settings panel
+js/ui/complete.js          factory complete screen (ribbon, stars, edge confetti)
+js/ui/offline.js           "while you were away" panel
+js/ui/floats.js            outlined +coins floats, coin flights, star bursts, ribbon toast
+js/ui/dom.js               DOM helpers, hold-to-repeat, inline SVG icons with ink outlines (own drawings)
 js/scene/*.js              three.js view (scene agent; kit.js = shared helpers, an addition)
 js/scene/layout.js         shared layout numbers (both sides import it)
 tests/logic/run.mjs        runs tests/logic/*.test.mjs (node, no deps): `node tests/logic/run.mjs`
@@ -208,11 +212,28 @@ the cheapest upgrade, no boosts, no saving) still finishes factory 1 (~27 min): 
 ## UI (js/ui)
 
 `createUI({ root, game, scene, audio, canvas })` -> `{ update(dt), openCard(id), closeCard(),
-openSettings(), tapStation(id), relabel(), destroy() }`
+openSettings(), openMenu('upgrades'|'goals'|'factories'), tapStation(id), relabel(), destroy() }`
 
 - Builds all DOM inside `root` (full-screen, above the canvas, `pointer-events: none`
-  except on controls). Layers: marks, panels (goal strip, card), floats, top (HUD, toast),
-  overlays (modals, tutorial).
+  except on controls). Layers: marks, panels (next-goal pill + menu bar, card), floats
+  (above everything), top (HUD, toast), overlays (modals, menu panels, tutorial).
+- Look (restyle round): casual idle-tycoon style. Ink #2A1E3B outlines (3-4 px), cream
+  #FFF4DC panels with ribbon banners and a round red close button, numbers in white Fredoka
+  700 with an ink stroke (`.ot`: `-webkit-text-stroke` + `paint-order: stroke fill`), glossy
+  3D buttons (`.b3` + `.b3-green|blue|yellow|orange|red|purple`, dark bottom edge that
+  compresses on press, `is-ready` = gentle pulse, `is-disabled` = grey). All icons are our
+  own inline SVG (`ICONS` in dom.js).
+- HUD: factory badge (top left; medal + 3-segment star bar = goals collected; tap: Factories
+  panel), coin pill + income chip (top middle), gear (top right).
+- Bottom: next-goal pill (first collectable goal, else the first open one; tap collects or
+  opens the Goals panel; red dot when something can be collected) above a menu bar with
+  Upgrades (list of all stations, buy / hold to repeat / open), Goals (factory progress +
+  the 3 visible goals with Collect / Go) and Factories (map: done, current, locked, coming
+  soon; "Next factory" when the current one is complete). The pill + bar use about 17 % of
+  a 390 x 844 screen (21 % with a 34 px home bar). They slide away while the station card is
+  open. Menu panels sit at the bottom; the HUD stays above their dimmed backdrop.
+- `scene.setInsets()` gets the HUD bottom and the resting top of the bottom pill + bar (re-checked
+  once a second and on resize; only sent when it changes).
 - Subscribes to game events itself (floats, coin flights, toasts, sounds, card refresh),
   reads `game.state` every frame with change detection (no layout reads in the frame loop
   except anchors -> transforms).
@@ -301,10 +322,12 @@ its own `tools/serve.mjs` on `PORT` and stops it at the end. Headless WebGL is s
 - `timeout 600 node tests/shots.cjs <outDir>` - 9 screenshots of the real game in play
   order at 390x844, DPR 2 (01-start-tutorial ... 09-offline-card) + `stats.json` with draw
   calls and triangles per shot and at Low (~1 min).
-- `timeout 600 node tests/ui/lab-play.cjs` - UI interaction checks in the UI lab (PORT, default 5301).
+- `timeout 600 node tests/ui/lab-play.cjs` - UI interaction checks in the UI lab (PORT, default 5301): card,
+  upgrade, hold to repeat, goal pill collect, Open sign, Upgrades list, Goals panel, Factories panel,
+  settings, offline, complete -> next factory, 44 px touch targets, bottom UI <= 22 %, safe areas.
 - `timeout 600 node tests/ui/lab-shots.cjs <outDir>` - UI lab screenshots at 390x844 and 390x664, 1x.
 - `timeout 900 node tests/scene/lab-smoke.cjs` / `lab-shots.cjs <outDir>` - scene lab (PORT, default 5302).
-- UI lab presets: `ui-lab.html?state=fresh|card|poor|locked|goals|tut1|milestone|sales|complete|teddy|offline|settings&lang=en|tr&paused=1`;
+- UI lab presets: `ui-lab.html?state=fresh|card|poor|locked|goals|collect|tut1|milestone|sales|upgrades|goalspanel|factories|teddyfac|complete|teddy|late|offline|settings&lang=en|tr&paused=1`;
   `window.toy = { game, ui, scene, step(dt), buy(station, n), applyPreset(name) }`.
 
 ## Scene (js/scene)

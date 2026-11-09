@@ -43,6 +43,28 @@ export default {
   'goal.allLevel': 'Get every station to level {n}',
   'goal.collect': 'Collect',
   'goal.progress': '{cur}/{target}',
+  'goals.go': 'Go',
+  'goals.count': '{n}/{total}',
+  'goals.note': 'Collect every goal to finish the factory.',
+
+  'menu.upgrades': 'Upgrades',
+  'menu.goals': 'Goals',
+  'menu.factories': 'Factories',
+
+  'upgrades.title': 'Upgrades',
+  'upgrades.buy': 'Upgrade',
+  'upgrades.gain': '+{n} per toy',
+  'upgrades.slowest': 'Slowest',
+  'upgrades.tip': 'Hold a button to buy faster',
+
+  'factories.title': 'Factories',
+  'factories.n': 'Factory {n}',
+  'factories.here': 'You are here',
+  'factories.done': 'Complete',
+  'factories.doneText': 'All goals collected',
+  'factories.locked': 'Finish {name} first',
+  'factories.soon': 'Coming soon',
+  'factories.progress': '{n}/{total} goals collected',
 
   'hud.perSec': '{n}/s',
   'hud.coins': 'Coins',
@@ -61,6 +83,7 @@ export default {
   'card.lockedFirst': 'Open {station} first.',
   'card.newStep': 'Adds a new step to the line.',
   'card.close': 'Close',
+  'card.newStation': 'New station',
 
   'mark.level': 'Lv {n}',
   'sign.open': 'Open',

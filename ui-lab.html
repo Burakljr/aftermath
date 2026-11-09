@@ -11,29 +11,35 @@
   #stage {
     position: fixed; inset: 0; overflow: hidden; touch-action: none;
     background:
-      linear-gradient(180deg, #9fdcff 0%, #b9e6ff 24%, #ffe8c2 24.2%, #ffe1b0 100%);
+      repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 2px, transparent 2px 46px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.18) 0 2px, transparent 2px 46px),
+      linear-gradient(180deg, #7FCBFF 0%, #A9DDFF 21%, #FFB35C 21.2%, #FFB35C 22.6%, #FFD98E 22.8%, #FFC870 100%);
   }
   #stage svg.belt { position: absolute; inset: 0; width: 100%; height: 100%; }
   .blob {
-    position: absolute; width: 92px; height: 78px; margin: -39px 0 0 -46px;
+    position: absolute; width: 96px; height: 80px; margin: -40px 0 0 -48px;
     border-radius: 22px; display: grid; place-items: center; color: #fff;
-    box-shadow: inset 0 -8px 0 rgba(0,0,0,.14), 0 10px 0 rgba(80,50,20,.12);
+    border: 4px solid #2A1E3B; box-sizing: border-box;
+    background-image: linear-gradient(rgba(255,255,255,.3), rgba(255,255,255,0) 50%) !important;
+    box-shadow: inset 0 -9px 0 rgba(0,0,0,.18), 0 8px 0 rgba(42,30,59,.25);
     transition: filter .2s, transform .12s;
   }
-  .blob .ico { width: 40px; height: 40px; }
-  .blob.locked { background: repeating-linear-gradient(45deg, #ffffffaa 0 10px, #ffd9a0aa 10px 20px) !important; box-shadow: none; border: 4px dashed #e8b46a; color: #d9a35b; }
+  .blob .ico { width: 44px; height: 44px; }
+  .blob.locked { background: repeating-linear-gradient(45deg, #fff4dcdd 0 10px, #ffd59add 10px 20px) !important; box-shadow: none; border: 4px dashed #C98A3A; color: #C98A3A; }
+  .blob.locked .ico { opacity: .35; }
   .blob.boost { filter: brightness(1.18) saturate(1.2); }
   .blob.flash { transform: scale(1.12); }
-  .blob .worker { position: absolute; right: -14px; bottom: -6px; width: 30px; height: 30px; border-radius: 50%; background: #ffd7b0; border: 3px solid #fff; box-shadow: 0 3px 0 rgba(0,0,0,.1); }
+  .blob .worker { position: absolute; right: -16px; bottom: -8px; width: 32px; height: 32px; border-radius: 50%; background: #FFD7B0; border: 3px solid #2A1E3B; box-shadow: inset 0 -4px 0 #F2B98A; }
+  .blob .worker::before { content: ''; position: absolute; left: -3px; right: -3px; top: -6px; height: 13px; border-radius: 12px 12px 3px 3px; background: #FFC82E; border: 3px solid #2A1E3B; }
   .blob.locked .worker { display: none; }
-  .blob .prog { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 6px; border-radius: 9px; background: rgba(255,255,255,.35); overflow: hidden; }
+  .blob .prog { position: absolute; left: 12px; right: 12px; bottom: 9px; height: 7px; border-radius: 9px; background: rgba(42,30,59,.35); overflow: hidden; }
   .blob .prog i { display: block; height: 100%; background: #fff; transform-origin: left; }
-  .blob .tray { position: absolute; left: -26px; top: 50%; display: flex; flex-direction: column; gap: 3px; margin-top: -24px; }
-  .blob .tray b { width: 14px; height: 14px; border-radius: 4px; background: #ffb84d; box-shadow: 0 2px 0 rgba(0,0,0,.15); }
-  .truck { position: absolute; width: 120px; height: 66px; margin: -33px 0 0 -60px; border-radius: 16px; background: #ff6b6b; box-shadow: inset 0 -8px 0 rgba(0,0,0,.15); }
-  .truck::before { content: ''; position: absolute; right: -34px; top: 18px; width: 40px; height: 48px; border-radius: 0 14px 10px 0; background: #ffd23c; }
-  .truck::after { content: ''; position: absolute; left: 14px; bottom: -12px; width: 22px; height: 22px; border-radius: 50%; background: #3a3355; box-shadow: 70px 0 0 #3a3355; }
-  .lab-tag { position: fixed; left: 6px; bottom: 2px; font: 600 10px system-ui; color: #b28a5a; z-index: 1; }
+  .blob .tray { position: absolute; left: -28px; top: 50%; display: flex; flex-direction: column; gap: 3px; margin-top: -26px; }
+  .blob .tray b { width: 15px; height: 15px; border-radius: 4px; background: #FFB24D; border: 2.5px solid #2A1E3B; }
+  .truck { position: absolute; width: 124px; height: 68px; margin: -34px 0 0 -62px; border-radius: 16px; background: #FF4F7E; border: 4px solid #2A1E3B; box-sizing: border-box; box-shadow: inset 0 -9px 0 rgba(0,0,0,.18); }
+  .truck::before { content: ''; position: absolute; right: -38px; top: 14px; width: 40px; height: 48px; border-radius: 0 14px 10px 0; background: #FFC82E; border: 4px solid #2A1E3B; border-left: 0; }
+  .truck::after { content: ''; position: absolute; left: 12px; bottom: -16px; width: 22px; height: 22px; border-radius: 50%; background: #2A1E3B; box-shadow: 72px 0 0 #2A1E3B; }
+  .lab-tag { position: fixed; left: 6px; bottom: 2px; font: 600 10px system-ui; color: #a2702a; z-index: 1; }
 </style>
 </head>
 <body>
@@ -46,7 +52,7 @@ import { createUI } from './js/ui/index.js';
 import { createAudio } from './js/audio.js';
 import { SCREEN } from './js/scene/layout.js';
 import { ICONS } from './js/ui/dom.js';
-import { GLYPH, STATION_COLORS } from './js/ui/card.js';
+import { GLYPH, STATION_COLORS } from './js/ui/dom.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -86,7 +92,7 @@ function createFakeScene(stage) {
     truck.style.left = t.x + 'px';
     truck.style.top = t.y + 'px';
     const all = [{ x: pts[0].x, y: pts[0].y - 90 }, ...pts, t];
-    belt.innerHTML = `<polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#5a648c" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#8b95bd" stroke-width="12" stroke-dasharray="6 10" stroke-linejoin="round"/>`;
+    belt.innerHTML = `<polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#2A1E3B" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#5B5F7A" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#8E93B0" stroke-width="10" stroke-dasharray="6 10" stroke-linejoin="round"/>`;
   }
   window.addEventListener('resize', layout);
   return {
@@ -182,7 +188,7 @@ function applyPreset(p) {
   const s = game.state;
   if (p === 'fresh') return;
   s.tutorial = 'done';
-  if (['card', 'poor', 'locked', 'goals', 'settings', 'tut1', 'milestone', 'sales'].includes(p)) {
+  if (['card', 'poor', 'locked', 'goals', 'settings', 'tut1', 'milestone', 'sales', 'upgrades', 'goalspanel', 'factories', 'collect'].includes(p)) {
     s.money = 5000;
     buy('saw', 6); buy('assembly', 8);
     s.money = 120;
@@ -194,6 +200,10 @@ function applyPreset(p) {
   if (p === 'goals') { s.money = 1e4; buy('saw', 2); game.act({ type: 'claimGoal', id: 'w1' }); s.factory.sold = 25; s.money = 300; }
   if (p === 'tut1') { s.tutorial = 1; s.money = 760; }
   if (p === 'settings') { step(0.3); ui.openSettings(); }
+  if (p === 'upgrades') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 7); s.money = 2600; step(0.3); ui.openMenu('upgrades'); }
+  if (p === 'goalspanel') { s.money = 1e4; buy('saw', 2); s.factory.sold = 21; s.money = 300; step(0.3); ui.openMenu('goals'); }
+  if (p === 'collect') { s.money = 1e4; buy('saw', 2); s.money = 300; step(0.3); }
+  if (p === 'factories') { s.money = 1e4; buy('saw', 2); for (const g of game.config().goals.slice(0, 5)) { game.state.goals.find((x) => x.id === g.id).done = true; game.act({ type: 'claimGoal', id: g.id }); } s.money = 300; step(0.3); ui.openMenu('factories'); }
   if (p === 'milestone') { s.money = 1e4; step(0.2); ui.openCard('assembly'); buy('assembly', 1); }
   if (p === 'complete') {
     s.money = 1e13;
@@ -211,6 +221,15 @@ function applyPreset(p) {
     s.factory.sold = 800; step(0.1);
     for (const g of game.config().goals.slice(0, 12)) game.act({ type: 'claimGoal', id: g.id });
     s.money = 2.5e6;
+  }
+  if (p === 'teddyfac') {
+    s.money = 1e13;
+    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
+    for (let i = 0; i < 4; i++) buy(i, 60);
+    s.factory.sold = 1240; step(0.1);
+    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
+    game.act({ type: 'nextFactory' });
+    step(0.2); ui.openMenu('factories');
   }
   if (p === 'teddy') {
     s.money = 1e13;

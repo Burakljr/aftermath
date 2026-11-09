@@ -1,33 +1,33 @@
 // Particle effects: coins, stars, confetti, puffs, sparkles, chips and floor
 // rings. One instanced mesh per kind; fixed pools, no allocations per frame.
 import * as THREE from 'three';
-import { G, Builder, toyMaterial, tintMaskShader, TAU, rng, clamp } from './kit.js';
+import { G, Builder, PAL, toyMaterial, tintMaskShader, TAU, rng, clamp } from './kit.js';
 
 const PI = Math.PI;
 
 function coinGeo() {
   const b = new Builder();
-  b.add(G.cyl(0.14, 0.14, 0.045, 18), 0xf5b400, 0, 0, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.105, 0.105, 0.05, 18), 0xffdf5a, 0, 0, 0, { rx: PI / 2 });
-  b.add(G.star(0.07, 0.032, 0.02), 0xfff3b0, 0, 0, 0.022);
-  b.add(G.star(0.07, 0.032, 0.02), 0xfff3b0, 0, 0, -0.022, { ry: PI });
+  b.add(G.cyl(0.16, 0.16, 0.055, 12), PAL.gold, 0, 0, 0, { rx: PI / 2 });
+  b.add(G.cyl(0.115, 0.115, 0.064, 12), PAL.goldHi, 0, 0, 0, { rx: PI / 2, ol: 0 });
+  b.add(G.box(0.04, 0.12, 0.07, 0), 0xfff6c8, 0, 0, 0, { ol: 0 });
   return b.build();
 }
-function starGeo() { const b = new Builder(); b.add(G.star(0.2, 0.09, 0.07), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function sparkleGeo() { const b = new Builder(); b.add(G.star(0.16, 0.035, 0.015, 4), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function confettiGeo() { const b = new Builder(); b.add(G.box(0.13, 0.02, 0.075, 0), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function puffGeo() { const b = new Builder(); b.add(G.ico(0.14, 1), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function chipGeo() { const b = new Builder(); b.add(G.box(0.08, 0.05, 0.06, 0.015), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function ringGeo() { const b = new Builder(); b.add(G.torus(1, 0.035, 4, 40), 0xffffff, 0, 0, 0, { rx: PI / 2, tint: 1 }); return b.build(); }
+function starGeo() { const b = new Builder(); b.add(G.star(0.21, 0.095, 0.08, 5, false), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
+function sparkleGeo() { const b = new Builder({ ol: 0 }); b.add(G.star(0.16, 0.035, 0.015, 4, false), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
+function confettiGeo() { const b = new Builder({ ol: 0 }); b.add(G.box(0.14, 0.02, 0.08, 0), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
+function puffGeo() { const b = new Builder({ ol: 0.6 }); b.add(G.sphere(7, 5), 0xffffff, 0, 0, 0, { s: 0.14, tint: 1 }); return b.build(); }
+function chipGeo() { const b = new Builder({ ol: 0 }); b.add(G.box(0.09, 0.055, 0.065, 0.015), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
+function ringGeo() { const b = new Builder({ ol: 0 }); b.add(G.torus(1, 0.045, 4, 32), 0xffffff, 0, 0, 0, { rx: PI / 2, tint: 1 }); return b.build(); }
 
+// mat: 'lit' toon, 'bright' unlit toon (outlined), 'flat' basic (no outline)
 const KINDS = {
-  coin: { geo: coinGeo, max: 48, lit: true, bill: false, bounce: true },
-  star: { geo: starGeo, max: 72, lit: true, bill: true },
-  sparkle: { geo: sparkleGeo, max: 90, lit: false, bill: true },
-  confetti: { geo: confettiGeo, max: 140, lit: false, bill: false, bounce: true },
-  puff: { geo: puffGeo, max: 80, lit: true, bill: false, grow: true },
-  chip: { geo: chipGeo, max: 70, lit: true, bill: false, bounce: true },
-  ring: { geo: ringGeo, max: 8, lit: false, bill: false, ring: true },
+  coin: { geo: coinGeo, max: 48, mat: 'lit', bill: false, bounce: true },
+  star: { geo: starGeo, max: 80, mat: 'bright', bill: true },
+  sparkle: { geo: sparkleGeo, max: 90, mat: 'flat', bill: true },
+  confetti: { geo: confettiGeo, max: 150, mat: 'lit', bill: false, bounce: true },
+  puff: { geo: puffGeo, max: 80, mat: 'lit', bill: false, grow: true },
+  chip: { geo: chipGeo, max: 70, mat: 'lit', bill: false, bounce: true },
+  ring: { geo: ringGeo, max: 10, mat: 'flat', bill: false, ring: true },
 };
 
 const _m = new THREE.Matrix4();
@@ -39,13 +39,14 @@ const _s = new THREE.Vector3();
 const _c = new THREE.Color();
 const _z = new THREE.Vector3(0, 0, 1);
 
-export const CONFETTI = [0xff5a5f, 0xffcc29, 0x3fa9f5, 0x4fd18b, 0xff8ad8, 0x9b6bff, 0xff9f1c];
+export const CONFETTI = [PAL.red, PAL.yellow, PAL.blue, PAL.green, PAL.pink, PAL.purple, PAL.orange];
 
 export function createFx(preset) {
   const group = new THREE.Group();
   group.name = 'fx';
   const rand = rng(99);
   const litMat = toyMaterial();
+  const brightMat = toyMaterial({ unlit: true });
   const flatMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   flatMat.onBeforeCompile = tintMaskShader;
   flatMat.customProgramCacheKey = () => 'flat-tint';
@@ -54,7 +55,7 @@ export function createFx(preset) {
   const sys = {};
   for (const [name, k] of Object.entries(KINDS)) {
     const n = k.max;
-    const mesh = new THREE.InstancedMesh(k.geo(), k.lit ? litMat : flatMat, n);
+    const mesh = new THREE.InstancedMesh(k.geo(), k.mat === 'lit' ? litMat : k.mat === 'bright' ? brightMat : flatMat, n);
     mesh.name = 'fx-' + name;
     mesh.count = 0;
     mesh.frustumCulled = false;

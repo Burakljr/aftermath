@@ -1,5 +1,6 @@
-// The four stations of a factory: toy-like machines built from rounded
-// primitives, locked plots, belt turntables, progress screens and glows.
+// The four stations of a factory: chunky toy-like machines built from
+// rounded primitives (ink outlines baked in, see kit.js), locked plots, belt
+// turntables, progress screens and glows.
 //
 // Every station is built in a canonical frame (left-column station): the belt
 // comes in along -Z, leaves along +X, the corner (turntable / work spot) is
@@ -8,14 +9,15 @@
 // the x = z plane.
 import * as THREE from 'three';
 import { CORNERS, MACHINE_OFFSET as OFF } from './layout.js';
-import { G, Builder, toyMaterial, shade, ease, clamp, TAU, radialTexture } from './kit.js';
+import { G, Builder, PAL, toyMaterial, shade, ease, clamp, TAU, radialTexture } from './kit.js';
 import { BELT_Y } from './factory.js';
 
 const PI = Math.PI;
 const DIAG = PI / 4; // ry so that local +Z points from the machine to its turntable
-const GOLD = 0xffd23c;
-const STEEL = 0xe3e8f5;
-const INK = 0x343852;
+const GOLD = PAL.gold;
+const STEEL = 0xe6e4f2;
+const INK = PAL.ink;
+const PLINTH = 0x3d3357;
 const MILESTONES = [10, 25, 50, 100];
 
 export function tierOf(level) {
@@ -29,32 +31,45 @@ const MIRROR = new THREE.Matrix4().set(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0,
 export const WORKER_SPOT = { x: -1.0, z: 0.82, ry: 1.55, idleRy: 0.8 };
 
 // -------------------------------------------------------------- machine kit
-function cabinet(b, color, h, tier) {
-  const dark = shade(color, -0.38), light = shade(color, 0.32);
-  b.add(G.box(1.76, 0.18, 1.76, 0.08), dark, 0, 0.09, 0);
-  b.add(G.box(1.6, h, 1.6, 0.2), color, 0, 0.18 + h / 2, 0);
-  const top = 0.18 + h;
-  b.add(G.box(1.7, 0.14, 1.7, 0.07), tier >= 3 ? GOLD : light, 0, top + 0.03, 0);
-  // panel on the worker side (+Z face): bezel, screen, three buttons
-  const sy = 0.18 + h * 0.64;
-  b.add(G.box(1.04, 0.44, 0.08, 0.07), 0xffffff, -0.06, sy, 0.79);
-  b.add(G.box(0.9, 0.3, 0.06, 0.06), 0x2b2d48, -0.06, sy, 0.82);
-  const by = 0.18 + h * 0.26;
-  b.add(G.cyl(0.075, 0.075, 0.08, 12), 0xff4d6d, -0.42, by, 0.81, { rx: PI / 2 });
-  b.add(G.cyl(0.075, 0.075, 0.08, 12), 0xffd23c, -0.18, by, 0.81, { rx: PI / 2 });
-  b.add(G.cyl(0.075, 0.075, 0.08, 12), 0x4fd18b, 0.06, by, 0.81, { rx: PI / 2 });
-  // vents on the belt side (+X face)
-  for (let k = 0; k < 3; k++) b.add(G.box(0.06, 0.07, 0.86, 0.03), light, 0.8, 0.18 + h * (0.38 + k * 0.17), -0.1);
+function cabinet(b, color, h, tier, icon = 'star') {
+  const dark = shade(color, -0.32), light = shade(color, 0.2);
+  // dark plinth with hazard stripes on the two visible faces
+  b.add(G.box(1.84, 0.22, 1.84, 0.09), PLINTH, 0, 0.11, 0);
+  for (let k = 0; k < 6; k++) {
+    const t = -0.68 + k * 0.27;
+    b.add(G.box(0.12, 0.15, 0.02, 0), PAL.yellow, t, 0.11, 0.925, { rz: 0.6, ol: 0 });
+    b.add(G.box(0.02, 0.15, 0.12, 0), PAL.yellow, 0.925, 0.11, t, { rx: -0.6, ol: 0 });
+  }
+  // body, darker skirt, light lid
+  b.add(G.box(1.62, h, 1.62, 0.24), color, 0, 0.22 + h / 2, 0);
+  b.add(G.box(1.67, 0.12, 1.67, 0.05), dark, 0, 0.3, 0, { ol: 0.7 });
+  const top = 0.22 + h;
+  b.add(G.box(1.78, 0.17, 1.78, 0.08), tier >= 3 ? GOLD : light, 0, top + 0.04, 0);
+  // control panel on the worker side (+Z face): bezel, screen, three chunky buttons
+  const sy = 0.22 + h * 0.63;
+  b.add(G.box(1.06, 0.46, 0.08, 0.07), PAL.cream, -0.06, sy, 0.79, { ol: 0.8 });
+  b.add(G.box(0.9, 0.3, 0.06, 0.06), 0x2b2440, -0.06, sy, 0.82, { ol: 0 });
+  const by = 0.22 + h * 0.24;
+  b.add(G.cyl(0.085, 0.085, 0.09, 12), PAL.red, -0.42, by, 0.81, { rx: PI / 2, ol: 0.7 });
+  b.add(G.cyl(0.085, 0.085, 0.09, 12), PAL.yellow, -0.16, by, 0.81, { rx: PI / 2, ol: 0.7 });
+  b.add(G.cyl(0.085, 0.085, 0.09, 12), PAL.green, 0.1, by, 0.81, { rx: PI / 2, ol: 0.7 });
+  // round emblem on the belt side (+X face)
+  const ey = 0.22 + h * 0.56;
+  b.add(G.cyl(0.29, 0.29, 0.07, 18), PAL.cream, 0.81, ey, -0.08, { rz: PI / 2, ol: 0.8 });
+  if (icon === 'heart') b.add(G.heart(0.34, 0.05), color, 0.86, ey, -0.08, { ry: PI / 2, ol: 0 });
+  else b.add(G.star(0.19, 0.085, 0.05), color, 0.86, ey, -0.08, { ry: PI / 2, ol: 0 });
+  // rivets on the lid corners
+  for (const [x, z] of [[-0.72, 0.72], [0.72, 0.72], [0.72, -0.72]]) b.add(G.sphere(6, 4), dark, x, top + 0.13, z, { s: 0.045, ol: 0 });
   // milestone trims
-  if (tier >= 1) b.add(G.box(1.64, 0.09, 1.64, 0.045), tier >= 3 ? GOLD : 0xffffff, 0, 0.18 + h * 0.08, 0);
-  if (tier >= 2) b.add(G.box(1.64, 0.06, 1.64, 0.03), tier >= 3 ? GOLD : 0xffffff, 0, 0.18 + h * 0.94, 0);
-  return { top: top + 0.1, screenY: sy, h };
+  if (tier >= 1) b.add(G.box(1.66, 0.1, 1.66, 0.045), tier >= 3 ? GOLD : 0xffffff, 0, 0.22 + h * 0.12 + 0.12, 0, { ol: 0.7 });
+  if (tier >= 2) b.add(G.box(1.66, 0.07, 1.66, 0.03), tier >= 3 ? GOLD : 0xffffff, 0, 0.22 + h * 0.93, 0, { ol: 0.7 });
+  return { top: top + 0.12, screenY: sy, h };
 }
 
 /** small bracket post on the front corner of the top, returns its top y */
 function post(b, top, height, color = STEEL, at = 0.56) {
-  b.add(G.cyl(0.08, 0.1, height, 10), color, at, top + height / 2, at);
-  b.add(G.cyl(0.16, 0.18, 0.08, 14), INK, at, top + 0.04, at);
+  b.add(G.cyl(0.09, 0.11, height, 10), color, at, top + height / 2, at);
+  b.add(G.cyl(0.18, 0.2, 0.09, 12), PLINTH, at, top + 0.045, at);
   return top + height;
 }
 
@@ -62,22 +77,23 @@ function post(b, top, height, color = STEEL, at = 0.56) {
 function boom(b, y, color = STEEL, at = 0.56, end = OFF) {
   const len = (end - at) * Math.SQRT2;
   b.push(at, y, at, { ry: DIAG });
-  b.add(G.box(0.13, 0.13, len + 0.12, 0.05), color, 0, 0, len / 2);
-  b.add(G.sphere(9, 7), INK, 0, 0, 0, { s: 0.1 });
+  b.add(G.box(0.16, 0.16, len + 0.14, 0.06), color, 0, 0, len / 2);
+  b.add(G.sphere(8, 6), PLINTH, 0, 0, 0, { s: 0.12 });
   b.pop();
 }
 
 function roll(pb, colors, r, len, bands = 6) {
   // horizontal roll along local X made of coloured bands
   const w = len / bands;
-  for (let i = 0; i < bands; i++) pb.add(G.cyl(r, r, w * 1.01, 18), colors[i % colors.length], -len / 2 + w * (i + 0.5), 0, 0, { rz: PI / 2 });
-  pb.add(G.cyl(r * 0.35, r * 0.35, len + 0.12, 10), INK, 0, 0, 0, { rz: PI / 2 });
+  for (let i = 0; i < bands; i++) pb.add(G.cyl(r, r, w * 1.01, 14), colors[i % colors.length], -len / 2 + w * (i + 0.5), 0, 0, { rz: PI / 2, ol: 0 });
+  pb.add(G.cyl(r, r, len, 14), colors[0], 0, 0, 0, { rz: PI / 2, fill: false }); // outline of the whole roll
+  pb.add(G.cyl(r * 0.35, r * 0.35, len + 0.14, 8), PLINTH, 0, 0, 0, { rz: PI / 2 });
 }
 
 function bow(pb, color, x, y, z, s = 1) {
-  pb.add(G.sphere(9, 7), color, x - 0.1 * s, y, z, { sx: 0.13 * s, sy: 0.09 * s, sz: 0.06 * s, rz: 0.4 });
-  pb.add(G.sphere(9, 7), color, x + 0.1 * s, y, z, { sx: 0.13 * s, sy: 0.09 * s, sz: 0.06 * s, rz: -0.4 });
-  pb.add(G.sphere(8, 6), shade(color, -0.12), x, y, z, { s: 0.06 * s });
+  pb.add(G.sphere(8, 6), color, x - 0.11 * s, y, z, { sx: 0.14 * s, sy: 0.1 * s, sz: 0.07 * s, rz: 0.4 });
+  pb.add(G.sphere(8, 6), color, x + 0.11 * s, y, z, { sx: 0.14 * s, sy: 0.1 * s, sz: 0.07 * s, rz: -0.4 });
+  pb.add(G.sphere(6, 5), shade(color, -0.15), x, y, z, { s: 0.065 * s });
 }
 
 function star5(pb, color, x, y, z, s = 1, o = {}) {
@@ -92,40 +108,41 @@ function star5(pb, color, x, y, z, s = 1, o = {}) {
 const MACHINES = {
   saw(b, P, th, tier, root) {
     const c = th.machineColor[0];
-    const cab = cabinet(b, c, 0.7, tier);
+    const cab = cabinet(b, c, 0.74, tier);
     const top = cab.top;
-    b.add(G.box(1.52, 0.1, 1.52, 0.05), th.wood, 0, top, 0);
-    // motor tower at the back
-    b.add(G.box(0.64, 0.6, 0.64, 0.16), STEEL, -0.36, top + 0.33, -0.36);
-    b.add(G.box(0.7, 0.12, 0.7, 0.06), shade(c, -0.12), -0.36, top + 0.66, -0.36);
-    b.add(G.cyl(0.08, 0.08, 0.18, 8), INK, -0.36, top + 0.8, -0.36);
+    b.add(G.box(1.5, 0.1, 1.5, 0.04), th.wood, 0, top, 0);
+    // motor tower at the back with an exhaust pipe
+    b.add(G.box(0.68, 0.64, 0.68, 0.18), PAL.cream, -0.36, top + 0.34, -0.36);
+    b.add(G.box(0.74, 0.14, 0.74, 0.06), shade(c, -0.2), -0.36, top + 0.7, -0.36);
+    b.add(G.cyl(0.08, 0.08, 0.3, 8), PLINTH, -0.5, top + 0.9, -0.5);
+    b.add(G.cyl(0.11, 0.09, 0.08, 8), PAL.red, -0.5, top + 1.06, -0.5);
     // planks waiting on the table
-    b.add(G.box(0.5, 0.1, 0.18, 0.04), th.woodDark, -0.45, top + 0.1, 0.32, { ry: 0.3 });
-    b.add(G.box(0.5, 0.1, 0.18, 0.04), th.wood, -0.42, top + 0.2, 0.34, { ry: 0.2 });
+    b.add(G.box(0.52, 0.11, 0.2, 0.04), th.woodDark, -0.45, top + 0.1, 0.32, { ry: 0.3 });
+    b.add(G.box(0.52, 0.11, 0.2, 0.04), th.wood, -0.42, top + 0.21, 0.34, { ry: 0.2 });
     const py = post(b, top, 0.5, STEEL, 0.5);
-    const s = 1 + tier * 0.07;
+    const s = 1 + tier * 0.06;
     const arm = P(root, [0.5, py, 0.5], (pb) => {
-      pb.add(G.box(0.2, 0.18, 1.32, 0.08), STEEL, 0, 0, 0.6);
-      pb.add(G.box(0.26, 0.28, 0.34, 0.1), c, 0, 0.06, 0.1);
-      pb.add(G.box(0.12, 0.3, 0.12, 0.05), INK, 0, 0.3, 0.12);
-      pb.add(G.torus(0.47 * s, 0.09, 6, 14, PI), c, 0, -0.08, 1.2);
-      pb.add(G.box(0.12, 0.12, 0.2, 0.05), c, 0, -0.08, 1.2);
+      pb.add(G.box(0.22, 0.2, 1.32, 0.08), STEEL, 0, 0, 0.6);
+      pb.add(G.box(0.3, 0.32, 0.38, 0.12), c, 0, 0.06, 0.1);
+      pb.add(G.box(0.14, 0.32, 0.14, 0.05), PLINTH, 0, 0.32, 0.12);
+      pb.add(G.torus(0.56 * s, 0.1, 5, 12, PI), c, 0, -0.08, 1.2);
+      pb.add(G.box(0.14, 0.14, 0.22, 0.05), c, 0, -0.08, 1.2);
     }, { ry: DIAG });
     const blade = P(arm, [0, -0.08, 1.2], (pb) => {
-      pb.add(G.cyl(0.42 * s, 0.42 * s, 0.05, 22), 0xf2f5ff, 0, 0, 0, { rx: PI / 2 });
-      for (let k = 0; k < 12; k++) {
-        const a = (k / 12) * TAU;
-        pb.add(G.box(0.12, 0.12, 0.05, 0.01), 0xb9c3dc, Math.cos(a) * 0.42 * s, Math.sin(a) * 0.42 * s, 0, { rz: a + PI / 4 });
+      pb.add(G.cyl(0.5 * s, 0.5 * s, 0.06, 18), 0xf4f3ff, 0, 0, 0, { rx: PI / 2 });
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * TAU;
+        pb.add(G.box(0.14, 0.14, 0.06, 0), 0xc4c0dc, Math.cos(a) * 0.5 * s, Math.sin(a) * 0.5 * s, 0, { rz: a + PI / 4, ol: 0 });
       }
-      pb.add(G.cyl(0.13, 0.13, 0.09, 12), c, 0, 0, 0, { rx: PI / 2 });
-      pb.add(G.box(0.3, 0.06, 0.06, 0.02), 0xffffff, 0, 0.2 * s, 0.03);
+      pb.add(G.cyl(0.16, 0.16, 0.1, 12), c, 0, 0, 0, { rx: PI / 2, ol: 0.7 });
+      pb.add(G.box(0.36, 0.07, 0.07, 0.02), 0xffffff, 0, 0.24 * s, 0.035, { ol: 0 });
     });
     return {
-      ...cab, top, peak: top + 0.9,
+      ...cab, top, peak: top + 1.0,
       emit: { kind: 'chip', y: 0.55, rate: 9 },
       anim(st) {
         const chop = Math.pow(Math.max(0, Math.sin(st.beat * TAU)), 2);
-        arm.rotation.x = 0.1 + chop * 0.26 * st.work;
+        arm.rotation.x = 0.1 + chop * 0.3 * st.work;
         blade.rotation.z = -st.spin * 3;
       },
     };
@@ -133,117 +150,127 @@ const MACHINES = {
 
   assembly(b, P, th, tier, root) {
     const c = th.machineColor[1];
-    const cab = cabinet(b, c, 0.68, tier);
+    const cab = cabinet(b, c, 0.74, tier);
     const top = cab.top;
-    // gear decoration and a parts bin at the back
-    b.push(-0.42, top + 0.05, -0.42);
-    b.add(G.cyl(0.3, 0.3, 0.1, 16), GOLD, 0, 0, 0);
-    for (let k = 0; k < 8; k++) { const a = (k / 8) * TAU; b.add(G.box(0.12, 0.1, 0.12, 0.02), GOLD, Math.cos(a) * 0.32, 0, Math.sin(a) * 0.32, { ry: -a }); }
-    b.add(G.cyl(0.1, 0.1, 0.14, 10), INK, 0, 0.02, 0);
-    b.pop();
-    b.add(G.box(0.5, 0.26, 0.4, 0.06), 0xffffff, 0.2, top + 0.13, -0.5);
-    for (let k = 0; k < 3; k++) b.add(G.box(0.12, 0.12, 0.12, 0.03), th.wood, 0.05 + k * 0.15, top + 0.3, -0.5);
-    b.add(G.cyl(0.36, 0.42, 0.14, 18), INK, 0.42, top + 0.07, 0.42);
+    // spinning gear and a parts bin at the back
+    const gear = P(root, [-0.42, top + 0.06, -0.42], (pb) => {
+      pb.add(G.cyl(0.32, 0.32, 0.12, 14), PAL.yellow, 0, 0, 0);
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * TAU; pb.add(G.box(0.14, 0.12, 0.14, 0.02), PAL.yellow, Math.cos(a) * 0.34, 0, Math.sin(a) * 0.34, { ry: -a, ol: 0.8 }); }
+      pb.add(G.cyl(0.11, 0.11, 0.16, 8), PLINTH, 0, 0.02, 0);
+    });
+    b.add(G.box(0.52, 0.28, 0.42, 0.07), PAL.cream, 0.2, top + 0.14, -0.5);
+    for (let k = 0; k < 3; k++) b.add(G.box(0.13, 0.13, 0.13, 0.03), [PAL.red, PAL.yellow, PAL.green][k], 0.05 + k * 0.15, top + 0.32, -0.5, { ol: 0.6 });
+    b.add(G.cyl(0.38, 0.44, 0.15, 14), PLINTH, 0.42, top + 0.075, 0.42);
     const s = 1 + tier * 0.06;
-    const turret = P(root, [0.42, top + 0.14, 0.42], (pb) => {
-      pb.add(G.cyl(0.3, 0.33, 0.2, 18), c, 0, 0.1, 0);
-      pb.add(G.box(0.26, 0.62, 0.26, 0.11), 0xffd23c, 0, 0.5, 0);
-      pb.add(G.sphere(10, 7), INK, 0, 0.84, 0, { s: 0.18 });
+    const turret = P(root, [0.42, top + 0.15, 0.42], (pb) => {
+      pb.add(G.cyl(0.32, 0.35, 0.22, 14), c, 0, 0.11, 0);
+      pb.add(G.box(0.28, 0.66, 0.28, 0.12), PAL.yellow, 0, 0.52, 0);
+      pb.add(G.sphere(9, 6), PLINTH, 0, 0.88, 0, { s: 0.19 });
     }, { ry: DIAG });
-    const fore = P(turret, [0, 0.84, 0], (pb) => {
-      pb.add(G.box(0.3, 0.3, 1.0, 0.12), 0xffd23c, 0, 0, 0.42);
-      pb.add(G.box(0.24, 0.24, 0.9, 0.1), 0xffd23c, 0, 0, 1.15);
-      pb.add(G.cyl(0.17, 0.17, 0.34, 14), INK, 0, 0, 0.88, { rz: PI / 2 });
-      pb.add(G.box(0.32, 0.07, 0.6, 0.03), 0xffffff, 0, 0.15, 0.42);
-      pb.add(G.sphere(10, 7), INK, 0, 0, 1.62, { s: 0.15 });
+    const fore = P(turret, [0, 0.88, 0], (pb) => {
+      pb.add(G.box(0.32, 0.32, 1.0, 0.13), PAL.yellow, 0, 0, 0.42);
+      pb.add(G.box(0.26, 0.26, 0.9, 0.11), PAL.yellow, 0, 0, 1.15);
+      pb.add(G.cyl(0.18, 0.18, 0.36, 12), PLINTH, 0, 0, 0.88, { rz: PI / 2 });
+      pb.add(G.box(0.34, 0.07, 0.6, 0.03), 0xffffff, 0, 0.16, 0.42, { ol: 0 });
+      pb.add(G.sphere(9, 6), PLINTH, 0, 0, 1.62, { s: 0.16 });
     });
     const head = P(fore, [0, 0, 1.62], (pb) => {
-      pb.add(G.box(0.4 * s, 0.24 * s, 0.4 * s, 0.11), c, 0, -0.18, 0);
-      pb.add(G.box(0.44 * s, 0.07, 0.44 * s, 0.03), 0xffffff, 0, -0.06, 0);
+      pb.add(G.box(0.44 * s, 0.26 * s, 0.44 * s, 0.12), c, 0, -0.19, 0);
+      pb.add(G.box(0.48 * s, 0.08, 0.48 * s, 0.03), 0xffffff, 0, -0.06, 0, { ol: 0.7 });
       // two gripper fingers
-      pb.add(G.box(0.07, 0.24, 0.16, 0.03), STEEL, -0.13 * s, -0.4, 0);
-      pb.add(G.box(0.07, 0.24, 0.16, 0.03), STEEL, 0.13 * s, -0.4, 0);
+      pb.add(G.box(0.08, 0.26, 0.17, 0.03), STEEL, -0.14 * s, -0.42, 0);
+      pb.add(G.box(0.08, 0.26, 0.17, 0.03), STEEL, 0.14 * s, -0.42, 0);
     });
     const base = 0.55;
     return {
-      ...cab, top, peak: top + 1.15,
+      ...cab, top, peak: top + 1.2,
       emit: { kind: 'spark', y: 0.6, rate: 0, onBeat: 2 },
       anim(st) {
         const tap = Math.pow(Math.abs(Math.sin(st.beat * PI * 2)), 6);
-        turret.rotation.y = DIAG + Math.sin(st.t * 1.4) * 0.1 * st.work;
-        fore.rotation.x = base - 0.16 + (0.16 + tap * 0.1) * (0.4 + 0.6 * st.work);
+        turret.rotation.y = DIAG + Math.sin(st.t * 1.4) * 0.12 * st.work;
+        fore.rotation.x = base - 0.16 + (0.16 + tap * 0.12) * (0.4 + 0.6 * st.work);
         head.rotation.x = -fore.rotation.x;
+        gear.rotation.y = st.spin * 0.8;
       },
     };
   },
 
   paint(b, P, th, tier, root) {
     const c = th.machineColor[2];
-    const cab = cabinet(b, c, 0.68, tier);
+    const cab = cabinet(b, c, 0.74, tier);
     const top = cab.top;
-    const cans = [0xff5a5f, 0xffcc29, 0x3fa9f5];
-    const spots = [[-0.48, -0.12], [-0.12, -0.5], [-0.52, -0.52]];
+    const cans = [PAL.red, PAL.yellow, PAL.blue];
+    const spots = [[-0.46, -0.08], [-0.08, -0.48], [-0.5, -0.5]];
+    const canParts = [];
     spots.forEach(([x, z], i) => {
-      b.add(G.cyl(0.19, 0.19, 0.34, 14), 0xffffff, x, top + 0.17, z);
-      b.add(G.cyl(0.195, 0.195, 0.12, 14), cans[i], x, top + 0.17, z);
-      b.add(G.cyl(0.2, 0.2, 0.05, 14), cans[i], x, top + 0.36, z);
+      canParts.push(P(root, [x, top, z], (pb) => {
+        pb.add(G.cyl(0.22, 0.22, 0.4, 14), 0xffffff, 0, 0.2, 0);
+        pb.add(G.cyl(0.225, 0.225, 0.15, 14), cans[i], 0, 0.2, 0, { ol: 0 });
+        pb.add(G.cyl(0.235, 0.235, 0.06, 14), cans[i], 0, 0.42, 0);
+        pb.add(G.box(0.06, 0.14, 0.03, 0.01), cans[i], 0.1, 0.33, 0.21, { ol: 0 });
+      }));
     });
     // paint drips down the cabinet
     const drips = [[0.81, 0.5, -0.5, 0], [0.81, 0.3, -0.15, 1], [0.81, 0.4, 0.3, 2], [0.4, 0.45, 0.81, 0], [-0.62, 0.35, 0.81, 2]];
     for (const [x, len, z, ci] of drips) {
       const onX = x > 0.8;
-      b.add(G.box(onX ? 0.04 : 0.12, len, onX ? 0.12 : 0.04, 0.02), cans[ci], onX ? x : z, cab.top - 0.12 - len / 2, onX ? z : x);
-      b.add(G.sphere(8, 6), cans[ci], onX ? x : z, cab.top - 0.12 - len, onX ? z : x, { s: 0.075 });
+      b.add(G.box(onX ? 0.04 : 0.13, len, onX ? 0.13 : 0.04, 0.02), cans[ci], onX ? x : z, cab.top - 0.14 - len / 2, onX ? z : x, { ol: 0 });
+      b.add(G.sphere(6, 5), cans[ci], onX ? x : z, cab.top - 0.14 - len, onX ? z : x, { s: 0.08, ol: 0 });
     }
-    const py = post(b, top, 0.55);
+    const py = post(b, top, 0.58);
     boom(b, py, STEEL, 0.56, OFF - 0.02);
     const s = 1 + tier * 0.07;
     const nozzle = P(root, [OFF - 0.02, py, OFF - 0.02], (pb) => {
-      pb.add(G.box(0.3 * s, 0.24 * s, 0.3 * s, 0.1), 0xff5a8a, 0, -0.17, 0);
-      pb.add(G.cyl(0.17 * s, 0.17 * s, 0.07, 14), 0xffffff, 0, -0.04, 0);
-      pb.add(G.cyl(0.1 * s, 0.13 * s, 0.14, 12), 0xffd23c, 0, -0.35, 0);
-      pb.add(G.cone(0.1 * s, 0.16, 12), STEEL, 0, -0.5, 0, { rx: PI });
-      pb.add(G.sphere(8, 6), 0x3fa9f5, 0.16 * s, -0.17, 0.0, { s: 0.06 });
+      pb.add(G.box(0.34 * s, 0.28 * s, 0.34 * s, 0.11), PAL.pink, 0, -0.19, 0);
+      pb.add(G.cyl(0.19 * s, 0.19 * s, 0.08, 12), 0xffffff, 0, -0.04, 0, { ol: 0.7 });
+      pb.add(G.cyl(0.11 * s, 0.14 * s, 0.15, 10), PAL.yellow, 0, -0.39, 0);
+      pb.add(G.cone(0.11 * s, 0.17, 10), STEEL, 0, -0.55, 0, { rx: PI });
+      pb.add(G.sphere(6, 5), PAL.blue, 0.18 * s, -0.19, 0.0, { s: 0.07, ol: 0.6 });
     });
     return {
-      ...cab, top, peak: py + 0.12,
+      ...cab, top, peak: py + 0.14,
       emit: { kind: 'paint', y: 0.75, rate: 11 },
       anim(st) {
-        nozzle.rotation.z = Math.sin(st.beat * TAU * 2) * 0.32 * st.work;
-        nozzle.rotation.x = Math.cos(st.beat * TAU * 2) * 0.2 * st.work;
+        nozzle.rotation.z = Math.sin(st.beat * TAU * 2) * 0.34 * st.work;
+        nozzle.rotation.x = Math.cos(st.beat * TAU * 2) * 0.22 * st.work;
+        for (let i = 0; i < 3; i++) {
+          const k = Math.max(0, Math.sin(st.beat * TAU + i * 2.1)) * st.work;
+          canParts[i].scale.set(1 - k * 0.06, 1 + k * 0.1, 1 - k * 0.06);
+        }
       },
     };
   },
 
   wrap(b, P, th, tier, root) {
     const c = th.machineColor[3];
-    const cab = cabinet(b, c, 0.68, tier);
+    const cab = cabinet(b, c, 0.74, tier);
     const top = cab.top;
     // brackets for the paper roll
     const ax = Math.SQRT1_2;
-    for (const k of [-1, 1]) b.add(G.box(0.1, 0.42, 0.1, 0.04), STEEL, -0.32 + k * 0.62 * ax, top + 0.21, -0.32 - k * 0.62 * ax);
-    const paper = P(root, [-0.32, top + 0.4, -0.32], (pb) => roll(pb, [0xffffff, th.box[1], 0xffffff, th.box[0]], 0.27 + tier * 0.02, 1.2, 8), { ry: DIAG });
+    for (const k of [-1, 1]) b.add(G.box(0.12, 0.46, 0.12, 0.04), STEEL, -0.32 + k * 0.64 * ax, top + 0.23, -0.32 - k * 0.64 * ax);
+    const paper = P(root, [-0.32, top + 0.44, -0.32], (pb) => roll(pb, [0xffffff, th.box[0], 0xffffff, PAL.yellow], 0.3 + tier * 0.02, 1.2, 8), { ry: DIAG });
     // ribbon spool on the side
-    b.add(G.cyl(0.2, 0.2, 0.14, 16), th.ribbon, 0.45, top + 0.07, -0.42);
-    b.add(G.cyl(0.07, 0.07, 0.18, 8), 0xffffff, 0.45, top + 0.1, -0.42);
-    const py = post(b, top, 0.75);
+    b.add(G.cyl(0.22, 0.22, 0.15, 14), th.ribbon, 0.45, top + 0.075, -0.42);
+    b.add(G.cyl(0.08, 0.08, 0.2, 8), 0xffffff, 0.45, top + 0.1, -0.42, { ol: 0 });
+    const py = post(b, top, 0.78);
     boom(b, py, STEEL);
-    b.add(G.cyl(0.05, 0.05, 0.3, 8), STEEL, OFF, py - 0.12, OFF);
+    b.add(G.cyl(0.06, 0.06, 0.32, 8), STEEL, OFF, py - 0.13, OFF);
     const s = 1 + tier * 0.06;
-    const hood = P(root, [OFF, py - 0.3, OFF], (pb) => {
-      pb.add(G.box(0.66 * s, 0.4 * s, 0.66 * s, 0.1), th.box[0], 0, 0, 0);
-      pb.add(G.box(0.68 * s, 0.41 * s, 0.14, 0.04), th.ribbon, 0, 0, 0);
-      pb.add(G.box(0.14, 0.41 * s, 0.68 * s, 0.04), th.ribbon, 0, 0, 0);
-      bow(pb, th.ribbon, 0, 0.24 * s, 0, 1.3);
+    const hood = P(root, [OFF, py - 0.32, OFF], (pb) => {
+      pb.add(G.box(0.7 * s, 0.42 * s, 0.7 * s, 0.11), th.box[1], 0, 0, 0);
+      pb.add(G.box(0.72 * s, 0.43 * s, 0.15, 0.04), PAL.yellow, 0, 0, 0, { ol: 0 });
+      pb.add(G.box(0.15, 0.43 * s, 0.72 * s, 0.04), PAL.yellow, 0, 0, 0, { ol: 0 });
+      bow(pb, PAL.yellow, 0, 0.26 * s, 0, 1.4);
     });
-    const hy = py - 0.3;
+    const hy = py - 0.32;
     return {
-      ...cab, top, peak: py + 0.12,
+      ...cab, top, peak: py + 0.14,
       emit: null,
       anim(st) {
         const x = (st.beat % 1);
         const press = x > 0.55 && x < 0.95 ? Math.sin(((x - 0.55) / 0.4) * PI) : 0;
-        hood.position.y = hy - press * 0.62 * st.work;
+        hood.position.y = hy - press * 0.64 * st.work;
+        hood.scale.set(1 + press * 0.08 * st.work, 1 - press * 0.1 * st.work, 1 + press * 0.08 * st.work);
         paper.rotation.x = st.spin * 1.5;
       },
     };
@@ -251,36 +278,36 @@ const MACHINES = {
 
   cutter(b, P, th, tier, root) {
     const c = th.machineColor[0];
-    const cab = cabinet(b, c, 0.7, tier);
+    const cab = cabinet(b, c, 0.76, tier, 'heart');
     const top = cab.top;
-    b.add(G.box(1.5, 0.08, 1.5, 0.04), 0xffffff, 0, top, 0);
+    b.add(G.box(1.5, 0.08, 1.5, 0.03), 0xffffff, 0, top, 0, { ol: 0.7 });
     const ax = Math.SQRT1_2;
-    for (const k of [-1, 1]) b.add(G.box(0.1, 0.42, 0.1, 0.04), STEEL, -0.32 + k * 0.62 * ax, top + 0.21, -0.32 - k * 0.62 * ax);
-    const fab = P(root, [-0.32, top + 0.42, -0.32], (pb) => roll(pb, [th.fabric, th.fabricPink], 0.28 + tier * 0.02, 1.15, 6), { ry: DIAG });
-    // fabric sheet from the roll onto the table, with a dashed cut line
-    b.add(G.box(0.95, 0.03, 0.62, 0.0), th.fabric, -0.02, top + 0.06, -0.02, { ry: DIAG });
-    const py = post(b, top, 0.62, STEEL, 0.52);
+    for (const k of [-1, 1]) b.add(G.box(0.12, 0.46, 0.12, 0.04), STEEL, -0.32 + k * 0.64 * ax, top + 0.23, -0.32 - k * 0.64 * ax);
+    const fab = P(root, [-0.32, top + 0.46, -0.32], (pb) => roll(pb, [th.fabric, th.fabricPink], 0.3 + tier * 0.02, 1.15, 6), { ry: DIAG });
+    // fabric sheet from the roll onto the table
+    b.add(G.box(0.95, 0.03, 0.62, 0), th.fabric, -0.02, top + 0.06, -0.02, { ry: DIAG, ol: 0.6 });
+    const py = post(b, top, 0.66, STEEL, 0.52);
     boom(b, py, STEEL, 0.52, OFF);
-    b.add(G.cyl(0.05, 0.05, 0.24, 8), STEEL, OFF, py - 0.12, OFF);
+    b.add(G.cyl(0.06, 0.06, 0.26, 8), STEEL, OFF, py - 0.13, OFF);
     const s = 1 + tier * 0.07;
     // giant scissors facing the camera: two blades on one pivot
-    const piv = P(root, [OFF, py - 0.34, OFF], (pb) => {
-      pb.add(G.cyl(0.06, 0.06, 0.08, 10), INK, 0, 0, 0.04, { rx: PI / 2 });
+    const piv = P(root, [OFF, py - 0.36, OFF], (pb) => {
+      pb.add(G.cyl(0.07, 0.07, 0.09, 10), PLINTH, 0, 0, 0.04, { rx: PI / 2 });
     }, { ry: DIAG });
     const blade = (handle) => (pb) => {
-      pb.add(G.box(0.1 * s, 0.46 * s, 0.035, 0.0), 0xf4f7ff, 0.02, -0.25 * s, 0);
-      pb.add(G.box(0.05 * s, 0.44 * s, 0.04, 0.0), 0xc9d2ea, 0.05, -0.24 * s, 0.004);
-      pb.add(G.torus(0.1 * s, 0.035, 6, 14), handle, 0.06, 0.17 * s, 0);
-      pb.add(G.box(0.06, 0.12, 0.04, 0.0), handle, 0.03, 0.06, 0);
+      pb.add(G.box(0.12 * s, 0.5 * s, 0.04, 0), 0xf4f3ff, 0.02, -0.27 * s, 0);
+      pb.add(G.box(0.05 * s, 0.46 * s, 0.045, 0), 0xc8c4e0, 0.05, -0.26 * s, 0.004, { ol: 0 });
+      pb.add(G.torus(0.12 * s, 0.045, 5, 12), handle, 0.06, 0.19 * s, 0);
+      pb.add(G.box(0.07, 0.13, 0.045, 0), handle, 0.03, 0.06, 0);
     };
     const bladeA = P(piv, [0, 0, 0.02], blade(th.fabricPink));
-    const bladeB = P(piv, [0, 0, -0.02], blade(0x4fb8ff));
+    const bladeB = P(piv, [0, 0, -0.02], blade(PAL.yellow));
     bladeB.scale.x = -1;
     return {
-      ...cab, top, peak: py + 0.15,
+      ...cab, top, peak: py + 0.16,
       emit: { kind: 'scrap', y: 0.6, rate: 6 },
       anim(st) {
-        const snip = 0.12 + Math.abs(Math.sin(st.beat * PI * 3)) * 0.32 * st.work;
+        const snip = 0.12 + Math.abs(Math.sin(st.beat * PI * 3)) * 0.36 * st.work;
         bladeA.rotation.z = snip;
         bladeB.rotation.z = -snip;
         fab.rotation.x = st.spin * 1.2;
@@ -290,77 +317,78 @@ const MACHINES = {
 
   stuffing(b, P, th, tier, root) {
     const c = th.machineColor[1];
-    const cab = cabinet(b, c, 0.6, tier);
+    const cab = cabinet(b, c, 0.68, tier, 'heart');
     const top = cab.top;
     const s = 1 + tier * 0.06;
     const tank = P(root, [-0.25, top, -0.25], (pb) => {
-      pb.add(G.cyl(0.56 * s, 0.6 * s, 0.7, 20), 0xeefbff, 0, 0.35, 0);
-      pb.add(G.cyl(0.62 * s, 0.62 * s, 0.12, 20), shade(c, -0.1), 0, 0.12, 0);
-      pb.add(G.cyl(0.6 * s, 0.6 * s, 0.08, 20), shade(c, 0.2), 0, 0.7, 0);
+      pb.add(G.cyl(0.58 * s, 0.62 * s, 0.72, 16), 0xe9fbff, 0, 0.36, 0);
+      pb.add(G.cyl(0.64 * s, 0.64 * s, 0.13, 16), shade(c, -0.15), 0, 0.12, 0);
+      pb.add(G.cyl(0.62 * s, 0.62 * s, 0.09, 16), shade(c, 0.2), 0, 0.72, 0);
       // cotton cloud on top
-      const puffs = [[0, 0.86, 0, 0.36], [0.26, 0.8, 0.1, 0.26], [-0.24, 0.8, 0.16, 0.25], [0.06, 0.82, -0.26, 0.27], [0.1, 1.08, 0.05, 0.22]];
+      const puffs = [[0, 0.88, 0, 0.38], [0.27, 0.82, 0.1, 0.27], [-0.25, 0.82, 0.16, 0.26], [0.06, 0.84, -0.27, 0.28], [0.1, 1.1, 0.05, 0.23]];
       for (const [x, y, z, r] of puffs) pb.add(G.sphere(10, 7), 0xffffff, x * s, y, z * s, { s: r * s });
       // window with cotton inside
       pb.push(0, 0.38, 0, { ry: DIAG });
-      pb.add(G.box(0.46, 0.32, 0.08, 0.06), 0xffffff, 0, 0, 0.55 * s);
+      pb.add(G.box(0.48, 0.34, 0.08, 0.07), 0xffffff, 0, 0, 0.57 * s, { ol: 0.7 });
       pb.pop();
     });
-    const py = post(b, top, 0.85, shade(c, 0.1), 0.58);
+    const py = post(b, top, 0.88, shade(c, 0.1), 0.58);
     boom(b, py, shade(c, 0.1), 0.58, OFF);
-    b.add(G.cyl(0.07, 0.07, 0.2, 10), shade(c, 0.1), OFF, py - 0.1, OFF);
-    b.add(G.cone(0.2, 0.3, 14), 0xffffff, OFF, py - 0.32, OFF, { rx: PI });
-    b.add(G.torus(0.12, 0.04, 6, 14), c, OFF, py - 0.2, OFF, { rx: PI / 2 });
+    b.add(G.cyl(0.08, 0.08, 0.22, 10), shade(c, 0.1), OFF, py - 0.11, OFF);
+    b.add(G.cone(0.22, 0.32, 12), 0xffffff, OFF, py - 0.34, OFF, { rx: PI });
+    b.add(G.torus(0.13, 0.045, 5, 12), PAL.pink, OFF, py - 0.21, OFF, { rx: PI / 2, ol: 0 });
     return {
-      ...cab, top, peak: top + 1.25,
+      ...cab, top, peak: top + 1.3,
       emit: { kind: 'cotton', y: 0.9, rate: 7 },
       anim(st) {
-        const w = Math.sin(st.beat * TAU * 2) * 0.05 * st.work;
-        tank.scale.set(1 + w, 1 - w * 1.2, 1 + w);
+        const w = Math.sin(st.beat * TAU * 2) * 0.06 * st.work;
+        tank.scale.set(1 + w, 1 - w * 1.3, 1 + w);
       },
     };
   },
 
   stitching(b, P, th, tier, root) {
     const c = th.machineColor[2];
-    const cab = cabinet(b, c, 0.66, tier);
+    const cab = cabinet(b, c, 0.72, tier, 'heart');
     const top = cab.top;
-    const pink = th.machineColor[3];
+    const pink = PAL.pink;
     // pincushion (a red tomato with pins) at the back
-    b.add(G.sphere(10, 8), 0xff5a6e, -0.5, top + 0.16, -0.5, { sx: 0.26, sy: 0.19, sz: 0.26 });
-    b.add(G.cone(0.08, 0.1, 6), 0x4fd18b, -0.5, top + 0.37, -0.5);
+    b.add(G.sphere(10, 7), PAL.red, -0.52, top + 0.17, -0.52, { sx: 0.27, sy: 0.2, sz: 0.27 });
+    b.add(G.cone(0.09, 0.11, 5), PAL.green, -0.52, top + 0.39, -0.52);
     for (let k = 0; k < 5; k++) {
       const a = k * 1.3;
-      b.add(G.sphere(6, 4), [0xffd23c, 0x3fa9f5, 0xffffff][k % 3], -0.5 + Math.cos(a) * 0.17, top + 0.36, -0.5 + Math.sin(a) * 0.17, { s: 0.04 });
+      b.add(G.sphere(6, 4), [PAL.yellow, PAL.blue, 0xffffff][k % 3], -0.52 + Math.cos(a) * 0.17, top + 0.37, -0.52 + Math.sin(a) * 0.17, { s: 0.045, ol: 0 });
     }
-    // measuring tape
-    b.add(G.cyl(0.13, 0.13, 0.08, 14), 0xffd23c, 0.42, top + 0.04, -0.5);
-    b.add(G.box(0.36, 0.012, 0.07, 0.0), 0xffd23c, 0.5, top + 0.01, -0.22, { ry: 1.1 });
     const s = 1 + tier * 0.06;
     // big thread spool
     const spool = P(root, [-0.2, top, -0.05], (pb) => {
-      pb.add(G.cyl(0.24 * s, 0.24 * s, 0.4, 16), pink, 0, 0.26, 0);
-      pb.add(G.cyl(0.33 * s, 0.33 * s, 0.07, 16), 0xfff6e8, 0, 0.04, 0);
-      pb.add(G.cyl(0.33 * s, 0.33 * s, 0.07, 16), 0xfff6e8, 0, 0.48, 0);
-      pb.add(G.cyl(0.25 * s, 0.25 * s, 0.03, 16), shade(pink, 0.25), 0, 0.2, 0);
-      pb.add(G.cyl(0.25 * s, 0.25 * s, 0.03, 16), shade(pink, 0.25), 0, 0.33, 0);
+      pb.add(G.cyl(0.26 * s, 0.26 * s, 0.42, 14), pink, 0, 0.27, 0);
+      pb.add(G.cyl(0.35 * s, 0.35 * s, 0.08, 14), PAL.cream, 0, 0.04, 0);
+      pb.add(G.cyl(0.35 * s, 0.35 * s, 0.08, 14), PAL.cream, 0, 0.5, 0);
+      pb.add(G.cyl(0.27 * s, 0.27 * s, 0.03, 14), shade(pink, 0.3), 0, 0.2, 0, { ol: 0 });
+      pb.add(G.cyl(0.27 * s, 0.27 * s, 0.03, 14), shade(pink, 0.3), 0, 0.34, 0, { ol: 0 });
     });
-    const py = post(b, top, 0.7, 0xfff6e8, 0.56);
-    boom(b, py, 0xfff6e8, 0.56, OFF);
+    const py = post(b, top, 0.74, PAL.cream, 0.56);
+    // thick sewing-machine arm
+    const len = (OFF - 0.56) * Math.SQRT2;
+    b.push(0.56, py, 0.56, { ry: DIAG });
+    b.add(G.box(0.26, 0.26, len + 0.26, 0.11), PAL.cream, 0, 0, len / 2);
+    b.add(G.box(0.27, 0.07, len + 0.1, 0.02), c, 0, 0.06, len / 2, { ol: 0 });
+    b.pop();
     // thread from the spool to the needle holder
-    b.rod([-0.2, top + 0.45, -0.05], [0.56, py + 0.05, 0.56], 0.018, pink);
-    b.rod([0.56, py + 0.05, 0.56], [OFF, py - 0.05, OFF], 0.018, pink);
-    b.add(G.box(0.22, 0.22, 0.22, 0.08), 0xfff6e8, OFF, py - 0.12, OFF);
-    const needle = P(root, [OFF, py - 0.22, OFF], (pb) => {
-      pb.add(G.cyl(0.035 * s, 0.035 * s, 0.46, 8), 0xf4f7ff, 0, -0.2, 0);
-      pb.add(G.cone(0.035 * s, 0.12, 8), 0xf4f7ff, 0, -0.49, 0, { rx: PI });
-      pb.add(G.torus(0.03, 0.01, 4, 10), INK, 0, -0.05, 0);
+    b.rod([-0.2, top + 0.47, -0.05], [0.56, py + 0.13, 0.56], 0.02, pink, 5, { ol: 0 });
+    b.add(G.box(0.3, 0.26, 0.3, 0.1), PAL.cream, OFF, py - 0.12, OFF);
+    const needle = P(root, [OFF, py - 0.24, OFF], (pb) => {
+      pb.add(G.cyl(0.04 * s, 0.04 * s, 0.48, 6), 0xf4f3ff, 0, -0.21, 0);
+      pb.add(G.cone(0.04 * s, 0.12, 6), 0xf4f3ff, 0, -0.51, 0, { rx: PI });
+      pb.add(G.box(0.16, 0.1, 0.16, 0.04), pink, 0, -0.03, 0);
     });
-    const ny = py - 0.22;
+    const ny = py - 0.24;
     return {
-      ...cab, top, peak: py + 0.15,
+      ...cab, top, peak: py + 0.18,
       emit: { kind: 'thread', y: 0.6, rate: 5 },
       anim(st) {
-        needle.position.y = ny - Math.abs(Math.sin(st.beat * PI * 4)) * 0.16 * st.work;
+        needle.position.y = ny - Math.abs(Math.sin(st.beat * PI * 4)) * 0.17 * st.work;
         spool.rotation.y = st.spin * 2;
       },
     };
@@ -368,38 +396,39 @@ const MACHINES = {
 
   ribbon(b, P, th, tier, root) {
     const c = th.machineColor[3];
-    const cab = cabinet(b, c, 0.68, tier);
+    const cab = cabinet(b, c, 0.74, tier, 'heart');
     const top = cab.top;
     const ax = Math.SQRT1_2;
-    for (const k of [-1, 1]) b.add(G.box(0.1, 0.4, 0.1, 0.04), STEEL, -0.32 + k * 0.66 * ax, top + 0.2, -0.32 - k * 0.66 * ax);
-    const cols = [th.ribbon, th.box[2], th.box[3]];
-    const spools = P(root, [-0.32, top + 0.36, -0.32], (pb) => {
-      pb.add(G.cyl(0.05, 0.05, 1.36, 8), INK, 0, 0, 0, { rz: PI / 2 });
+    for (const k of [-1, 1]) b.add(G.box(0.12, 0.44, 0.12, 0.04), STEEL, -0.32 + k * 0.68 * ax, top + 0.22, -0.32 - k * 0.68 * ax);
+    const cols = [th.ribbon, th.box[2], th.box[0]];
+    const spools = P(root, [-0.32, top + 0.4, -0.32], (pb) => {
+      pb.add(G.cyl(0.06, 0.06, 1.4, 8), PLINTH, 0, 0, 0, { rz: PI / 2 });
       for (let i = 0; i < 3; i++) {
-        const x = -0.4 + i * 0.4;
-        pb.add(G.cyl(0.22 + tier * 0.015, 0.22 + tier * 0.015, 0.2, 16), cols[i], x, 0, 0, { rz: PI / 2 });
-        pb.add(G.cyl(0.26, 0.26, 0.03, 16), 0xffffff, x - 0.11, 0, 0, { rz: PI / 2 });
-        pb.add(G.cyl(0.26, 0.26, 0.03, 16), 0xffffff, x + 0.11, 0, 0, { rz: PI / 2 });
+        const x = -0.42 + i * 0.42;
+        pb.add(G.cyl(0.24 + tier * 0.015, 0.24 + tier * 0.015, 0.22, 14), cols[i], x, 0, 0, { rz: PI / 2 });
+        pb.add(G.cyl(0.28, 0.28, 0.04, 14), 0xffffff, x - 0.12, 0, 0, { rz: PI / 2, ol: 0.6 });
+        pb.add(G.cyl(0.28, 0.28, 0.04, 14), 0xffffff, x + 0.12, 0, 0, { rz: PI / 2, ol: 0.6 });
       }
     }, { ry: DIAG });
-    const py = post(b, top, 0.75);
+    const py = post(b, top, 0.78);
     boom(b, py, STEEL);
-    b.add(G.cyl(0.05, 0.05, 0.3, 8), STEEL, OFF, py - 0.12, OFF);
+    b.add(G.cyl(0.06, 0.06, 0.32, 8), STEEL, OFF, py - 0.13, OFF);
     const s = 1 + tier * 0.06;
-    const hood = P(root, [OFF, py - 0.3, OFF], (pb) => {
-      pb.add(G.box(0.64 * s, 0.42 * s, 0.64 * s, 0.12), 0xffffff, 0, 0, 0);
-      pb.add(G.box(0.66 * s, 0.43 * s, 0.14, 0.04), th.ribbon, 0, 0, 0);
-      pb.add(G.box(0.14, 0.43 * s, 0.66 * s, 0.04), th.ribbon, 0, 0, 0);
-      bow(pb, th.ribbon, 0, 0.26 * s, 0, 1.6);
+    const hood = P(root, [OFF, py - 0.32, OFF], (pb) => {
+      pb.add(G.box(0.68 * s, 0.44 * s, 0.68 * s, 0.13), 0xffffff, 0, 0, 0);
+      pb.add(G.box(0.7 * s, 0.45 * s, 0.15, 0.04), th.ribbon, 0, 0, 0, { ol: 0 });
+      pb.add(G.box(0.15, 0.45 * s, 0.7 * s, 0.04), th.ribbon, 0, 0, 0, { ol: 0 });
+      bow(pb, th.ribbon, 0, 0.28 * s, 0, 1.7);
     });
-    const hy = py - 0.3;
+    const hy = py - 0.32;
     return {
-      ...cab, top, peak: py + 0.12,
+      ...cab, top, peak: py + 0.14,
       emit: null,
       anim(st) {
         const x = (st.beat % 1);
         const press = x > 0.55 && x < 0.95 ? Math.sin(((x - 0.55) / 0.4) * PI) : 0;
-        hood.position.y = hy - press * 0.62 * st.work;
+        hood.position.y = hy - press * 0.64 * st.work;
+        hood.scale.set(1 + press * 0.08 * st.work, 1 - press * 0.1 * st.work, 1 + press * 0.08 * st.work);
         spools.rotation.x = st.spin * 1.4;
       },
     };
@@ -407,38 +436,37 @@ const MACHINES = {
 };
 
 // ------------------------------------------------------------ locked plot
-function buildPlot(theme) {
+function buildPlot() {
   const b = new Builder();
-  const slab = 0xf1ecf7;
-  b.add(G.box(1.84, 0.08, 1.84, 0.04), slab, 0, 0.04, 0);
+  b.add(G.box(1.86, 0.1, 1.86, 0.05), PAL.cream, 0, 0.05, 0);
   // dashed hazard border
   const n = 6, L = 1.7;
   for (let i = 0; i < n; i++) {
     const t = -L / 2 + (i + 0.5) * (L / n);
-    const col = i % 2 ? INK : 0xffc928;
-    b.add(G.box(L / n * 0.98, 0.04, 0.12, 0.02), col, t, 0.09, -L / 2);
-    b.add(G.box(L / n * 0.98, 0.04, 0.12, 0.02), col, t, 0.09, L / 2);
-    b.add(G.box(0.12, 0.04, L / n * 0.98, 0.02), col, -L / 2, 0.09, t);
-    b.add(G.box(0.12, 0.04, L / n * 0.98, 0.02), col, L / 2, 0.09, t);
+    const col = i % 2 ? INK : PAL.yellow;
+    b.add(G.box(L / n * 0.98, 0.04, 0.13, 0), col, t, 0.11, -L / 2, { ol: 0 });
+    b.add(G.box(L / n * 0.98, 0.04, 0.13, 0), col, t, 0.11, L / 2, { ol: 0 });
+    b.add(G.box(0.13, 0.04, L / n * 0.98, 0), col, -L / 2, 0.11, t, { ol: 0 });
+    b.add(G.box(0.13, 0.04, L / n * 0.98, 0), col, L / 2, 0.11, t, { ol: 0 });
   }
   // cones at the corners
   for (const [x, z] of [[-0.72, -0.72], [0.72, -0.72], [-0.72, 0.72], [0.72, 0.72]]) {
-    b.add(G.box(0.3, 0.04, 0.3, 0.02), 0xff8a3d, x, 0.1, z);
-    b.add(G.cone(0.13, 0.4, 12), 0xff8a3d, x, 0.32, z);
-    b.add(G.cyl(0.085, 0.1, 0.07, 12), 0xffffff, x, 0.3, z);
+    b.add(G.box(0.32, 0.05, 0.32, 0.02), PAL.orange, x, 0.12, z, { ol: 0.6 });
+    b.add(G.cone(0.14, 0.42, 10), PAL.orange, x, 0.35, z);
+    b.add(G.cyl(0.09, 0.105, 0.08, 10), 0xffffff, x, 0.32, z, { ol: 0 });
   }
   // little sawhorse barrier in front (toward the camera)
   b.push(0.38, 0, 0.38, { ry: DIAG });
-  b.add(G.box(0.9, 0.14, 0.06, 0.03), 0xffffff, 0, 0.42, 0);
-  for (let i = 0; i < 3; i++) b.add(G.box(0.14, 0.145, 0.065, 0.01), 0xff5a5f, -0.3 + i * 0.3, 0.42, 0, { rz: 0.5 });
-  b.add(G.box(0.06, 0.42, 0.06, 0.02), INK, -0.38, 0.21, 0);
-  b.add(G.box(0.06, 0.42, 0.06, 0.02), INK, 0.38, 0.21, 0);
+  b.add(G.box(0.94, 0.16, 0.07, 0.03), 0xffffff, 0, 0.44, 0);
+  for (let i = 0; i < 3; i++) b.add(G.box(0.15, 0.165, 0.075, 0), PAL.red, -0.3 + i * 0.3, 0.44, 0, { rz: 0.5, ol: 0 });
+  b.add(G.box(0.07, 0.44, 0.07, 0.02), INK, -0.4, 0.22, 0, { ol: 0 });
+  b.add(G.box(0.07, 0.44, 0.07, 0.02), INK, 0.4, 0.22, 0, { ol: 0 });
   b.pop();
-  // toolbox and a stack of bricks
-  b.add(G.box(0.4, 0.2, 0.24, 0.05), 0xff5a5f, -0.35, 0.18, -0.25, { ry: 0.4 });
-  b.add(G.box(0.22, 0.05, 0.05, 0.02), INK, -0.35, 0.31, -0.25, { ry: 0.4 });
-  b.add(G.box(0.3, 0.14, 0.18, 0.03), 0xffb36b, 0.2, 0.15, -0.45);
-  b.add(G.box(0.3, 0.14, 0.18, 0.03), 0xff9f5a, 0.25, 0.29, -0.42, { ry: 0.25 });
+  // toolbox, a stack of bricks and a shovel
+  b.add(G.box(0.42, 0.22, 0.26, 0.06), PAL.red, -0.35, 0.21, -0.25, { ry: 0.4 });
+  b.add(G.box(0.24, 0.06, 0.06, 0.02), INK, -0.35, 0.35, -0.25, { ry: 0.4, ol: 0 });
+  b.add(G.box(0.32, 0.15, 0.19, 0.03), 0xffa25a, 0.2, 0.18, -0.45);
+  b.add(G.box(0.32, 0.15, 0.19, 0.03), 0xff8a45, 0.25, 0.33, -0.42, { ry: 0.25 });
   return b.build();
 }
 
@@ -457,22 +485,22 @@ export function createStations(theme, preset) {
   const group = new THREE.Group();
   group.name = 'stations';
   const mat = toyMaterial();
-  const plotGeo = buildPlot(theme);
+  const plotGeo = buildPlot();
 
   // turntables (instanced, one draw call)
   const ttb = new Builder();
-  ttb.add(G.cyl(0.56, 0.58, 0.07, 24), shade(theme.rail, 0.25), 0, 0, 0);
-  for (let k = 0; k < 4; k++) ttb.add(G.box(0.5, 0.02, 0.08, 0.01), shade(theme.rail, -0.12), Math.cos(k * PI / 2) * 0.25, 0.04, Math.sin(k * PI / 2) * 0.25, { ry: -k * PI / 2 });
-  ttb.add(G.cyl(0.1, 0.1, 0.02, 12), 0xffffff, 0, 0.045, 0);
+  ttb.add(G.cyl(0.58, 0.6, 0.09, 18), shade(theme.rail, 0.3), 0, 0, 0, { ol: 0.8 });
+  for (let k = 0; k < 4; k++) ttb.add(G.box(0.5, 0.02, 0.09, 0), shade(theme.rail, -0.1), Math.cos(k * PI / 2) * 0.25, 0.05, Math.sin(k * PI / 2) * 0.25, { ry: -k * PI / 2, ol: 0 });
+  ttb.add(G.cyl(0.11, 0.11, 0.03, 10), 0xffffff, 0, 0.05, 0, { ol: 0 });
   const turntables = new THREE.InstancedMesh(ttb.build(), mat, 4);
   turntables.name = 'turntables';
   turntables.frustumCulled = false;
   group.add(turntables);
 
-  // progress fills on the machine screens
-  const fb = new Builder();
+  // progress fills on the machine screens (unlit, no outline)
+  const fb = new Builder({ ol: 0 });
   fb.add(G.box(1, 1, 1, 0.3), 0xffffff, 0.5, 0, 0, { tint: 1 });
-  const fills = new THREE.InstancedMesh(fb.build(), mat, 4);
+  const fills = new THREE.InstancedMesh(fb.build(), toyMaterial({ unlit: true }), 4);
   fills.name = 'progress-fills';
   fills.frustumCulled = false;
   fills.setColorAt(0, _c.set(0xffffff));
@@ -518,7 +546,7 @@ export function createStations(theme, preset) {
       open: false, level: 1, tier: -1, built: null,
       beat: 0, spin: 0, work: 0, rate: 0, t: 0, boost: 0, boostAmt: 0, progress: 0, lastP: 0,
       pop: 0, popKind: 0, openT: -1, cyclePop: 0, init: false, blocked: false, idle: true,
-      emitAcc: 0, lastBeat: 0, cheer: 0,
+      emitAcc: 0, lastBeat: 0, cheer: 0, hop: 0,
       box: new THREE.Box3(),
     };
     computePickBox(st);
@@ -563,16 +591,16 @@ export function createStations(theme, preset) {
     let beacon = null, star = null;
     if (tier >= 2) {
       // warning beacon on the front-left corner of the roof (visible from the camera)
-      b.add(G.cyl(0.06, 0.07, 0.22, 8), STEEL, -0.62, info.top + 0.11, 0.62);
-      beacon = P(st.machine, [-0.62, info.top + 0.26, 0.62], (pb) => {
-        pb.add(G.cyl(0.17, 0.19, 0.08, 14), INK, 0, -0.03, 0);
-        pb.add(G.hemi(12, 6), tier >= 3 ? GOLD : 0xff5a5f, 0, 0, 0, { sx: 0.19, sy: 0.24, sz: 0.19 });
-        pb.add(G.box(0.27, 0.06, 0.06, 0.0), 0xffffff, 0, 0.1, 0);
+      b.add(G.cyl(0.07, 0.08, 0.24, 8), STEEL, -0.62, info.top + 0.12, 0.62);
+      beacon = P(st.machine, [-0.62, info.top + 0.28, 0.62], (pb) => {
+        pb.add(G.cyl(0.19, 0.21, 0.09, 12), PLINTH, 0, -0.03, 0);
+        pb.add(G.hemi(10, 5), tier >= 3 ? GOLD : PAL.red, 0, 0, 0, { sx: 0.21, sy: 0.27, sz: 0.21 });
+        pb.add(G.box(0.3, 0.07, 0.07, 0), 0xffffff, 0, 0.11, 0, { ol: 0 });
       });
     }
     if (tier >= 4) {
-      b.add(G.cyl(0.04, 0.05, 0.3, 8), GOLD, 0.62, info.top + 0.15, -0.62);
-      star = P(st.machine, [0.62, info.top + 0.48, -0.62], (pb) => star5(pb, GOLD, 0, 0, 0, 1.5), { ry: DIAG });
+      b.add(G.cyl(0.05, 0.06, 0.32, 8), GOLD, 0.62, info.top + 0.16, -0.62);
+      star = P(st.machine, [0.62, info.top + 0.52, -0.62], (pb) => star5(pb, GOLD, 0, 0, 0, 1.6), { ry: DIAG });
     }
     const body = new THREE.Mesh(b.build(), mat);
     st.machine.add(body);
@@ -656,37 +684,46 @@ export function createStations(theme, preset) {
         st.spin += dt * st.work * (5 + st.boostAmt * 6);
         st.t += dt;
 
-        // animation
-        st.pop = Math.max(0, st.pop - dt * 2.2);
+        // animation: open bounce, upgrade jump + squash and stretch, cycle squash
+        st.pop = Math.max(0, st.pop - dt * 1.9);
         st.cyclePop = Math.max(0, st.cyclePop - dt * 5);
         st.cheer = Math.max(0, st.cheer - dt * 1.1);
-        let sx = 1, sy = 1;
+        let sx = 1, sy = 1, hop = 0;
         if (st.openT >= 0) {
           st.openT += dt;
-          const k = clamp(st.openT / 0.75, 0, 1);
+          const k = clamp(st.openT / 0.8, 0, 1);
           const e = ease.outElastic(k);
           sx = sy = 0.05 + 0.95 * e;
           if (k >= 1) st.openT = -1;
         }
         if (st.pop > 0) {
           const k = 1 - st.pop;
-          const a = Math.sin(k * PI * 3) * Math.exp(-k * 3) * (st.popKind === 2 ? 0.2 : 0.12);
-          sy *= 1 + a; sx *= 1 - a * 0.6;
+          const big = st.popKind === 2;
+          // anticipation squash, jump with stretch, landing squash, wobble
+          if (k < 0.08) { const a = Math.sin((k / 0.08) * PI * 0.5) * 0.14; sy *= 1 - a; sx *= 1 + a * 0.7; }
+          else {
+            const j = (k - 0.08) / 0.92;
+            hop = Math.max(0, Math.sin(Math.min(1, j / 0.3) * PI)) * (big ? 0.55 : 0.32);
+            const a = Math.sin(j * PI * 3.2) * Math.exp(-j * 3.4) * (big ? 0.26 : 0.18);
+            sy *= 1 + a; sx *= 1 - a * 0.65;
+          }
         }
-        if (st.cyclePop > 0) { const a = Math.sin(st.cyclePop * PI) * 0.025; sy *= 1 - a; sx *= 1 + a * 0.5; }
-        if (st.boostAmt > 0.01) { const w = Math.sin(st.t * 40) * 0.008 * st.boostAmt; sx *= 1 + w; }
+        if (st.cyclePop > 0) { const a = Math.sin(st.cyclePop * PI) * 0.03; sy *= 1 - a; sx *= 1 + a * 0.5; }
+        if (st.boostAmt > 0.01) { const w = Math.sin(st.t * 40) * 0.01 * st.boostAmt; sx *= 1 + w; }
         st.machine.scale.set(sx, sy, sx);
+        st.machine.position.y = hop;
+        st.hop = hop;
         if (st.open && st.built) {
           st.built.anim(st);
           if (st.built.beacon) {
             st.built.beacon.rotation.y = st.t * 3;
-            const bl = 1 + 0.12 * Math.sin(st.t * 6) * st.work;
+            const bl = 1 + 0.14 * Math.sin(st.t * 6) * st.work;
             st.built.beacon.scale.setScalar(bl);
           }
-          if (st.built.star) { st.built.star.rotation.y = DIAG + st.t * 1.6; }
+          if (st.built.star) { st.built.star.rotation.y = DIAG + st.t * 1.6; st.built.star.position.y = st.built.top + 0.52 + Math.sin(st.t * 2.5) * 0.06; }
         }
         // turntable
-        _p.set(CORNERS[i][0], BELT_Y - 0.03, CORNERS[i][1]);
+        _p.set(CORNERS[i][0], BELT_Y - 0.035, CORNERS[i][1]);
         _q.setFromAxisAngle(_up, st.spin * 0.55);
         _s.set(1, 1, 1);
         turntables.setMatrixAt(i, _m4.compose(_p, _q, _s));
@@ -698,14 +735,14 @@ export function createStations(theme, preset) {
             const mirrored = st.mirrored;
             // canonical screen spans x in [-0.46, 0.34] on the +Z face
             const x0 = mirrored ? 0.34 - w : -0.46;
-            _p.set(-OFF + x0 + 0, st.built.screenY, -OFF + 0.86);
+            _p.set(-OFF + x0 * sx, st.built.screenY * sy + hop, -OFF + 0.86 * sx);
             _q.identity();
-            _s.set(w, 0.17, 0.03);
+            _s.set(w * sx, 0.17 * sy, 0.03);
             _m4.compose(_p, _q, _s).premultiply(st.frame.matrixWorld);
             fills.setMatrixAt(nFill, _m4);
-            if (st.blocked) _c.set(0xffb02e).multiplyScalar(0.85 + 0.15 * Math.sin(st.t * 8));
-            else if (st.boost) _c.set(0x5ff0ff);
-            else _c.set(0x6dff8e);
+            if (st.blocked) _c.set(0xffa21f).multiplyScalar(0.85 + 0.15 * Math.sin(st.t * 8));
+            else if (st.boost) _c.set(0x4ff0ff);
+            else _c.set(0x52ff6e);
             fills.setColorAt(nFill, _c);
             nFill++;
           }

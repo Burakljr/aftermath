@@ -103,10 +103,12 @@ export function createAudio() {
       noise(0.75, 0.4, { vol: 0.08, freq: 3000, q: 0.5 });
     },
     honk: () => { note(330, 0, 0.16, { type: 'square', vol: 0.08 }); note(415, 0.2, 0.2, { type: 'square', vol: 0.08 }); },
+    // panel slides open: soft rising swish + a little pop
+    swish: () => { noise(0, 0.12, { vol: 0.06, freq: 1800, q: 0.7 }); note(520, 0.02, 0.09, { type: 'sine', vol: 0.12, slide: 1.6 }); },
   };
 
   // per-sound minimum gap so rapid events do not turn into noise
-  const MIN_GAP = { coin: 0.09, tap: 0.04, boost: 0.05, upgrade: 0.05, claim: 0.1 };
+  const MIN_GAP = { coin: 0.09, tap: 0.04, boost: 0.05, upgrade: 0.05, claim: 0.1, swish: 0.08 };
 
   function play(name) {
     if (!enabled) return;

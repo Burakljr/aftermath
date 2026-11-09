@@ -5,12 +5,12 @@ import * as THREE from 'three';
 import { CORNERS, MACHINE_OFFSET, TRUCK, STOCK, UI_INSETS, SCREEN } from './layout.js';
 import { createCamera } from './camera.js';
 import { presetFor, createPerfMonitor } from './quality.js';
-import { themeFor, createEnvironment, createTruck, createPath, BELT_Y } from './factory.js';
+import { themeFor, createEnvironment, createTruck, createForklift, createPath, BELT_Y } from './factory.js';
 import { createStations, WORKER_SPOT } from './stations.js';
 import { createWorkers } from './workers.js';
 import { createItems } from './items.js';
 import { createFx, CONFETTI } from './fx.js';
-import { radialTexture, clamp, rng } from './kit.js';
+import { radialTexture, clamp, rng, TOON, PAL } from './kit.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -22,6 +22,7 @@ const _ray = new THREE.Raycaster();
 const _ndc = new THREE.Vector2();
 const _box = new THREE.Box3();
 
+const OUTLINE_PX = 2.2;
 const EXHAUST = { speed: 0.3, up: 0.8, grav: -0.4, drag: 1.5, life: 0.7, size: 0.75, colors: [0xffffff, 0xeef0ff] };
 const EMIT = {
   chip: (th) => ({ kind: 'chip', o: { speed: 1.7, up: 2.4, grav: 8, life: 0.75, size: 1, colors: [th.wood, th.woodDark, 0xf6d29a] } }),
@@ -50,13 +51,10 @@ export function createScene(canvas, opts = {}) {
   const camera = cam.camera;
   scene.add(camera);
 
-  // lights: hemisphere fill + one warm directional sun (no shadow maps)
-  const hemi = new THREE.HemisphereLight(0xffffff, 0xd9c8ff, 1.15);
-  scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff6e6, 2.25);
-  sun.position.set(-3.5, 10, 7.5);
-  sun.target.position.set(0, 0, 0);
-  scene.add(sun, sun.target);
+  // lighting lives in the toon shader (kit.js TOON): one warm key direction, no shadow maps.
+  // The camera never rotates, so the view-space light direction is set once.
+  const SUN_DIR = new THREE.Vector3(-0.42, 1, 0.62);
+  TOON.setLight(SUN_DIR, camera);
 
   // background gradient (a quad attached to the camera)
   const bgGeo = new THREE.PlaneGeometry(1, 1);
@@ -68,7 +66,7 @@ export function createScene(canvas, opts = {}) {
   camera.add(bg);
 
   // blob shadows (one instanced mesh)
-  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x4a3a78, map: radialTexture(), transparent: true, opacity: 0.2, depthWrite: false });
+  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x5a2f6e, map: radialTexture(), transparent: true, opacity: 0.26, depthWrite: false });
   const shadows = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), shadowMat, 64);
   shadows.name = 'blob-shadows';
   shadows.renderOrder = 1;
@@ -84,7 +82,7 @@ export function createScene(canvas, opts = {}) {
   scene.add(factoryGroup);
 
   let config = null, theme = themeFor(null);
-  let env = null, stations = null, workers = null, items = null, truck = null;
+  let env = null, stations = null, workers = null, items = null, truck = null, forklift = null;
   let ids = ['saw', 'assembly', 'paint', 'wrap'];
   let lastState = null;
   let emitSpecs = {};
@@ -194,6 +192,9 @@ export function createScene(canvas, opts = {}) {
       cam.fit(w, h, ins, framePts, opts.zoom || 1);
     }
     fitTop = ins.top;
+    // constant-pixel ink outlines (thinner on small screens)
+    const wpp = (camera.right - camera.left) / w;
+    TOON.setOutline(OUTLINE_PX * clamp(Math.min(w, h) / 390, 0.8, 1.25), wpp);
     // background quad covers the frustum
     bg.scale.set((camera.right - camera.left) * 1.02, (camera.top - camera.bottom) * 1.02, 1);
     bg.position.set((camera.left + camera.right) / 2, (camera.top + camera.bottom) / 2, -150);
@@ -208,7 +209,6 @@ export function createScene(canvas, opts = {}) {
     c.setXYZ(2, bot.r, bot.g, bot.b); c.setXYZ(3, bot.r, bot.g, bot.b);
     c.needsUpdate = true;
     renderer.setClearColor(theme.skyBottom, 1);
-    hemi.groundColor.set(theme.key === 'teddy' ? 0xffd6ec : 0xd9c8ff);
   }
 
   // ------------------------------------------------------------ factory
@@ -221,12 +221,15 @@ export function createScene(canvas, opts = {}) {
     if (workers) { factoryGroup.remove(workers.group); workers.dispose(); }
     if (items) { factoryGroup.remove(items.group); items.dispose(); }
     if (truck) { factoryGroup.remove(truck.group); truck.dispose(); }
+    if (forklift) { factoryGroup.remove(forklift.group); forklift.dispose(); }
     env = createEnvironment(theme, preset);
     stations = createStations(theme, preset);
-    workers = createWorkers(theme);
+    workers = createWorkers(theme, path);
     items = createItems(theme, path, preset);
     truck = createTruck(theme);
-    factoryGroup.add(env.group, stations.group, workers.group, items.group, truck.group);
+    forklift = createForklift(theme);
+    forklift.group.visible = preset.decor;
+    factoryGroup.add(env.group, stations.group, workers.group, items.group, truck.group, forklift.group);
     factoryGroup.updateMatrixWorld(true);
     emitSpecs = {};
     for (const k of Object.keys(EMIT)) {
@@ -254,9 +257,9 @@ export function createScene(canvas, opts = {}) {
       const st = stations.stations[i];
       stations.center(i, _v2, 0);
       put(_v2.x + 0.15, _v2.z + 0.15, st.open ? 2.7 * st.machine.scale.x : 2.2);
-      const sp = workers.spots[i];
-      if (sp.s > 0.01) put(sp.x + 0.05, sp.z + 0.05, 0.75 * sp.s);
     }
+    for (const sp of workers.spots) if (sp.s > 0.01) put(sp.x + 0.05, sp.z + 0.05, 0.8 * sp.s);
+    if (forklift.group.visible) { const f = forklift.group.position; put(f.x, f.z, 1.6); }
     const tp = truck.group.position;
     put(tp.x + 0.1, tp.z, 3.2, 1);
     put(tp.x + 0.1, tp.z + 0.9, 2.2, 1);
@@ -335,13 +338,15 @@ export function createScene(canvas, opts = {}) {
         break;
       }
       case 'sold': {
-        items.onSold(lastOpenIndex());
+        const lo = lastOpenIndex();
+        stations.corner(lo, _v2);
+        if (!workers.takeSold(lo, _v2, items)) items.onSold(lo);
         const n = Math.min(5, Math.floor(coinBudget));
         if (n >= 1) {
           coinBudget -= n;
           _v.copy(truck.group.position); _v.y = 1.5; _v.z -= 0.5;
-          fx.burst('coin', _v, n, { speed: 1.4, up: 5.2, grav: 11, drag: 0.4, life: 1.0, size: 1.15, spin: 12 });
-          fx.burst('sparkle', _v, 2, { speed: 1.5, up: 2, grav: 1, life: 0.5, colors: [0xfff38a, 0xffffff] });
+          fx.burst('coin', _v, n, { speed: 1.5, up: 5.6, grav: 11, drag: 0.4, life: 1.05, size: 1.3, spin: 12 });
+          fx.burst('sparkle', _v, 3, { speed: 1.6, up: 2.2, grav: 1, life: 0.5, size: 1.2, colors: [0xffe27a, 0xffffff] });
         }
         break;
       }
@@ -362,11 +367,13 @@ export function createScene(canvas, opts = {}) {
         const big = !!p.milestone;
         stations.pop(i, big ? 2 : 1);
         stations.anchorPoint(i, _v); _v.y -= 0.4;
-        fx.burst('star', _v, big ? 16 : 7, { speed: big ? 3.4 : 2.4, up: big ? 5 : 3.6, grav: 7, drag: 0.8, life: big ? 1.1 : 0.8, size: big ? 1.3 : 1, colors: [0xffd23c, 0xffe98a, 0xffffff, 0xffb02e] });
-        if (big) {
-          fx.burst('sparkle', _v, 10, { speed: 2.6, up: 3, grav: 2, drag: 1, life: 0.8, size: 1.2, colors: [0xffffff, 0xfff38a] });
-          fx.burst('confetti', _v, 26, { speed: 3, up: 5, grav: 5, drag: 1.2, life: 1.6, size: 1.2, colors: CONFETTI, spin: 12 });
-        }
+        fx.burst('star', _v, big ? 18 : 9, { speed: big ? 3.6 : 2.6, up: big ? 5.4 : 4, grav: 7.5, drag: 0.8, life: big ? 1.15 : 0.85, size: big ? 1.45 : 1.15, colors: [PAL.yellow, PAL.goldHi, 0xffffff, PAL.orange] });
+        fx.burst('sparkle', _v, big ? 12 : 5, { speed: 2.4, up: 2.8, grav: 2, drag: 1, life: 0.7, size: 1.2, colors: [0xffffff, PAL.goldHi] });
+        stations.center(i, _v2, 0.06);
+        fx.ring(_v2, big ? PAL.yellow : 0xffffff, big ? 2.3 : 1.8);
+        _v2.y = 0.2;
+        fx.burst('puff', _v2, big ? 10 : 6, { speed: 2.2, up: 0.5, grav: 0, drag: 2.6, life: 0.6, size: 1.0, spread: 1.3, colors: [0xffffff] });
+        if (big) fx.burst('confetti', _v, 30, { speed: 3, up: 5.2, grav: 5, drag: 1.2, life: 1.7, size: 1.25, colors: CONFETTI, spin: 12 });
         break;
       }
       case 'open': {
@@ -438,9 +445,10 @@ export function createScene(canvas, opts = {}) {
     lastState = state || lastState;
     coinBudget = Math.min(20, coinBudget + dt * 18);
     stations.update(state, dt);
-    workers.update(dt, stations);
     truck.update(dt);
     items.update(state, dt, stations, truck);
+    workers.update(dt, stations, truck, items, lastOpenIndex());
+    if (forklift.group.visible) forklift.update(dt, truck);
     env.update(dt);
     emitWork(dt);
     emitTruck(dt);
@@ -457,6 +465,7 @@ export function createScene(canvas, opts = {}) {
     if (next === preset) return;
     preset = next;
     if (env) env.setPreset(preset);
+    if (forklift) forklift.group.visible = preset.decor;
     fx.setPreset(preset);
     needResize = true;
     resize();
@@ -530,11 +539,11 @@ export function createScene(canvas, opts = {}) {
     /** extension: enable / disable the automatic drop to Low quality */
     setAutoQuality(on) { autoQuality = !!on; monitor.enabled = !!on; },
     /** extension: internals for the scene lab and tests */
-    debug: { renderer, scene, camera, get stations() { return stations; }, get items() { return items; }, get truck() { return truck; }, fxSystem: fx, project },
+    debug: { renderer, scene, camera, get stations() { return stations; }, get items() { return items; }, get truck() { return truck; }, get workers() { return workers; }, get forklift() { return forklift; }, fxSystem: fx, project },
     dispose() {
       try { window.removeEventListener('resize', onWinResize); window.removeEventListener('orientationchange', onWinResize); } catch (e) { /* ignore */ }
       try { if (ro) ro.disconnect(); } catch (e) { /* ignore */ }
-      if (env) env.dispose(); if (stations) stations.dispose(); if (workers) workers.dispose(); if (items) items.dispose(); if (truck) truck.dispose();
+      if (env) env.dispose(); if (stations) stations.dispose(); if (workers) workers.dispose(); if (items) items.dispose(); if (truck) truck.dispose(); if (forklift) forklift.dispose();
       fx.dispose();
       if (safeProbe && safeProbe.parentNode) safeProbe.parentNode.removeChild(safeProbe);
       renderer.dispose();

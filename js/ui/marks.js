@@ -1,6 +1,7 @@
-// DOM overlays placed at the scene's station anchors: level badge, "upgrade
-// ready" arrow, and for locked plots the big "Open" price sign.
-import { el, icon, setText, toggle, onTap, pulse } from './dom.js';
+// DOM stickers placed at the scene's station anchors: level badge with the green
+// "upgrade ready" arrow, and for locked plots the "Open + price" sign or a small
+// "Soon" sticker.
+import { el, icon, otext, setText, toggle, onTap, pulse } from './dom.js';
 
 export function createMarks(ctx) {
   const layer = ctx.layers.marks;
@@ -10,14 +11,13 @@ export function createMarks(ctx) {
     for (const it of items) it.root.remove();
     items.length = 0;
     for (let i = 0; i < count; i++) {
-      const lvl = el('span', 'mark-lvl num');
+      const lvl = otext('mark-lvl num');
       const up = el('span', 'mark-up', null, [icon('up')]);
       const badge = el('div', 'mark-badge', null, [lvl, up]);
-      const signTitle = el('span', 'sign-title');
+      const signTitle = otext('sign-title');
       const signCost = el('span', 'sign-cost num');
       const sign = el('div', 'mark-sign', null, [
-        el('span', 'sign-lock', null, [icon('lock')]),
-        signTitle,
+        el('span', 'sign-head', null, [icon('lock', 'sign-lock'), signTitle]),
         el('span', 'sign-price', null, [icon('coin', 'sign-coin'), signCost]),
       ]);
       const root = el('div', 'mark', { 'data-index': i }, [badge, sign]);
@@ -77,6 +77,7 @@ export function createMarks(ctx) {
         const h = hints[s.id];
         toggle(it.up, 'is-on', !!h);
         toggle(it.up, 'is-best', h === 'best');
+        toggle(it.badge, 'has-up', !!h);
         toggle(it.badge, 'is-boost', s.boostT > 0);
       } else {
         it.level = -1;

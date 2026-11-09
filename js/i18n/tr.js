@@ -43,6 +43,28 @@ export default {
   'goal.allLevel': 'Tüm istasyonları {n}. seviyeye getir',
   'goal.collect': 'Topla',
   'goal.progress': '{cur}/{target}',
+  'goals.go': 'Git',
+  'goals.count': '{n}/{total}',
+  'goals.note': 'Fabrikayı bitirmek için tüm hedefleri topla.',
+
+  'menu.upgrades': 'Yükselt',
+  'menu.goals': 'Hedefler',
+  'menu.factories': 'Fabrikalar',
+
+  'upgrades.title': 'Yükseltmeler',
+  'upgrades.buy': 'Yükselt',
+  'upgrades.gain': 'Oyuncak başı +{n}',
+  'upgrades.slowest': 'En yavaş',
+  'upgrades.tip': 'Hızlı almak için butona basılı tut',
+
+  'factories.title': 'Fabrikalar',
+  'factories.n': 'Fabrika {n}',
+  'factories.here': 'Buradasın',
+  'factories.done': 'Tamamlandı',
+  'factories.doneText': 'Tüm hedefler toplandı',
+  'factories.locked': 'Önce {name} fabrikasını bitir',
+  'factories.soon': 'Çok yakında',
+  'factories.progress': '{n}/{total} hedef toplandı',
 
   'hud.perSec': '{n}/sn',
   'hud.coins': 'Altın',
@@ -61,8 +83,9 @@ export default {
   'card.lockedFirst': 'Önce {station} aç.',
   'card.newStep': 'Üretim hattına yeni bir adım ekler.',
   'card.close': 'Kapat',
+  'card.newStation': 'Yeni istasyon',
 
-  'mark.level': 'Sv {n}',
+  'mark.level': 'Sv. {n}',
   'sign.open': 'Aç',
   'sign.locked': 'Yakında',
 

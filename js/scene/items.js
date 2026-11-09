@@ -3,7 +3,7 @@
 // (progress and tray counts) plus 'pass' / 'sold' events, which launch an item
 // from a turntable along the belt to the next station's tray or to the truck.
 import * as THREE from 'three';
-import { G, Builder, toyMaterial, shade, ease, clamp, rng } from './kit.js';
+import { G, Builder, PAL, toyMaterial, shade, ease, clamp, rng } from './kit.js';
 import { BELT_Y } from './factory.js';
 
 const PI = Math.PI;
@@ -13,20 +13,24 @@ const ITEM_SCALE = 1.15;
 const M_QUEUE = 1, M_WORK = 2, M_FLIGHT = 3, M_HOP = 4, M_CARGO = 5, M_DOCK = 6;
 
 // ------------------------------------------------------------- geometries
+// Chunky toys with ink outlines (kit.js bakes the outline hull; small details
+// skip it). Origin = bottom centre, length along +Z.
+const OL = 0.85;
+
 function woodStages(th) {
   const out = [];
-  // 0: log
-  let b = new Builder();
-  b.add(G.cyl(0.14, 0.14, 0.46, 12), th.woodDark, 0, 0.14, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.115, 0.115, 0.47, 12), th.wood, 0, 0.14, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.05, 0.05, 0.48, 8), th.woodDark, 0, 0.14, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.06, 0.06, 0.08, 6), th.woodDark, 0.1, 0.24, 0.05, { rz: 0.6 });
+  // 0: log with light end rings and a knot
+  let b = new Builder({ ol: OL });
+  b.add(G.cyl(0.15, 0.15, 0.46, 10), th.woodDark, 0, 0.15, 0, { rx: PI / 2 });
+  b.add(G.cyl(0.115, 0.115, 0.47, 10), 0xffd79a, 0, 0.15, 0, { rx: PI / 2, ol: 0 });
+  b.add(G.cyl(0.05, 0.05, 0.48, 6), th.woodDark, 0, 0.15, 0, { rx: PI / 2, ol: 0 });
+  b.add(G.cyl(0.06, 0.06, 0.09, 6), th.woodDark, 0.1, 0.26, 0.05, { rz: 0.6, ol: 0.6 });
   out.push(b.build());
   // 1: cut blocks
-  b = new Builder();
-  b.add(G.box(0.2, 0.2, 0.2, 0.04), th.wood, -0.11, 0.1, 0.02);
-  b.add(G.box(0.2, 0.2, 0.2, 0.04), shade(th.wood, 0.12), 0.11, 0.1, -0.02);
-  b.add(G.box(0.2, 0.2, 0.2, 0.04), shade(th.wood, -0.08), 0, 0.3, 0, { ry: 0.3 });
+  b = new Builder({ ol: OL });
+  b.add(G.box(0.21, 0.21, 0.21, 0.04), th.wood, -0.11, 0.105, 0.02);
+  b.add(G.box(0.21, 0.21, 0.21, 0.04), 0xffd79a, 0.11, 0.105, -0.02);
+  b.add(G.box(0.21, 0.21, 0.21, 0.04), shade(th.wood, -0.08), 0, 0.31, 0, { ry: 0.3 });
   out.push(b.build());
   // 2: car body (unpainted wood)
   out.push(carGeo(th, false));
@@ -38,52 +42,52 @@ function woodStages(th) {
 }
 
 function carGeo(th, painted) {
-  const b = new Builder();
-  const body = painted ? 0xffffff : th.wood;
+  const b = new Builder({ ol: OL });
+  const body = painted ? 0xffffff : 0xf7c98a;
   const t = painted ? 1 : 0;
-  b.add(G.box(0.3, 0.15, 0.48, 0.065), body, 0, 0.15, 0, { tint: t });
-  b.add(G.box(0.26, 0.15, 0.24, 0.07), body, 0, 0.28, -0.04, { tint: t });
-  const wheel = painted ? 0x2f3247 : th.woodDark;
+  b.add(G.box(0.32, 0.16, 0.5, 0.07), body, 0, 0.16, 0, { tint: t });
+  b.add(G.box(0.27, 0.16, 0.25, 0.07), body, 0, 0.29, -0.04, { tint: t });
+  const wheel = painted ? 0x2f2840 : th.woodDark;
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    b.add(G.cyl(0.08, 0.08, 0.06, 12), wheel, sx * 0.15, 0.08, sz * 0.15, { rz: PI / 2 });
-    if (painted) b.add(G.cyl(0.035, 0.035, 0.065, 8), 0xffffff, sx * 0.155, 0.08, sz * 0.15, { rz: PI / 2 });
+    b.add(G.cyl(0.085, 0.085, 0.07, 8), wheel, sx * 0.16, 0.085, sz * 0.16, { rz: PI / 2 });
+    if (painted) b.add(G.box(0.075, 0.05, 0.05, 0), 0xffffff, sx * 0.17, 0.085, sz * 0.16, { ol: 0 });
   }
   if (painted) {
-    b.add(G.box(0.27, 0.09, 0.18, 0.04), 0xcdf3ff, 0, 0.29, -0.04);
-    b.add(G.box(0.2, 0.09, 0.25, 0.04), 0xcdf3ff, 0, 0.29, -0.04);
-    for (const sx of [-1, 1]) b.add(G.sphere(7, 5), 0xfff2a8, sx * 0.09, 0.17, 0.24, { s: 0.035 });
-    b.add(G.box(0.04, 0.012, 0.42, 0.006), 0xffffff, 0, 0.226, 0.0);
+    b.add(G.box(0.28, 0.09, 0.2, 0), 0x9fe3ff, 0, 0.3, -0.04, { ol: 0 });
+    b.add(G.box(0.21, 0.09, 0.26, 0), 0x9fe3ff, 0, 0.3, -0.04, { ol: 0 });
+    for (const sx of [-1, 1]) b.add(G.box(0.07, 0.05, 0.03, 0), 0xfff2a8, sx * 0.09, 0.18, 0.25, { ol: 0 });
+    b.add(G.box(0.05, 0.012, 0.44, 0), 0xffffff, 0, 0.243, 0.0, { ol: 0 });
   } else {
-    b.add(G.box(0.2, 0.02, 0.1, 0.01), shade(th.wood, -0.2), 0, 0.36, -0.04);
+    b.add(G.box(0.2, 0.02, 0.1, 0), shade(th.wood, -0.2), 0, 0.375, -0.04, { ol: 0 });
   }
   return b.build();
 }
 
 function giftGeo(ribbon, inner = null) {
-  const b = new Builder();
+  const b = new Builder({ ol: OL });
   b.add(G.box(0.4, 0.32, 0.4, 0.06), 0xffffff, 0, 0.16, 0, { tint: 1 });
-  b.add(G.box(0.41, 0.06, 0.41, 0.03), 0xffffff, 0, 0.31, 0, { tint: 1 });
-  b.add(G.box(0.42, 0.33, 0.08, 0.02), ribbon, 0, 0.165, 0);
-  b.add(G.box(0.08, 0.33, 0.42, 0.02), ribbon, 0, 0.165, 0);
+  b.add(G.box(0.42, 0.07, 0.42, 0.03), 0xffffff, 0, 0.31, 0, { tint: 1 });
+  b.add(G.box(0.425, 0.34, 0.09, 0), ribbon, 0, 0.17, 0, { ol: 0 });
+  b.add(G.box(0.09, 0.34, 0.425, 0), ribbon, 0, 0.17, 0, { ol: 0 });
   if (inner) inner(b);
   else {
-    b.add(G.sphere(7, 5), ribbon, -0.08, 0.38, 0, { sx: 0.1, sy: 0.07, sz: 0.05, rz: 0.5 });
-    b.add(G.sphere(7, 5), ribbon, 0.08, 0.38, 0, { sx: 0.1, sy: 0.07, sz: 0.05, rz: -0.5 });
-    b.add(G.sphere(7, 5), shade(ribbon, -0.15), 0, 0.36, 0, { s: 0.045 });
+    b.add(G.sphere(7, 5), ribbon, -0.085, 0.39, 0, { sx: 0.11, sy: 0.075, sz: 0.055, rz: 0.5, ol: 0.6 });
+    b.add(G.sphere(7, 5), ribbon, 0.085, 0.39, 0, { sx: 0.11, sy: 0.075, sz: 0.055, rz: -0.5, ol: 0.6 });
+    b.add(G.sphere(6, 4), shade(ribbon, -0.15), 0, 0.37, 0, { s: 0.05, ol: 0 });
   }
   return b.build();
 }
 
 function teddyHead(b, fur, x, y, z, s, face = true, tint = 0) {
-  b.add(G.sphere(7, 5), fur, x, y, z, { s: 0.13 * s, tint });
+  b.add(G.sphere(9, 7), fur, x, y, z, { s: 0.135 * s, tint });
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(7, 5), fur, x + sx * 0.1 * s, y + 0.09 * s, z - 0.01 * s, { s: 0.055 * s, tint });
-    if (face) b.add(G.sphere(7, 5), 0xffc9d8, x + sx * 0.1 * s, y + 0.09 * s, z + 0.03 * s, { s: 0.03 * s });
+    b.add(G.sphere(6, 5), fur, x + sx * 0.105 * s, y + 0.095 * s, z - 0.01 * s, { s: 0.058 * s, tint, ol: 0.6 });
+    if (face) b.add(G.sphere(6, 4), 0xffb3c8, x + sx * 0.105 * s, y + 0.095 * s, z + 0.035 * s, { s: 0.03 * s, ol: 0 });
   }
   if (face) {
-    b.add(G.sphere(7, 5), 0xfff1e0, x, y - 0.03 * s, z + 0.1 * s, { sx: 0.06 * s, sy: 0.045 * s, sz: 0.045 * s });
-    b.add(G.sphere(7, 5), 0x2a2238, x, y - 0.015 * s, z + 0.145 * s, { s: 0.02 * s });
-    for (const sx of [-1, 1]) b.add(G.sphere(7, 5), 0x2a2238, x + sx * 0.05 * s, y + 0.03 * s, z + 0.115 * s, { s: 0.018 * s });
+    b.add(G.sphere(7, 5), 0xfff0d8, x, y - 0.03 * s, z + 0.105 * s, { sx: 0.065 * s, sy: 0.048 * s, sz: 0.045 * s, ol: 0 });
+    b.add(G.sphere(6, 4), PAL.ink, x, y - 0.012 * s, z + 0.15 * s, { s: 0.022 * s, ol: 0 });
+    for (const sx of [-1, 1]) b.add(G.sphere(6, 4), PAL.ink, x + sx * 0.052 * s, y + 0.032 * s, z + 0.12 * s, { s: 0.021 * s, ol: 0 });
   }
 }
 
@@ -91,48 +95,46 @@ function teddyStages(th) {
   const out = [];
   const fab = th.fabric, pink = th.fabricPink;
   // 0: fabric roll
-  let b = new Builder();
-  b.add(G.cyl(0.14, 0.14, 0.44, 14), fab, 0, 0.14, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.145, 0.145, 0.08, 14), pink, 0, 0.14, 0.1, { rx: PI / 2 });
-  b.add(G.cyl(0.145, 0.145, 0.08, 14), pink, 0, 0.14, -0.1, { rx: PI / 2 });
-  b.add(G.cyl(0.04, 0.04, 0.46, 8), 0xffffff, 0, 0.14, 0, { rx: PI / 2 });
+  let b = new Builder({ ol: OL });
+  b.add(G.cyl(0.15, 0.15, 0.44, 10), fab, 0, 0.15, 0, { rx: PI / 2 });
+  b.add(G.cyl(0.155, 0.155, 0.08, 10), pink, 0, 0.15, 0.1, { rx: PI / 2, ol: 0 });
+  b.add(G.cyl(0.155, 0.155, 0.08, 10), pink, 0, 0.15, -0.1, { rx: PI / 2, ol: 0 });
+  b.add(G.cyl(0.045, 0.045, 0.46, 6), 0xffffff, 0, 0.15, 0, { rx: PI / 2, ol: 0 });
   out.push(b.build());
   // 1: cut fabric pieces (flat bear shapes, two layers)
-  b = new Builder();
+  b = new Builder({ ol: OL });
   const piece = (y, c, ox) => {
-    b.add(G.cyl(0.15, 0.15, 0.035, 14), c, ox, y, -0.05);
-    b.add(G.cyl(0.11, 0.11, 0.035, 14), c, ox, y, 0.15);
-    b.add(G.cyl(0.045, 0.045, 0.035, 8), c, ox - 0.08, y, 0.24);
-    b.add(G.cyl(0.045, 0.045, 0.035, 8), c, ox + 0.08, y, 0.24);
+    b.add(G.cyl(0.16, 0.16, 0.04, 12), c, ox, y, -0.05);
+    b.add(G.cyl(0.115, 0.115, 0.04, 12), c, ox, y, 0.16);
+    b.add(G.cyl(0.05, 0.05, 0.04, 6), c, ox - 0.085, y, 0.25, { ol: 0.6 });
+    b.add(G.cyl(0.05, 0.05, 0.04, 6), c, ox + 0.085, y, 0.25, { ol: 0.6 });
   };
-  piece(0.02, fab, 0);
-  piece(0.06, shade(fab, 0.15), 0.03);
+  piece(0.025, fab, 0);
+  piece(0.07, shade(fab, 0.15), 0.03);
   out.push(b.build());
   // 2: stuffed blank body (no face yet)
-  b = new Builder();
-  const blank = shade(fab, 0.25);
-  b.add(G.sphere(7, 5), blank, 0, 0.15, 0, { sx: 0.17, sy: 0.15, sz: 0.15 });
-  b.add(G.sphere(7, 5), blank, 0, 0.36, 0.0, { s: 0.12 });
-  for (const sx of [-1, 1]) b.add(G.sphere(7, 5), blank, sx * 0.09, 0.45, 0, { s: 0.045 });
-  b.add(G.torus(0.15, 0.01, 4, 16), shade(fab, -0.1), 0, 0.15, 0, { rx: PI / 2 });
+  b = new Builder({ ol: OL });
+  const blank = shade(fab, 0.3);
+  b.add(G.sphere(9, 7), blank, 0, 0.16, 0, { sx: 0.18, sy: 0.16, sz: 0.16 });
+  b.add(G.sphere(9, 7), blank, 0, 0.37, 0.0, { s: 0.13 });
+  for (const sx of [-1, 1]) b.add(G.sphere(6, 5), blank, sx * 0.095, 0.47, 0, { s: 0.048, ol: 0.6 });
   out.push(b.build());
   // 3: teddy bear (tinted fur)
-  b = new Builder();
-  b.add(G.sphere(7, 5), 0xffffff, 0, 0.16, 0, { sx: 0.16, sy: 0.15, sz: 0.14, tint: 1 });
-  b.add(G.sphere(7, 5), 0xfff1e0, 0, 0.15, 0.1, { sx: 0.09, sy: 0.09, sz: 0.05 });
+  b = new Builder({ ol: OL });
+  b.add(G.sphere(9, 7), 0xffffff, 0, 0.17, 0, { sx: 0.17, sy: 0.16, sz: 0.15, tint: 1 });
+  b.add(G.sphere(7, 5), 0xfff0d8, 0, 0.16, 0.105, { sx: 0.095, sy: 0.095, sz: 0.05, ol: 0 });
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(7, 5), 0xffffff, sx * 0.15, 0.2, 0.04, { s: 0.06, tint: 1 });   // arms
-    b.add(G.sphere(7, 5), 0xffffff, sx * 0.09, 0.05, 0.1, { s: 0.065, tint: 1 }); // legs
-    b.add(G.sphere(7, 5), 0xfff1e0, sx * 0.09, 0.05, 0.155, { sx: 0.04, sy: 0.04, sz: 0.02 });
+    b.add(G.sphere(6, 5), 0xffffff, sx * 0.16, 0.21, 0.04, { s: 0.065, tint: 1, ol: 0.6 });   // arms
+    b.add(G.sphere(6, 5), 0xffffff, sx * 0.095, 0.055, 0.1, { s: 0.07, tint: 1, ol: 0.6 }); // legs
   }
-  teddyHead(b, 0xffffff, 0, 0.38, 0.01, 1.05, true, 1);
-  b.add(G.sphere(7, 5), th.ribbon, 0, 0.27, 0.11, { sx: 0.05, sy: 0.03, sz: 0.03 });
+  teddyHead(b, 0xffffff, 0, 0.4, 0.01, 1.08, true, 1);
+  b.add(G.sphere(6, 4), th.ribbon, 0, 0.285, 0.12, { sx: 0.055, sy: 0.032, sz: 0.032, ol: 0 });
   out.push(b.build());
   // 4: ribbon box with a teddy peeking out
   out.push(giftGeo(th.ribbon, (bb) => {
-    teddyHead(bb, fab, 0, 0.4, 0.02, 0.85, true, 0);
-    bb.add(G.sphere(7, 5), th.ribbon, 0.15, 0.34, 0.15, { sx: 0.09, sy: 0.06, sz: 0.05, rz: 0.5, ry: -0.8 });
-    bb.add(G.sphere(7, 5), th.ribbon, 0.2, 0.34, 0.08, { sx: 0.09, sy: 0.06, sz: 0.05, rz: -0.5, ry: -0.8 });
+    teddyHead(bb, fab, 0, 0.41, 0.02, 0.88, true, 0);
+    bb.add(G.sphere(6, 4), th.ribbon, 0.15, 0.35, 0.15, { sx: 0.1, sy: 0.065, sz: 0.05, rz: 0.5, ry: -0.8, ol: 0.6 });
+    bb.add(G.sphere(6, 4), th.ribbon, 0.2, 0.35, 0.08, { sx: 0.1, sy: 0.065, sz: 0.05, rz: -0.5, ry: -0.8, ol: 0.6 });
   }));
   return out;
 }
@@ -280,6 +282,45 @@ export function createItems(theme, path, preset) {
       return null;
     },
     hasWork(j) { return work[j] >= 0; },
+    /** hand the finished item of station j to someone else (a carrier): { stage, tint } */
+    takeWork(j) {
+      const out = Math.min(4, j + 1);
+      const id = work[j];
+      let tn;
+      if (id >= 0) {
+        tn = (stage[id] === out || (out === 3 && palettes[3])) ? tint[id] : randTint(out);
+        work[j] = -1;
+        release(id);
+      } else tn = randTint(out);
+      if (palettes[out] && tn >= palettes[out].length) tn = 0;
+      return { stage: out, tint: tn };
+    },
+    /** throw an item from pos into the truck bed; false when there is no room */
+    hopFrom(pos, stg, tn, truck) {
+      if (!truckRoom(truck)) return false;
+      const id = alloc();
+      if (id < 0) return false;
+      stage[id] = stg; tint[id] = tn;
+      hx[id * 3] = pos.x; hx[id * 3 + 1] = pos.y; hx[id * 3 + 2] = pos.z;
+      slot[id] = truck.load + truckHops;
+      truckHops++;
+      truck.slot(slot[id], _w);
+      hy[id * 3] = _w.x; hy[id * 3 + 1] = _w.y; hy[id * 3 + 2] = _w.z;
+      mode[id] = M_HOP; stn[id] = -1; tt[id] = 0; dur[id] = 0.36;
+      return true;
+    },
+    /** draw one extra item (carried toys) this frame; call after update() */
+    pushInstance(stg, matrix, tn) {
+      const mesh = meshes[stg];
+      if (!mesh || mesh.count >= MAX) return;
+      const n = mesh.count;
+      mesh.setMatrixAt(n, matrix);
+      const pal = palettes[stg];
+      mesh.setColorAt(n, pal ? pal[tn % pal.length] : white);
+      mesh.count = n + 1;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    },
     onPass(from, to) { launch(from, to); },
     onSold(from) { launch(from, -1); },
     reset() {

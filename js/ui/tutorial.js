@@ -27,7 +27,7 @@ export function createTutorial(ctx) {
     const r = e.getBoundingClientRect();
     if (r.width === 0) return null;
     // the bubble goes above the card so it never covers the card's numbers
-    return { x: r.left + r.width * 0.86, y: r.top + r.height * 0.62, h: 8, ring: { x: r.left + r.width * 0.86, y: r.top + r.height / 2 }, bubbleAbove: ctx.panelTop() };
+    return { x: r.left + r.width * 0.86, y: r.top + r.height * 0.62, h: 8, ring: { x: r.left + r.width * 0.86, y: r.top + r.height / 2 }, bubbleAbove: ctx.panelTop() - 24 }; // clear the card's ribbon
   }
 
   // Temporary pointer used when a goal tile is tapped ("where do I do this?").
@@ -115,12 +115,15 @@ export function createTutorial(ctx) {
       const tile = ctx.firstDoneGoal();
       if (tile) {
         const r = tile.getBoundingClientRect();
-        place({ x: r.left + r.width / 2 + 10, y: r.bottom - 18, h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } }, ctx.tx('tut.collect'));
+        // point at the right part of the pill (Collect + reward), bubble above it
+        const px = r.left + r.width * 0.78;
+        place({ x: px, y: r.top + r.height * 0.55, h: 8, ring: { x: px, y: r.top + r.height / 2 }, bubbleAbove: r.top - 6 }, ctx.tx('tut.collect'));
         return;
       }
       goalsShownFor += dt;
       if (goalsShownFor > 6) { g.act({ type: 'tutorial', step: 'done' }); setVisible(false); return; }
-      place(centerOf(ctx.goalsRoot()), ctx.tx('tut.goals'));
+      const c = centerOf(ctx.goalsRoot());
+      place(c ? { x: c.x, y: c.y, h: c.h, bubbleAbove: c.y - c.h / 2 - 6 } : null, ctx.tx('tut.goals'));
     }
   }
 

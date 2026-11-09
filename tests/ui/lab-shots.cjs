@@ -16,11 +16,15 @@ const SHOTS = [
   ['card', 'en'], ['card', 'tr'],
   ['poor', 'en'], ['locked', 'en'], ['locked', 'tr'],
   ['goals', 'en'], ['goals', 'tr'], ['tut1', 'en'], ['milestone', 'en'],
+  ['upgrades', 'en'], ['upgrades', 'tr'],
+  ['goalspanel', 'en'], ['goalspanel', 'tr'],
+  ['factories', 'en'], ['factories', 'tr'], ['teddyfac', 'en'],
   ['complete', 'en'], ['complete', 'tr'],
   ['offline', 'en'], ['offline', 'tr'],
   ['settings', 'en'], ['settings', 'tr'],
   ['teddy', 'en'], ['sales', 'en'], ['late', 'en'], ['late', 'tr'],
 ];
+const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 
 function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -35,7 +39,9 @@ async function main() {
     for (const size of sizes) {
       const context = await browser.newContext({ ...base, deviceScaleFactor: 1, viewport: { width: size.w, height: size.h } });
       for (const [state, lang] of SHOTS) {
-        if (size.tag && !['fresh', 'card', 'goals'].includes(state)) continue;
+        if (size.tag && !['fresh', 'card', 'goals', 'upgrades'].includes(state)) continue;
+        if (ONLY && !ONLY.includes(state) && !ONLY.includes(`${state}-${lang}`)) continue;
+        if (process.env.SHORT === '0' && size.tag) continue;
         const page = await context.newPage();
         const errors = [];
         page.on('pageerror', (e) => errors.push(String(e)));

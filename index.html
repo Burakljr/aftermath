@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#9fdcff">
+<meta name="theme-color" content="#8FD3FF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -23,32 +23,51 @@
 <style>
   /* Loading screen: shown until the first frame is drawn. No text (it appears before the language files load). */
   #loader {
-    position: fixed; inset: 0; z-index: 50;
+    position: fixed; inset: 0; z-index: 50; overflow: hidden;
     display: grid; place-items: center;
-    background: linear-gradient(180deg, #9fdcff 0%, #c7ecff 45%, #ffe8c2 100%);
+    background: radial-gradient(circle at 50% 42%, #FFF3B0 0%, #FFC82E 32%, #FF8B1F 75%, #FF6A3D 100%);
     transition: opacity .35s ease;
     pointer-events: auto;
   }
+  #loader::before {
+    content: ''; position: absolute; left: 50%; top: 42%; width: 220vmax; height: 220vmax; margin: -110vmax 0 0 -110vmax;
+    background: repeating-conic-gradient(rgba(255,255,255,.2) 0deg 9deg, rgba(255,255,255,0) 9deg 18deg);
+    animation: tf-spin 30s linear infinite;
+  }
   #loader.is-done { opacity: 0; pointer-events: none; }
-  #loader .blocks { display: flex; gap: 14px; align-items: flex-end; height: 90px; }
+  #loader .box {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 22px;
+    padding: 26px 30px 24px; border: 4px solid #2A1E3B; border-radius: 28px; background: #FFF4DC;
+    box-shadow: inset 0 -8px 0 #F6DFAF, inset 0 3px 0 #fff, 0 7px 0 rgba(42, 30, 59, .45);
+  }
+  #loader .blocks { display: flex; gap: 14px; align-items: flex-end; height: 92px; }
   #loader .blocks i {
-    display: block; width: 38px; height: 38px; border-radius: 11px;
-    box-shadow: inset 0 -6px 0 rgba(0, 0, 0, .14), 0 6px 0 rgba(42, 35, 80, .12);
+    display: block; width: 40px; height: 40px; box-sizing: border-box; border: 4px solid #2A1E3B; border-radius: 11px;
+    background-image: linear-gradient(rgba(255,255,255,.4), rgba(255,255,255,0) 55%);
+    box-shadow: inset 0 -6px 0 rgba(0, 0, 0, .18);
     animation: tf-hop .9s cubic-bezier(.3, .7, .4, 1) infinite;
   }
-  #loader .blocks i:nth-child(1) { background: #ff5f8f; }
-  #loader .blocks i:nth-child(2) { background: #ffc93c; animation-delay: .15s; border-radius: 50%; }
-  #loader .blocks i:nth-child(3) { background: #4cb8ff; animation-delay: .3s; }
+  #loader .blocks i:nth-child(1) { background-color: #FF4F7E; }
+  #loader .blocks i:nth-child(2) { background-color: #FFC82E; animation-delay: .15s; border-radius: 50%; }
+  #loader .blocks i:nth-child(3) { background-color: #34A3FF; animation-delay: .3s; }
+  #loader .bar {
+    width: 170px; height: 22px; box-sizing: border-box; border: 4px solid #2A1E3B; border-radius: 99px; overflow: hidden;
+    background: repeating-linear-gradient(-45deg, #36C657 0 10px, #7BE893 10px 20px);
+    background-size: 28px 28px; animation: tf-stripes .6s linear infinite;
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .18);
+  }
   @keyframes tf-hop {
-    0%, 100% { transform: translateY(0) scale(1.08, .92); }
-    35% { transform: translateY(-42px) scale(.94, 1.06); }
+    0%, 100% { transform: translateY(0) scale(1.1, .9); }
+    35% { transform: translateY(-44px) scale(.92, 1.08); }
     60% { transform: translateY(0) scale(1, 1); }
   }
+  @keyframes tf-stripes { to { background-position: 28px 0; } }
+  @keyframes tf-spin { to { transform: rotate(360deg); } }
   #fatal {
     position: fixed; left: 16px; right: 16px; top: 40%; z-index: 60;
-    padding: 18px 20px; border-radius: 22px; background: #fff; color: #2a2350;
-    font: 600 18px/1.35 'Fredoka', system-ui, sans-serif; text-align: center; pointer-events: none;
-    box-shadow: 0 4px 0 rgba(42, 35, 80, .16), 0 12px 26px rgba(42, 35, 80, .18);
+    padding: 18px 20px; border: 4px solid #2A1E3B; border-radius: 22px; background: #FFF4DC; color: #2A1E3B;
+    font: 700 18px/1.35 'Fredoka', system-ui, sans-serif; text-align: center; pointer-events: none;
+    box-shadow: inset 0 -6px 0 #F6DFAF, 0 6px 0 rgba(42, 30, 59, .45);
   }
   #fatal[hidden] { display: none; }
 </style>
@@ -56,7 +75,7 @@
 <body>
 <canvas id="scene" class="scene"></canvas>
 <div id="ui"></div>
-<div id="loader" aria-hidden="true"><div class="blocks"><i></i><i></i><i></i></div></div>
+<div id="loader" aria-hidden="true"><div class="box"><div class="blocks"><i></i><i></i><i></i></div><div class="bar"></div></div></div>
 <div id="fatal" role="alert" hidden></div>
 <script type="module" src="js/main.js"></script>
 </body>
