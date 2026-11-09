@@ -24,6 +24,9 @@ export function createLoading(ctx) {
       box.classList.remove('off');
     },
     hide() {
+      // main.start() (tests, resumed games) may hide the veil while the first-launch prompt is still up: the key-art
+      // mode must end with it, or the whole UI stays hidden behind #ui.veil-art
+      ctx.root.classList.remove('veil-art');
       if (!visible) return;
       visible = false;
       box.classList.add('off');
