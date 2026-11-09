@@ -1,7 +1,7 @@
 // Particle effects: coins, stars, confetti, puffs, sparkles, chips and floor
 // rings. One instanced mesh per kind; fixed pools, no allocations per frame.
 import * as THREE from 'three';
-import { G, Builder, toyMaterial, TAU, rng, clamp } from './kit.js';
+import { G, Builder, toyMaterial, tintMaskShader, TAU, rng, clamp } from './kit.js';
 
 const PI = Math.PI;
 
@@ -18,7 +18,7 @@ function sparkleGeo() { const b = new Builder(); b.add(G.star(0.16, 0.035, 0.015
 function confettiGeo() { const b = new Builder(); b.add(G.box(0.13, 0.02, 0.075, 0), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
 function puffGeo() { const b = new Builder(); b.add(G.ico(0.14, 1), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
 function chipGeo() { const b = new Builder(); b.add(G.box(0.08, 0.05, 0.06, 0.015), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function ringGeo() { const b = new Builder(); b.add(G.torus(1, 0.06, 4, 36), 0xffffff, 0, 0, 0, { rx: PI / 2, tint: 1 }); return b.build(); }
+function ringGeo() { const b = new Builder(); b.add(G.torus(1, 0.035, 4, 40), 0xffffff, 0, 0, 0, { rx: PI / 2, tint: 1 }); return b.build(); }
 
 const KINDS = {
   coin: { geo: coinGeo, max: 48, lit: true, bill: false, bounce: true },
@@ -47,9 +47,7 @@ export function createFx(preset) {
   const rand = rng(99);
   const litMat = toyMaterial();
   const flatMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  flatMat.onBeforeCompile = (sh) => {
-    sh.vertexShader = 'attribute float tint;\n' + sh.vertexShader.replace('vColor.rgb *= instanceColor.rgb;', 'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, tint );');
-  };
+  flatMat.onBeforeCompile = tintMaskShader;
   flatMat.customProgramCacheKey = () => 'flat-tint';
   let mult = preset.particles;
 
@@ -98,6 +96,7 @@ export function createFx(preset) {
   }
 
   const n = (count) => Math.max(1, Math.round(count * mult));
+  const list = Object.values(sys);
 
   const api = {
     group,
@@ -114,7 +113,7 @@ export function createFx(preset) {
     },
     /** gentle emission (one particle) for machine work */
     emit(kind, pos, o = {}) {
-      if (rand() > mult + 0.15) return;
+      if (!o.always && rand() > mult + 0.15) return;
       const a = rand() * TAU, r = (o.speed ?? 1) * (0.3 + rand() * 0.7);
       spawn(kind, pos.x, pos.y, pos.z, Math.cos(a) * r, (o.up ?? 1.5) * (0.5 + rand()), Math.sin(a) * r, o);
     },
@@ -127,15 +126,16 @@ export function createFx(preset) {
           { life: 2.6, size: 1.2, grav: 0.6, drag: 1.4, spin: 10, colors: CONFETTI, ...o });
       }
     },
-    ring(pos, color = 0xffd23c, size = 2.4) {
-      spawn('ring', pos.x, pos.y, pos.z, 0, 0, 0, { life: 0.7, size, grav: 0, drag: 0, spin: 0, colors: [color] });
+    ring(pos, color = 0xffd23c, size = 1.6) {
+      spawn('ring', pos.x, pos.y, pos.z, 0, 0, 0, { life: 0.45, size, grav: 0, drag: 0, spin: 0, colors: [color] });
     },
     clear() { for (const S of Object.values(sys)) { S.n = 0; S.mesh.count = 0; S.mesh.visible = false; } },
-    count() { let c = 0; for (const S of Object.values(sys)) c += S.n; return c; },
+    count() { let c = 0; for (const S of list) c += S.n; return c; },
 
     update(dt, camera) {
       const camQ = camera.quaternion;
-      for (const S of Object.values(sys)) {
+      for (let si = 0; si < list.length; si++) {
+        const S = list[si];
         if (!S.n) { if (S.mesh.visible) { S.mesh.visible = false; S.mesh.count = 0; } continue; }
         const k = S.k;
         let i = 0;
@@ -161,7 +161,7 @@ export function createFx(preset) {
           S.r[i3] += S.w[i3] * dt; S.r[i3 + 1] += S.w[i3 + 1] * dt; S.r[i3 + 2] += S.w[i3 + 2] * dt;
           const t = 1 - S.life[i] / S.max[i]; // 0 -> 1
           let sc;
-          if (k.ring) sc = S.size[i] * (0.25 + 0.95 * Math.sqrt(t));
+          if (k.ring) sc = S.size[i] * (0.3 + 0.9 * Math.sqrt(t)) * (t > 0.6 ? 1 - (t - 0.6) * 0.5 : 1);
           else if (k.grow) sc = S.size[i] * (t < 0.25 ? 0.4 + 2.4 * t : 1 - Math.max(0, (t - 0.45) / 0.55) * 0.95);
           else sc = S.size[i] * (t < 0.1 ? t / 0.1 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1);
           if (sc < 0.001) sc = 0.001;
@@ -175,7 +175,7 @@ export function createFx(preset) {
             _e.set(S.r[i3], S.r[i3 + 1], S.r[i3 + 2]);
             _q.setFromEuler(_e);
           }
-          if (k.ring) _s.set(sc, Math.max(0.2, 1 - t) * 1.0, sc);
+          if (k.ring) _s.set(sc, 1, sc);
           else _s.set(sc, sc, sc);
           _m.compose(_p, _q, _s);
           S.mesh.setMatrixAt(i, _m);

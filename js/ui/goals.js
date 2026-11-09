@@ -52,8 +52,17 @@ export function createGoals(ctx) {
   }
 
   let lastDoneCount = -1;
-  function update() {
+  let refreshT = 0;
+  let lastClaimed = -1;
+  function update(dt = 0) {
     const g = ctx.game;
+    // refresh 10x a second, or at once when a goal was collected
+    refreshT -= dt;
+    let nClaimed = 0;
+    for (const x of g.state.goals) if (x.claimed) nClaimed++;
+    if (refreshT > 0 && nClaimed === lastClaimed) return;
+    refreshT = 0.1;
+    lastClaimed = nClaimed;
     const f = g.select.factory();
     setText(fname, ctx.tx(f.nameKey));
     const goals = g.state.goals;
@@ -96,6 +105,7 @@ export function createGoals(ctx) {
   }
 
   function relabel() {
+    refreshT = 0;
     fname._t = null;
     for (const t of tiles) { t.text._t = null; t.count._t = null; t.collectLabel._t = null; t.collectAmt._t = null; }
   }

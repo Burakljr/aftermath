@@ -15,17 +15,17 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #dff6ff; font-family: 'Fredoka', ui-rounded, system-ui, sans-serif; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { position: fixed; left: 0; right: 0; top: 0; pointer-events: none; padding: calc(env(safe-area-inset-top) + 10px) 12px 0; box-sizing: border-box; }
-  #hud .bar { display: flex; gap: 8px; align-items: center; }
+  #hud .bar { display: flex; flex-direction: column; gap: 6px; align-items: center; }
   .pill { background: rgba(255,255,255,0.92); border-radius: 22px; padding: 8px 14px; font-weight: 700; color: #3b3355; box-shadow: 0 3px 0 rgba(60,40,110,0.18); font-size: 22px; }
   .pill small { font-size: 14px; color: #8a7fb0; font-weight: 600; }
   .coin { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3a8, #ffcf3a 55%, #f0a800); vertical-align: -3px; margin-right: 6px; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.12); }
-  #goals { position: fixed; left: 0; right: 0; bottom: 0; pointer-events: none; padding: 0 10px calc(env(safe-area-inset-bottom) + 10px); box-sizing: border-box; display: flex; flex-direction: column; gap: 7px; }
-  .goal { background: rgba(255,255,255,0.94); border-radius: 16px; padding: 9px 12px; color: #3b3355; font-weight: 600; font-size: 15px; box-shadow: 0 3px 0 rgba(60,40,110,0.15); }
+  #goals { position: fixed; left: 8px; right: 8px; bottom: 8px; pointer-events: none; padding: 20px 8px 8px; margin-bottom: env(safe-area-inset-bottom); box-sizing: border-box; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; background: #fff; border-radius: 26px; box-shadow: 0 5px 0 rgba(42,35,80,0.12); }
+  .goal { background: #efe9ff; border-radius: 18px; padding: 8px; min-height: 98px; box-sizing: border-box; color: #3b3355; font-weight: 600; font-size: 13.5px; display: flex; flex-direction: column; justify-content: space-between; }
   .goal .track { margin-top: 6px; height: 9px; border-radius: 5px; background: #ece6fb; overflow: hidden; }
   .goal .fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, #6dd36d, #4fd18b); }
   .label { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; font-weight: 700; will-change: transform; }
-  .lvl { background: #ffffff; color: #5a3fd0; border-radius: 14px; padding: 2px 9px; font-size: 15px; box-shadow: 0 2px 0 rgba(60,40,110,0.25); }
-  .price { background: #ffcf3a; color: #5b3a00; border-radius: 16px; padding: 6px 12px; font-size: 18px; box-shadow: 0 3px 0 rgba(150,90,0,0.35); border: 3px solid #fff; white-space: nowrap; }
+  .lvl { background: #ffffff; color: #3b3355; border-radius: 999px; min-width: 46px; min-height: 32px; box-sizing: border-box; padding: 6px 12px; font-size: 16px; text-align: center; box-shadow: 0 3px 0 rgba(42,35,80,0.22); }
+  .price { background: #fff; color: #3b3355; border-radius: 20px; padding: 7px 14px 9px; font-size: 19px; box-shadow: 0 5px 0 rgba(42,35,80,0.2); border: 3px solid #ffcf3a; white-space: nowrap; margin-top: -11px; }
   #toggle { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 64px); z-index: 10; font: 600 12px system-ui; padding: 6px 9px; border-radius: 10px; border: 0; background: #3b3355; color: #fff; opacity: 0.8; }
   #panel { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 96px); z-index: 10; width: 250px; max-height: 70vh; overflow: auto; background: rgba(30,24,52,0.9); color: #fff; font: 12px system-ui; border-radius: 12px; padding: 8px; display: none; }
   #panel.on { display: block; }
@@ -38,7 +38,7 @@
 </head>
 <body>
 <canvas id="scene"></canvas>
-<div id="hud"><div class="bar"><div class="pill"><span class="coin"></span><span id="money">1.2K</span></div><div class="pill"><small>+</small><span id="ips">36</span><small> /s</small></div></div></div>
+<div id="hud"><div class="bar"><div class="pill" style="min-width:120px;font-size:28px"><span class="coin"></span><span id="money">1.2K</span></div><div class="pill" style="background:rgba(42,35,80,.82);color:#a9ffc8;font-size:17px;padding:3px 12px">+<span id="ips">36</span> /s</div></div></div>
 <div id="goals">
   <div class="goal">Open the Paint booth<div class="track"><div class="fill" style="width:62%"></div></div></div>
   <div class="goal">Upgrade the Saw to level 10<div class="track"><div class="fill" style="width:40%"></div></div></div>
@@ -125,6 +125,13 @@ const manual = num('manual', 0) === 1;
 const scene = createScene(canvas, { quality: state.settings.quality, autoQuality: num('auto', manual ? 0 : 1) === 1, preserveDrawingBuffer: true });
 scene.setFactory(cfg);
 if (P.get('hud') === '0') document.body.classList.add('nohud');
+// emulate device safe areas (Playwright has none): safe=top,bottom in CSS px
+if (P.has('safe')) {
+  const [st, sb] = P.get('safe').split(',').map(Number);
+  scene.setInsets({ top: 96 + st, bottom: 176 + sb });
+  document.getElementById('hud').style.paddingTop = (st + 10) + 'px';
+  document.getElementById('goals').style.bottom = (sb + 8) + 'px';
+}
 if (P.get('labels') === '0') document.body.classList.add('nolabels');
 
 const SIM_DT = 1 / 60;

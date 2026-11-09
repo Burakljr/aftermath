@@ -81,6 +81,9 @@ export function createFloats(ctx) {
   function toast(text, kind = '') {
     setText(toastEl, text);
     toastEl.className = 'toast ' + kind;
+    // sit just above the bottom panel (goal strip or open card), near the thumb
+    const top = ctx.panelTop ? ctx.panelTop() : window.innerHeight * 0.7;
+    toastEl.style.top = Math.round(top - 70) + "px";
     pulse(toastEl, 'toast-in');
     toastT = 2.0;
   }

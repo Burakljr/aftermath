@@ -28,38 +28,38 @@ function buildBody(th) {
   }
   b.add(G.box(0.12, 0.06, 0.03, 0.015), shade(w.suit, 0.2), 0, 0.46, 0.18);
   // head (tinted: skin tone per worker)
-  b.add(G.sphere(18, 14), 0xffffff, 0, 0.86, 0, { s: 0.275, tint: 1 });
-  b.add(G.sphere(10, 8), 0xffffff, 0, 0.82, 0.255, { s: 0.04, tint: 1 }); // nose
+  b.add(G.sphere(14, 11), 0xffffff, 0, 0.86, 0, { s: 0.275, tint: 1 });
+  b.add(G.sphere(8, 6), 0xffffff, 0, 0.82, 0.255, { s: 0.04, tint: 1 }); // nose
   // hair below the hat
-  b.add(G.sphere(14, 10), w.hair, 0, 0.9, -0.04, { sx: 0.285, sy: 0.24, sz: 0.27 });
+  b.add(G.sphere(8, 6), w.hair, 0, 0.9, -0.04, { sx: 0.285, sy: 0.24, sz: 0.27 });
   for (const sx of [-1, 1]) b.add(G.sphere(8, 6), w.hair, sx * 0.2, 0.86, 0.13, { sx: 0.07, sy: 0.09, sz: 0.06 });
   // face
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(10, 8), 0x2a2238, sx * 0.095, 0.875, 0.235, { sx: 0.036, sy: 0.052, sz: 0.03 });
+    b.add(G.sphere(8, 6), 0x2a2238, sx * 0.095, 0.875, 0.235, { sx: 0.036, sy: 0.052, sz: 0.03 });
     b.add(G.sphere(6, 4), 0xffffff, sx * 0.095 + 0.012, 0.893, 0.258, { s: 0.012 });
-    b.add(G.sphere(10, 8), 0xff8fa3, sx * 0.165, 0.8, 0.205, { sx: 0.05, sy: 0.03, sz: 0.02 });
+    b.add(G.sphere(8, 6), 0xff8fa3, sx * 0.165, 0.8, 0.205, { sx: 0.05, sy: 0.03, sz: 0.02 });
   }
   b.add(G.torus(0.045, 0.012, 5, 10, PI), 0x2a2238, 0, 0.785, 0.255, { rz: PI });
   // hat
   if (th.key === 'teddy') {
     b.add(G.hemi(16, 8), w.hat, 0, 0.95, -0.01, { sx: 0.29, sy: 0.24, sz: 0.29 });
     b.add(G.box(0.3, 0.03, 0.2, 0.015), w.hat, 0, 0.965, 0.25, { rx: -0.12 });
-    b.add(G.sphere(10, 8), w.hatBand, 0, 1.19, -0.01, { s: 0.07 });
+    b.add(G.sphere(8, 6), w.hatBand, 0, 1.19, -0.01, { s: 0.07 });
     b.add(G.torus(0.27, 0.025, 5, 22), w.hatBand, 0, 0.965, -0.01, { rx: PI / 2 });
   } else {
     b.add(G.hemi(16, 8), w.hat, 0, 0.96, -0.01, { sx: 0.3, sy: 0.27, sz: 0.3 });
     b.add(G.cyl(0.33, 0.34, 0.04, 20), w.hat, 0, 0.965, 0.02, { sz: 1.08 });
-    b.add(G.box(0.07, 0.06, 0.48, 0.03), w.hatBand, 0, 1.2, -0.01, { rx: 0 });
-    b.add(G.box(0.12, 0.08, 0.04, 0.02), 0xffffff, 0, 1.08, 0.27, { rx: -0.4 });
+    b.add(G.torus(0.2, 0.035, 5, 16, PI), w.hatBand, 0, 0.98, -0.01, { ry: PI / 2 });
+    b.add(G.box(0.12, 0.08, 0.04, 0.02), 0xffffff, 0, 1.08, 0.275, { rx: -0.45 });
   }
   return b.build();
 }
 
 function buildArm(th) {
   const b = new Builder();
-  b.add(G.sphere(10, 8), th.worker.shirt, 0, 0, 0, { s: 0.075 });
+  b.add(G.sphere(8, 6), th.worker.shirt, 0, 0, 0, { s: 0.075 });
   b.add(G.cyl(0.062, 0.058, 0.2, 10), th.worker.shirt, 0, -0.1, 0);
-  b.add(G.sphere(10, 8), 0xffffff, 0, -0.23, 0, { s: 0.072, tint: 1 });
+  b.add(G.sphere(8, 6), 0xffffff, 0, -0.23, 0, { s: 0.072, tint: 1 });
   return b.build();
 }
 
@@ -80,6 +80,9 @@ export function createWorkers(theme) {
   const arms = new THREE.InstancedMesh(buildArm(theme), mat, 8);
   bodies.name = 'worker-bodies';
   arms.name = 'worker-arms';
+  // instance positions change (stations open later): never cull on a stale bounding sphere
+  bodies.frustumCulled = false;
+  arms.frustumCulled = false;
   group.add(bodies, arms);
   const skin = [0, 1, 2, 3].map((i) => new THREE.Color(SKIN[(i * 3 + (theme.key === 'teddy' ? 1 : 0)) % SKIN.length]));
   for (let i = 0; i < 4; i++) { bodies.setColorAt(i, skin[i]); arms.setColorAt(i * 2, skin[i]); arms.setColorAt(i * 2 + 1, skin[i]); }
@@ -100,7 +103,7 @@ export function createWorkers(theme) {
         if (w.appear < 1) w.appear = Math.min(1, w.appear + dt * 2.2);
         const ap = w.appear <= 0 ? 0 : ease.outBack(w.appear, 2.2);
         if (ap <= 0.001) { sp.s = 0; continue; }
-        const ry0 = stationsApi.workerSpot(i, _spot);
+        const ry0 = stationsApi.workerSpot(i, _spot, st.work);
         const t = st.t + w.phase;
         const work = st.work;
         const boost = st.boostAmt;
@@ -117,7 +120,8 @@ export function createWorkers(theme) {
         _p.set(_spot.x, bob + jump, _spot.z);
         _e.set(0, ry0 + look, Math.sin(t * 1.1) * 0.03 * (1 - work), 'YXZ');
         _q.setFromEuler(_e);
-        _s.set(ap * sqX, ap * sqY * breathe, ap * sqX);
+        const ws = 1.08;
+        _s.set(ap * sqX * ws, ap * sqY * breathe * ws, ap * sqX * ws);
         _m.compose(_p, _q, _s);
         bodies.setMatrixAt(n, _m);
         bodies.setColorAt(n, skin[i]);

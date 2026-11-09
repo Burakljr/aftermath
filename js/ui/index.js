@@ -70,6 +70,8 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   ctx.cardStation = () => card.station();
   ctx.cardButton = () => card.button();
   ctx.goalsRoot = () => goals.root;
+  // offsetTop ignores the card's slide-in transform, so this is where the panel will be
+  ctx.panelTop = () => (card.isOpen() ? card.root.offsetTop : goals.root.offsetTop);
   ctx.firstDoneGoal = () => goals.firstDoneTile();
   ctx.blockingModal = () => offline.isOpen() || settings.isOpen();
   ctx.modalOpen = () => offline.isOpen() || settings.isOpen() || complete.isOpen();
@@ -80,7 +82,8 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
       const target = game.state.factory.stations.find((s) => s.id === id);
       const e = target && target.open ? m.badge : m.sign;
       const r = e.getBoundingClientRect();
-      if (r.width > 0) return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height };
+      // point just under the badge / at the tip of the sign's stem so the hand never hides the text
+      if (r.width > 0) return { x: r.left + r.width / 2, y: r.bottom + (e === m.sign ? 10 : 2), h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
     }
     const a = ctx.anchor(id);
     return a ? { x: a.x, y: a.y, h: 30 } : null;
@@ -209,11 +212,17 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
 
   // --- tell the scene how much screen the UI covers
   let insetsDirty = true;
+  // safe-area insets in px (the scene adds them itself, so we pass the UI part only)
+  const safeProbe = el('div', 'safe-probe');
+  root.appendChild(safeProbe);
   function syncInsets() {
     insetsDirty = false;
     if (!scene || !scene.setInsets) return;
-    const top = Math.round(hud.bottom() + 6);
-    const bottom = Math.round(window.innerHeight - goals.top() + 6);
+    const cs = getComputedStyle(safeProbe);
+    const safeTop = parseFloat(cs.paddingTop) || 0;
+    const safeBottom = parseFloat(cs.paddingBottom) || 0;
+    const top = Math.round(hud.bottom() + 6 - safeTop);
+    const bottom = Math.round(window.innerHeight - goals.top() + 6 - safeBottom);
     try { scene.setInsets({ top, bottom, left: 4, right: 4 }); } catch { /* ignore */ }
   }
   const onResize = () => { insetsDirty = true; };

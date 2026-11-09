@@ -10,7 +10,7 @@ import { createStations, WORKER_SPOT } from './stations.js';
 import { createWorkers } from './workers.js';
 import { createItems } from './items.js';
 import { createFx, CONFETTI } from './fx.js';
-import { radialTexture, clamp, shade } from './kit.js';
+import { radialTexture, clamp, rng } from './kit.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -22,6 +22,7 @@ const _ray = new THREE.Raycaster();
 const _ndc = new THREE.Vector2();
 const _box = new THREE.Box3();
 
+const EXHAUST = { speed: 0.3, up: 0.8, grav: -0.4, drag: 1.5, life: 0.7, size: 0.75, colors: [0xffffff, 0xeef0ff] };
 const EMIT = {
   chip: (th) => ({ kind: 'chip', o: { speed: 1.7, up: 2.4, grav: 8, life: 0.75, size: 1, colors: [th.wood, th.woodDark, 0xf6d29a] } }),
   paint: () => ({ kind: 'puff', o: { speed: 0.9, up: -0.6, grav: 0.6, drag: 2.2, life: 0.55, size: 0.55 } }),
@@ -86,6 +87,10 @@ export function createScene(canvas, opts = {}) {
   let env = null, stations = null, workers = null, items = null, truck = null;
   let ids = ['saw', 'assembly', 'paint', 'wrap'];
   let lastState = null;
+  let emitSpecs = {};
+  const rand = rng(4242);
+  const paintColors = [0xffffff];
+  const paintOpts = { speed: 0.9, up: -0.6, grav: 0.6, drag: 2.2, life: 0.55, size: 0.55, colors: paintColors };
   let time = 0;
   let autoQuality = opts.autoQuality !== false;
   let autoLowered = false;
@@ -138,15 +143,16 @@ export function createScene(canvas, opts = {}) {
     const add = (x, y, z) => framePts.push(new THREE.Vector3(x, y, z));
     CORNERS.forEach(([cx, cz], i) => {
       const mx = cx - MACHINE_OFFSET, mz = cz - MACHINE_OFFSET;
-      add(mx - 0.85, 1.55, mz - 0.85); add(mx + 0.85, 0, mz + 0.85); add(mx - 0.85, 0.2, mz + 0.85); add(mx + 0.85, 0.2, mz - 0.85);
+      add(mx - 0.85, 1.3, mz - 0.85); add(mx + 0.85, 0, mz + 0.85); add(mx - 0.85, 0.2, mz + 0.85); add(mx + 0.85, 0.2, mz - 0.85);
       add(cx + 0.6, 0, cz + 0.6);
       const wx = i % 2 ? WORKER_SPOT.z : WORKER_SPOT.x, wz = i % 2 ? WORKER_SPOT.x : WORKER_SPOT.z;
       add(cx + wx + (i % 2 ? 0.3 : -0.3), 1.15, cz + wz + (i % 2 ? -0.3 : 0.3));
       add(cx + wx, 0, cz + wz + 0.3);
+      // the UI's level badge above the two top machines must stay below the HUD
+      if (i < 2) add(mx, 2.75, mz);
     });
     const [tx, tz] = TRUCK;
     add(tx - 0.75, 1.2, tz - 1.45); add(tx + 0.75, 0, tz + 1.45); add(tx - 0.75, 0.3, tz + 1.45); add(tx + 0.75, 0.3, tz - 1.45);
-    add(STOCK[0], 1.0, STOCK[1] + 0.5);
   }
 
   function resize() {
@@ -201,6 +207,12 @@ export function createScene(canvas, opts = {}) {
     truck = createTruck(theme);
     factoryGroup.add(env.group, stations.group, workers.group, items.group, truck.group);
     factoryGroup.updateMatrixWorld(true);
+    emitSpecs = {};
+    for (const k of Object.keys(EMIT)) {
+      const spec = EMIT[k](theme);
+      spec.beat = { ...spec.o, speed: 1.2, up: 1.6 };
+      emitSpecs[k] = spec;
+    }
     setBackground();
     fx.clear();
     monitor.rest();
@@ -208,13 +220,14 @@ export function createScene(canvas, opts = {}) {
   }
 
   // ------------------------------------------------------------ shadows
+  let nShadow = 0;
+  function put(x, z, r, a = 1) {
+    if (nShadow >= 64 || r <= 0.01) return;
+    _m.compose(_v.set(x, 0.015 + nShadow * 0.0004, z), _q.identity(), _s.set(r * a, 1, r * a));
+    shadows.setMatrixAt(nShadow++, _m);
+  }
   function writeShadows() {
-    let n = 0;
-    const put = (x, z, r, a = 1) => {
-      if (n >= 64 || r <= 0.01) return;
-      _m.compose(_v.set(x, 0.015 + n * 0.0004, z), _q.identity(), _s.set(r * a, 1, r * a));
-      shadows.setMatrixAt(n++, _m);
-    };
+    nShadow = 0;
     for (const [x, z, r] of env.shadows) put(x, z, r * 1.6);
     for (let i = 0; i < 4; i++) {
       const st = stations.stations[i];
@@ -226,7 +239,7 @@ export function createScene(canvas, opts = {}) {
     const tp = truck.group.position;
     put(tp.x + 0.1, tp.z, 3.2, 1);
     put(tp.x + 0.1, tp.z + 0.9, 2.2, 1);
-    shadows.count = n;
+    shadows.count = nShadow;
     shadows.instanceMatrix.needsUpdate = true;
   }
 
@@ -238,14 +251,14 @@ export function createScene(canvas, opts = {}) {
       const e = st.built.emit;
       const corner = stations.corner(i, _v);
       if (e) {
-        const spec = EMIT[e.kind] && EMIT[e.kind](theme);
+        const spec = emitSpecs[e.kind];
         if (spec) {
           if (e.onBeat) {
             const b = Math.floor(st.beat * e.onBeat);
             if (b !== st.lastBeat && st.work > 0.5) {
               st.lastBeat = b;
               _v.y = e.y;
-              fx.burst(spec.kind, _v, 3, { ...spec.o, speed: 1.2, up: 1.6 });
+              fx.burst(spec.kind, _v, 3, spec.beat);
             }
           } else if (st.work > 0.3) {
             st.emitAcc += dt * e.rate * st.work * (1 + st.boostAmt);
@@ -255,24 +268,40 @@ export function createScene(canvas, opts = {}) {
               let o = spec.o;
               if (e.kind === 'paint') {
                 const col = items.workColor(i, _c);
-                o = { ...o, colors: [col ? col.getHex() : theme.toy[(Math.random() * theme.toy.length) | 0]] };
+                paintColors[0] = col ? col.getHex() : theme.toy[(rand() * theme.toy.length) | 0];
+                o = paintOpts;
               }
               fx.emit(spec.kind, _v2, o);
             }
           }
         }
       }
-      // boost sparkles
+      // boost: two sparkle trails swirling around the station + rising sparkles
       if (st.boostAmt > 0.3) {
-        st.boostAcc = (st.boostAcc || 0) + dt * 12 * preset.particles;
+        st.orbit = (st.orbit || 0) + dt * 7;
+        st.boostAcc = (st.boostAcc || 0) + dt * 40 * Math.max(0.5, preset.particles);
         while (st.boostAcc >= 1) {
           st.boostAcc -= 1;
-          stations.center(i, _v2, 0.3 + Math.random() * 1.6);
-          const a = Math.random() * Math.PI * 2, r = 0.7 + Math.random() * 0.7;
-          _v2.x += Math.cos(a) * r + 0.5; _v2.z += Math.sin(a) * r + 0.5;
-          fx.emit('sparkle', _v2, { speed: 0.2, up: 1.2, grav: -0.6, drag: 1, life: 0.7, size: 0.85, colors: [0x7ff3ff, 0xffffff, 0xfff38a] });
+          st.orbitSide = 1 - (st.orbitSide || 0);
+          stations.center(i, _v2, 0);
+          const cx = _v2.x * 0.55 + corner.x * 0.45, cz = _v2.z * 0.55 + corner.z * 0.45;
+          const a = st.orbit + st.orbitSide * Math.PI;
+          _v2.set(cx + Math.cos(a) * 1.45, 0.5 + 0.35 * Math.sin(a * 0.5 + st.orbitSide * 2), cz + Math.sin(a) * 1.45);
+          fx.emit('sparkle', _v2, { always: true, speed: 0.05, up: 0.35, grav: -0.2, drag: 2, life: 0.45, size: 1.5, spin: 3, colors: [0x2fe0ff, 0xffffff, 0x8ff3ff, 0xfff38a] });
         }
       }
+    }
+  }
+
+  let exhaustAcc = 0;
+  function emitTruck(dt) {
+    if (truck.phase !== 'leaving' && truck.phase !== 'arriving') return;
+    exhaustAcc += dt * 14;
+    while (exhaustAcc >= 1) {
+      exhaustAcc -= 1;
+      _v2.copy(truck.group.position);
+      _v2.x += 0.45; _v2.y = 0.35; _v2.z -= 1.55;
+      fx.emit('puff', _v2, EXHAUST);
     }
   }
 
@@ -314,8 +343,7 @@ export function createScene(canvas, opts = {}) {
         stations.anchorPoint(i, _v); _v.y -= 0.4;
         fx.burst('star', _v, big ? 16 : 7, { speed: big ? 3.4 : 2.4, up: big ? 5 : 3.6, grav: 7, drag: 0.8, life: big ? 1.1 : 0.8, size: big ? 1.3 : 1, colors: [0xffd23c, 0xffe98a, 0xffffff, 0xffb02e] });
         if (big) {
-          stations.center(i, _v2, 0.05);
-          fx.ring(_v2, 0xffd23c, 2.6);
+          fx.burst('sparkle', _v, 10, { speed: 2.6, up: 3, grav: 2, drag: 1, life: 0.8, size: 1.2, colors: [0xffffff, 0xfff38a] });
           fx.burst('confetti', _v, 26, { speed: 3, up: 5, grav: 5, drag: 1.2, life: 1.6, size: 1.2, colors: CONFETTI, spin: 12 });
         }
         break;
@@ -328,7 +356,7 @@ export function createScene(canvas, opts = {}) {
         _v.y = 1.6;
         fx.burst('star', _v, 10, { speed: 3, up: 4, grav: 7, drag: 0.8, life: 1, colors: [0xffd23c, 0xffffff, 0xff8ad8] });
         fx.burst('confetti', _v, 22, { speed: 2.6, up: 4.5, grav: 5, drag: 1.2, life: 1.5, size: 1.2, colors: CONFETTI, spin: 12 });
-        fx.ring(_v.set(_v.x, 0.05, _v.z), 0xffffff, 2.4);
+        fx.ring(_v.set(_v.x, 0.06, _v.z), 0xffffff, 1.7);
         break;
       }
       case 'boost': {
@@ -373,10 +401,16 @@ export function createScene(canvas, opts = {}) {
   }
 
   // ------------------------------------------------------------ public api
-  function update(state, dt = 1 / 60) {
+  function update(state, dt = 1 / 60, render = true) {
     if (!stations) setFactory(config);
-    if (needResize) resize();
     dt = clamp(Number(dt) || 0, 0, 0.1);
+    // cheap periodic size check (in case a resize event was missed)
+    sizeCheckT -= dt;
+    if (sizeCheckT <= 0) {
+      sizeCheckT = 0.5;
+      if ((canvas.clientWidth && canvas.clientWidth !== viewW) || (canvas.clientHeight && canvas.clientHeight !== viewH)) needResize = true;
+    }
+    if (needResize) resize();
     time += dt;
     lastState = state || lastState;
     coinBudget = Math.min(20, coinBudget + dt * 18);
@@ -386,10 +420,13 @@ export function createScene(canvas, opts = {}) {
     items.update(state, dt, stations, truck);
     env.update(dt);
     emitWork(dt);
+    emitTruck(dt);
     fx.update(dt, camera);
     writeShadows();
-    renderer.render(scene, camera);
-    monitor.frame();
+    if (render !== false) {
+      renderer.render(scene, camera);
+      monitor.frame();
+    }
   }
 
   function setQuality(q) {
@@ -446,7 +483,10 @@ export function createScene(canvas, opts = {}) {
   }
 
   function onWinResize() { needResize = true; }
+  let ro = null;
   try { window.addEventListener('resize', onWinResize); window.addEventListener('orientationchange', onWinResize); } catch (e) { /* no window */ }
+  try { if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(onWinResize); ro.observe(canvas); } } catch (e) { ro = null; }
+  let sizeCheckT = 0;
 
   setFactory(opts.factory || null);
 
@@ -470,6 +510,7 @@ export function createScene(canvas, opts = {}) {
     debug: { renderer, scene, camera, get stations() { return stations; }, get items() { return items; }, get truck() { return truck; }, fxSystem: fx, project },
     dispose() {
       try { window.removeEventListener('resize', onWinResize); window.removeEventListener('orientationchange', onWinResize); } catch (e) { /* ignore */ }
+      try { if (ro) ro.disconnect(); } catch (e) { /* ignore */ }
       if (env) env.dispose(); if (stations) stations.dispose(); if (workers) workers.dispose(); if (items) items.dispose(); if (truck) truck.dispose();
       fx.dispose();
       if (safeProbe && safeProbe.parentNode) safeProbe.parentNode.removeChild(safeProbe);

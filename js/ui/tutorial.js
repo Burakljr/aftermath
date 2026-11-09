@@ -5,9 +5,9 @@ import { el, icon, setText, toggle, setStyle } from './dom.js';
 
 export function createTutorial(ctx) {
   const hand = el('div', 'tut-hand', null, [icon('hand')]);
-  const ring = el('div', 'tut-ring');
+  const ringEl = el('div', 'tut-ring');
   const bubble = el('div', 'tut-bubble');
-  const root = el('div', 'tut is-hidden', { 'aria-live': 'polite' }, [ring, hand, bubble]);
+  const root = el('div', 'tut is-hidden', { 'aria-live': 'polite' }, [ringEl, hand, bubble]);
   ctx.layers.overlays.appendChild(root);
 
   let goalsShownFor = 0;
@@ -21,6 +21,13 @@ export function createTutorial(ctx) {
     if (r.width === 0 && r.height === 0) return null;
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height };
   }
+  // Big buttons: point at the empty right part so the label and price stay readable.
+  function buttonPoint(e) {
+    if (!e) return null;
+    const r = e.getBoundingClientRect();
+    if (r.width === 0) return null;
+    return { x: r.left + r.width * 0.86, y: r.top + r.height * 0.62, h: 8, ring: { x: r.left + r.width * 0.86, y: r.top + r.height / 2 } };
+  }
 
   // Temporary pointer used when a goal tile is tapped ("where do I do this?").
   function pointAt(target, seconds = 2.2) {
@@ -28,24 +35,45 @@ export function createTutorial(ctx) {
     hintT = seconds;
   }
 
+  let bubbleText = '';
+  let bubbleW = 0;
+  let bubbleH = 0;
   function place(p, text) {
     if (!p) { setVisible(false); return; }
     setVisible(true);
     const W = window.innerWidth;
     const H = window.innerHeight;
-    setStyle(hand, 'transform', `translate3d(${Math.round(p.x)}px, ${Math.round(p.y + (p.h ? Math.min(p.h * 0.25, 14) : 0))}px, 0)`);
-    setStyle(ring, 'transform', `translate3d(${Math.round(p.x)}px, ${Math.round(p.y)}px, 0)`);
+    const ring = p.ring || p;
+    setStyle(hand, 'transform', `translate3d(${Math.round(p.x)}px, ${Math.round(p.y)}px, 0)`);
+    setStyle(ringEl, 'transform', `translate3d(${Math.round(ring.x)}px, ${Math.round(ring.y)}px, 0)`);
     toggle(bubble, 'is-hidden', !text);
-    if (text) {
+    if (!text) return;
+    if (text !== bubbleText) {
+      bubbleText = text;
       setText(bubble, text);
-      const bw = Math.min(280, W - 24);
-      const x = Math.max(12 + bw / 2, Math.min(W - 12 - bw / 2, p.x));
-      const above = p.y > H * 0.5;
-      const y = above ? p.y - (p.h ? p.h / 2 : 0) - 18 : p.y + 96;
-      setStyle(bubble, 'width', bw + 'px');
-      setStyle(bubble, 'transform', `translate3d(${Math.round(x - bw / 2)}px, ${Math.round(y)}px, 0) translateY(${above ? '-100%' : '0'})`);
-      toggle(bubble, 'is-above', above);
+      bubbleW = bubble.offsetWidth; // measured once per text
+      bubbleH = bubble.offsetHeight;
     }
+    let x;
+    let y;
+    const gap = 46;
+    const roomRight = W - 12 - (p.x + gap);
+    const roomLeft = p.x - gap - 12;
+    if (p.y < H * 0.62 && (roomRight >= bubbleW || roomLeft >= bubbleW)) {
+      // beside the hand
+      x = roomRight >= bubbleW ? p.x + gap : p.x - gap - bubbleW;
+      y = ring.y - bubbleH / 2;
+    } else if (p.y > H * 0.5) {
+      // above the target
+      x = p.x - bubbleW / 2;
+      y = ring.y - (p.ring ? 40 : (p.h || 0) / 2) - 18 - bubbleH;
+    } else {
+      x = p.x - bubbleW / 2;
+      y = p.y + 88;
+    }
+    x = Math.max(12, Math.min(W - 12 - bubbleW, x));
+    y = Math.max(8, Math.min(H - 8 - bubbleH, y));
+    setStyle(bubble, 'transform', `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`);
   }
 
   function setVisible(on) {
@@ -67,21 +95,25 @@ export function createTutorial(ctx) {
 
     const st = g.state.factory.stations;
     if (step === 0) {
-      if (ctx.cardOpen()) place(centerOf(ctx.cardButton()), ctx.tx('tut.tapUpgrade'));
+      if (ctx.cardOpen()) place(buttonPoint(ctx.cardButton()), ctx.tx('tut.tapUpgrade'));
       else place(ctx.stationPoint(st[0].id), ctx.tx('tut.tapSaw'));
       return;
     }
     if (step === 1) {
       const v = g.select.stationView(2);
       if (!v || !v.canOpen || !v.canAfford) { setVisible(false); return; }
-      if (ctx.cardOpen() && ctx.cardStation() === v.id) place(centerOf(ctx.cardButton()), ctx.tx('tut.tapOpen'));
+      if (ctx.cardOpen() && ctx.cardStation() === v.id) place(buttonPoint(ctx.cardButton()), ctx.tx('tut.tapOpen'));
       else place(ctx.stationPoint(v.id), ctx.tx('tut.canOpen'));
       return;
     }
     if (step === 2) {
       if (ctx.cardOpen()) { setVisible(false); return; }
       const tile = ctx.firstDoneGoal();
-      if (tile) { place(centerOf(tile), ctx.tx('tut.collect')); return; }
+      if (tile) {
+        const r = tile.getBoundingClientRect();
+        place({ x: r.left + r.width / 2 + 10, y: r.bottom - 18, h: 8, ring: { x: r.left + r.width / 2, y: r.top + r.height / 2 } }, ctx.tx('tut.collect'));
+        return;
+      }
       goalsShownFor += dt;
       if (goalsShownFor > 6) { g.act({ type: 'tutorial', step: 'done' }); setVisible(false); return; }
       place(centerOf(ctx.goalsRoot()), ctx.tx('tut.goals'));

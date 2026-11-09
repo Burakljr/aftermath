@@ -20,7 +20,7 @@ const BASE = {
     belt: 0x4b587c, beltStripe: 0x8a98c8, rail: 0xffc23c, railLow: 0xff9f1c,
     machines: ['saw', 'assembly', 'paint', 'wrap'],
     machineColor: [0xff8a3d, 0x25c1b4, 0x9b6bff, 0xff5a7a],
-    worker: { hat: 0xffcc29, hatBand: 0xff9f1c, suit: 0x3f8cff, shirt: 0xffffff, hair: 0x6b3f25, boots: 0x5b4636 },
+    worker: { hat: 0xffcc29, hatBand: 0xff9f1c, suit: 0x3f8cff, shirt: 0x7fe6c4, hair: 0x6b3f25, boots: 0x5b4636 },
     truck: 0xff5a5f, truckTrim: 0xffffff, truckDark: 0x3a3f5c,
     toy: [0xff5a5f, 0x3fa9f5, 0xffcc29, 0x4fd18b, 0xff8ad8, 0x9b6bff],
     box: [0x6c8cff, 0xff6b9a, 0x4fd18b, 0xffb03a, 0x2ec4b6],
@@ -39,7 +39,7 @@ const BASE = {
     belt: 0x5a4b7c, beltStripe: 0xa08fd0, rail: 0x66d9c2, railLow: 0x3fc0a6,
     machines: ['cutter', 'stuffing', 'stitching', 'ribbon'],
     machineColor: [0x4fb8ff, 0x49d6a0, 0xffc93c, 0xff7eb6],
-    worker: { hat: 0xff7eb6, hatBand: 0xffffff, suit: 0x8f7bff, shirt: 0xfff6d6, hair: 0x4a2b1d, boots: 0x6a4a6e },
+    worker: { hat: 0xff7eb6, hatBand: 0xffffff, suit: 0x8f7bff, shirt: 0xffe27a, hair: 0x4a2b1d, boots: 0x6a4a6e },
     truck: 0x8f7bff, truckTrim: 0xffffff, truckDark: 0x3d345e,
     toy: [0xc8945f, 0xf2c38f, 0xfff4e6, 0xa8724a, 0xffb3c8, 0xd9b38c],
     box: [0x66d9c2, 0xff7eb6, 0xffd166, 0x8fb7ff, 0xc9a7ff],
@@ -352,15 +352,15 @@ function buildYard(b, d, t) {
   // bushes and trees in the yard
   const r = rng(11);
   const bush = (x, z, s) => {
-    d.add(G.sphere(10, 8), t.plant, x, 0.35 * s, z, { s: 0.45 * s });
-    d.add(G.sphere(10, 8), shade(t.plant, 0.12), x + 0.28 * s, 0.3 * s, z + 0.1 * s, { s: 0.33 * s });
-    d.add(G.sphere(10, 8), shade(t.plant, -0.08), x - 0.25 * s, 0.28 * s, z + 0.15 * s, { s: 0.3 * s });
+    d.add(G.sphere(9, 7), t.plant, x, 0.35 * s, z, { s: 0.45 * s });
+    d.add(G.sphere(9, 7), shade(t.plant, 0.12), x + 0.28 * s, 0.3 * s, z + 0.1 * s, { s: 0.33 * s });
+    d.add(G.sphere(9, 7), shade(t.plant, -0.08), x - 0.25 * s, 0.28 * s, z + 0.15 * s, { s: 0.3 * s });
     SHADOW_SPOTS.push([x, z, 0.9 * s]);
   };
   const tree = (x, z, s) => {
     d.add(G.cyl(0.1 * s, 0.14 * s, 0.9 * s, 8), t.woodDark, x, 0.45 * s, z);
-    d.add(G.sphere(10, 8), t.plant, x, 1.15 * s, z, { s: 0.6 * s });
-    d.add(G.sphere(10, 8), shade(t.plant, 0.15), x + 0.25 * s, 1.35 * s, z + 0.2 * s, { s: 0.36 * s });
+    d.add(G.sphere(9, 7), t.plant, x, 1.15 * s, z, { s: 0.6 * s });
+    d.add(G.sphere(9, 7), shade(t.plant, 0.15), x + 0.25 * s, 1.35 * s, z + 0.2 * s, { s: 0.36 * s });
     SHADOW_SPOTS.push([x, z, 1.1 * s]);
   };
   bush(4.9, 7.0, 1.0);
@@ -380,9 +380,9 @@ function buildDecor(d, t) {
   const plant = (x, z, s = 1) => {
     d.add(G.cyl(0.24 * s, 0.18 * s, 0.36 * s, 12), t.pot, x, 0.18 * s, z);
     d.add(G.cyl(0.26 * s, 0.26 * s, 0.06 * s, 12), shade(t.pot, 0.2), x, 0.36 * s, z);
-    d.add(G.sphere(10, 8), t.plant, x, 0.62 * s, z, { s: 0.32 * s });
-    d.add(G.sphere(10, 8), shade(t.plant, 0.15), x + 0.16 * s, 0.78 * s, z + 0.1 * s, { s: 0.2 * s });
-    d.add(G.sphere(10, 8), shade(t.plant, -0.1), x - 0.15 * s, 0.74 * s, z + 0.08 * s, { s: 0.18 * s });
+    d.add(G.sphere(9, 7), t.plant, x, 0.62 * s, z, { s: 0.32 * s });
+    d.add(G.sphere(9, 7), shade(t.plant, 0.15), x + 0.16 * s, 0.78 * s, z + 0.1 * s, { s: 0.2 * s });
+    d.add(G.sphere(9, 7), shade(t.plant, -0.1), x - 0.15 * s, 0.74 * s, z + 0.08 * s, { s: 0.18 * s });
     SHADOW_SPOTS.push([x, z, 0.55 * s]);
   };
   const crate = (x, y, z, s = 0.5, c = t.wood) => {
@@ -495,8 +495,8 @@ export function createTruck(theme) {
   // logo on the doors
   for (const sx of [-1, 1]) {
     if (theme.logo === 'heart') {
-      b.add(G.sphere(10, 8), trim, sx * 0.76, 1.0, 0.82, { s: 0.11 });
-      b.add(G.sphere(10, 8), trim, sx * 0.76, 1.0, 0.98, { s: 0.11 });
+      b.add(G.sphere(9, 7), trim, sx * 0.76, 1.0, 0.82, { s: 0.11 });
+      b.add(G.sphere(9, 7), trim, sx * 0.76, 1.0, 0.98, { s: 0.11 });
       b.add(G.cone(0.15, 0.2, 10), trim, sx * 0.76, 0.88, 0.9, { rx: Math.PI });
     } else {
       b.add(G.star(0.17, 0.08, 0.04), trim, sx * 0.76, 0.98, 0.86, { ry: sx * Math.PI / 2 });
@@ -543,15 +543,16 @@ export function createTruck(theme) {
     },
     bounceY: 0,
     addLoad() {
-      truck.load++;
+      truck.load = Math.min(TRUCK_CAP, truck.load + 1);
       truck.bounce = 1;
-      if (truck.load >= TRUCK_CAP) { truck.phase = 'leaving'; truck.t = -0.45; }
     },
     poke() { truck.honk = 1; truck.bounce = 1; },
     update(dt) {
       truck.t += dt;
       let z = park.z;
       let speed = 0;
+      // leave when full, but stay parked a few seconds at least (no frantic back and forth)
+      if (truck.phase === 'parked' && truck.load >= TRUCK_CAP && truck.t >= 3) { truck.phase = 'leaving'; truck.t = -0.35; }
       if (truck.phase === 'leaving') {
         const k = clamp(truck.t / 1.1, 0, 1);
         z = park.z + TRUCK_AWAY * k * k;

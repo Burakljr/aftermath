@@ -25,8 +25,8 @@ export const MACHINE_OFFSET = 1.4;
 export const STOCK = [0, -3.3];
 
 /** End of the belt at the truck dock, and the parked truck centre (truck points +Z). */
-export const DOCK = [2 * STEP, STEP + 1.9];
-export const TRUCK = [2 * STEP, STEP + 3.55];
+export const DOCK = [2 * STEP, STEP + 1.75];
+export const TRUCK = [2 * STEP, STEP + 3.35];
 
 /** Camera angles in degrees. */
 export const CAMERA = { yaw: 45, pitch: 34 };
@@ -40,21 +40,30 @@ export const WALLS = { x: -3.3, z: -3.3, height: 2.5 };
  * factory inside the rest of the viewport (HUD at the top, goal strip at the
  * bottom). The UI can override at run time with scene.setInsets({ top, bottom }).
  */
-export const UI_INSETS = { top: 96, bottom: 176, left: 0, right: 0 };
+export const UI_INSETS = { top: 96, bottom: 162, left: 0, right: 0 };
 export const INSETS = UI_INSETS; // alias
 
 /**
- * Approximate normalised screen positions (0..1 of the viewport) on a
- * 390 x 844 portrait screen with the default INSETS. Only for rough
- * placement before the scene is ready; use scene.anchor() for exact numbers.
+ * Normalised screen positions (0..1 of the canvas CSS size, y down) of
+ * scene.anchor() on a 390 x 844 portrait screen with UI_INSETS and safe areas
+ * of 47 px (top) / 34 px (bottom), measured from the scene. Only for rough
+ * placement before the scene is ready; use scene.anchor() for real positions.
+ * stations: anchors of open stations (just above the machine);
+ * plots: anchors of locked plots (where the "Open" sign points).
  */
 export const SCREEN = {
   stations: [
-    { x: 0.30, y: 0.22 },
-    { x: 0.70, y: 0.37 },
-    { x: 0.30, y: 0.51 },
-    { x: 0.70, y: 0.66 },
+    { x: 0.337, y: 0.200 },
+    { x: 0.663, y: 0.273 },
+    { x: 0.337, y: 0.380 },
+    { x: 0.663, y: 0.454 },
   ],
-  truck: { x: 0.30, y: 0.79 },
-  coins: { x: 0.22, y: 0.05 },
+  plots: [
+    { x: 0.337, y: 0.246 },
+    { x: 0.663, y: 0.319 },
+    { x: 0.337, y: 0.426 },
+    { x: 0.663, y: 0.510 },
+  ],
+  truck: { x: 0.387, y: 0.595 },
+  coins: { x: 0.5, y: 0.09 },
 };

@@ -35,10 +35,15 @@ export function createMarks(ctx) {
 
   build(ctx.game.state.factory.stations.length);
 
-  function update() {
+  let contentT = 0;
+  function update(dt = 0) {
     const g = ctx.game;
     const st = g.state.factory.stations;
     if (st.length !== items.length) build(st.length);
+    // positions follow the scene every frame; contents refresh 10x a second
+    contentT -= dt;
+    const refresh = contentT <= 0;
+    if (refresh) contentT = 0.1;
     const hints = ctx.upgradeHints();
     for (let i = 0; i < st.length; i++) {
       const it = items[i];
@@ -54,6 +59,11 @@ export function createMarks(ctx) {
           it.root.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         }
       }
+      if (!refresh && it.level === (s.open ? s.level : -1) && it.wasOpen === s.open) {
+        toggle(it.badge, 'is-boost', s.open && s.boostT > 0);
+        continue;
+      }
+      it.wasOpen = s.open;
       const v = g.select.stationView(i);
       toggle(it.root, 'is-open', s.open);
       toggle(it.root, 'is-next', v.canOpen);

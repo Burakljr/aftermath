@@ -37,8 +37,9 @@ function starShape(points, outer, inner) {
 
 /** Cached primitives. Unit-ish sizes; scale them through Builder.add options. */
 export const G = {
-  box: (w, h, d, r = 0.08, seg = 2) => cached(`box${w}|${h}|${d}|${r}|${seg}`, () =>
-    r > 0 ? new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2, h / 2, d / 2)) : new THREE.BoxGeometry(w, h, d)),
+  // rounded box; small radii get fewer segments (a chamfer reads the same at phone size)
+  box: (w, h, d, r = 0.08, seg = r >= 0.11 ? 2 : 1) => cached(`box${w}|${h}|${d}|${r}|${seg}`, () =>
+    r > 0.03 ? new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2, h / 2, d / 2)) : new THREE.BoxGeometry(w, h, d)),
   sphere: (ws = 14, hs = 10) => cached(`sph${ws}|${hs}`, () => new THREE.SphereGeometry(1, ws, hs)),
   hemi: (ws = 14, hs = 6) => cached(`hemi${ws}|${hs}`, () => new THREE.SphereGeometry(1, ws, hs, 0, TAU, 0, Math.PI / 2)),
   cyl: (rt = 1, rb = 1, h = 1, seg = 16) => cached(`cyl${rt}|${rb}|${h}|${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg)),
@@ -85,6 +86,17 @@ export class Builder {
     const m = composeM(x, y, z, o).premultiply(this.top());
     _col.set(color);
     this.parts.push({ geom, m, r: _col.r, g: _col.g, b: _col.b, tint: o.tint || 0 });
+    return this;
+  }
+  /** cylinder rod between two points a, b ([x,y,z] arrays) */
+  rod(a, b2, r, color, seg = 6) {
+    const dx = b2[0] - a[0], dy = b2[1] - a[1], dz = b2[2] - a[2];
+    const len = Math.hypot(dx, dy, dz) || 1e-4;
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / len, dy / len, dz / len));
+    const m = new THREE.Matrix4().compose(new THREE.Vector3((a[0] + b2[0]) / 2, (a[1] + b2[1]) / 2, (a[2] + b2[2]) / 2), q, new THREE.Vector3(1, len, 1));
+    m.premultiply(this.top());
+    _col.set(color);
+    this.parts.push({ geom: G.cyl(r, r, 1, seg), m, r: _col.r, g: _col.g, b: _col.b, tint: 0 });
     return this;
   }
   get size() { return this.parts.length; }
@@ -166,6 +178,14 @@ function toonGradient() {
   return gradientTex;
 }
 
+/** onBeforeCompile hook: per-instance colour only where the `tint` attribute is 1 */
+export function tintMaskShader(sh) {
+  const chunk = THREE.ShaderChunk.color_vertex.replace(
+    'vColor.rgb *= instanceColor.rgb;',
+    'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, tint );');
+  sh.vertexShader = 'attribute float tint;\n' + sh.vertexShader.replace('#include <color_vertex>', chunk);
+}
+
 const matCache = new Map();
 /**
  * Shared toon material with vertex colours. With tintMask the per-instance
@@ -178,11 +198,7 @@ export function toyMaterial({ tintMask = true, side = THREE.FrontSide, emissive 
   const mat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), side });
   if (emissive) { mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = emissive; }
   if (tintMask) {
-    mat.onBeforeCompile = (sh) => {
-      sh.vertexShader = 'attribute float tint;\n' + sh.vertexShader.replace(
-        'vColor.rgb *= instanceColor.rgb;',
-        'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, tint );');
-    };
+    mat.onBeforeCompile = tintMaskShader;
     mat.customProgramCacheKey = () => 'toy-tint-mask';
   }
   matCache.set(key, mat);

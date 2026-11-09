@@ -26,7 +26,7 @@ export function tierOf(level) {
 
 const MIRROR = new THREE.Matrix4().set(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1);
 /** worker stand spot relative to the corner (canonical) and facing */
-export const WORKER_SPOT = { x: -1.0, z: 0.82, ry: 1.75 };
+export const WORKER_SPOT = { x: -1.0, z: 0.82, ry: 1.55, idleRy: 0.8 };
 
 // -------------------------------------------------------------- machine kit
 function cabinet(b, color, h, tier) {
@@ -63,7 +63,7 @@ function boom(b, y, color = STEEL, at = 0.56, end = OFF) {
   const len = (end - at) * Math.SQRT2;
   b.push(at, y, at, { ry: DIAG });
   b.add(G.box(0.13, 0.13, len + 0.12, 0.05), color, 0, 0, len / 2);
-  b.add(G.sphere(10, 8), INK, 0, 0, 0, { s: 0.1 });
+  b.add(G.sphere(9, 7), INK, 0, 0, 0, { s: 0.1 });
   b.pop();
 }
 
@@ -75,8 +75,8 @@ function roll(pb, colors, r, len, bands = 6) {
 }
 
 function bow(pb, color, x, y, z, s = 1) {
-  pb.add(G.sphere(10, 8), color, x - 0.1 * s, y, z, { sx: 0.13 * s, sy: 0.09 * s, sz: 0.06 * s, rz: 0.4 });
-  pb.add(G.sphere(10, 8), color, x + 0.1 * s, y, z, { sx: 0.13 * s, sy: 0.09 * s, sz: 0.06 * s, rz: -0.4 });
+  pb.add(G.sphere(9, 7), color, x - 0.1 * s, y, z, { sx: 0.13 * s, sy: 0.09 * s, sz: 0.06 * s, rz: 0.4 });
+  pb.add(G.sphere(9, 7), color, x + 0.1 * s, y, z, { sx: 0.13 * s, sy: 0.09 * s, sz: 0.06 * s, rz: -0.4 });
   pb.add(G.sphere(8, 6), shade(color, -0.12), x, y, z, { s: 0.06 * s });
 }
 
@@ -92,7 +92,7 @@ function star5(pb, color, x, y, z, s = 1, o = {}) {
 const MACHINES = {
   saw(b, P, th, tier, root) {
     const c = th.machineColor[0];
-    const cab = cabinet(b, c, 0.82, tier);
+    const cab = cabinet(b, c, 0.7, tier);
     const top = cab.top;
     b.add(G.box(1.52, 0.1, 1.52, 0.05), th.wood, 0, top, 0);
     // motor tower at the back
@@ -121,7 +121,7 @@ const MACHINES = {
       pb.add(G.box(0.3, 0.06, 0.06, 0.02), 0xffffff, 0, 0.2 * s, 0.03);
     });
     return {
-      ...cab, top,
+      ...cab, top, peak: top + 0.9,
       emit: { kind: 'chip', y: 0.55, rate: 9 },
       anim(st) {
         const chop = Math.pow(Math.max(0, Math.sin(st.beat * TAU)), 2);
@@ -133,7 +133,7 @@ const MACHINES = {
 
   assembly(b, P, th, tier, root) {
     const c = th.machineColor[1];
-    const cab = cabinet(b, c, 0.8, tier);
+    const cab = cabinet(b, c, 0.68, tier);
     const top = cab.top;
     // gear decoration and a parts bin at the back
     b.push(-0.42, top + 0.05, -0.42);
@@ -148,21 +148,25 @@ const MACHINES = {
     const turret = P(root, [0.42, top + 0.14, 0.42], (pb) => {
       pb.add(G.cyl(0.3, 0.33, 0.2, 18), c, 0, 0.1, 0);
       pb.add(G.box(0.26, 0.62, 0.26, 0.11), 0xffd23c, 0, 0.5, 0);
-      pb.add(G.sphere(12, 8), INK, 0, 0.84, 0, { s: 0.18 });
+      pb.add(G.sphere(10, 7), INK, 0, 0.84, 0, { s: 0.18 });
     }, { ry: DIAG });
     const fore = P(turret, [0, 0.84, 0], (pb) => {
-      pb.add(G.box(0.22, 0.22, 1.62, 0.09), 0xffd23c, 0, 0, 0.8);
-      pb.add(G.box(0.24, 0.06, 1.2, 0.03), shade(0xffd23c, -0.15), 0, 0.12, 0.8);
-      pb.add(G.sphere(12, 8), INK, 0, 0, 1.62, { s: 0.13 });
+      pb.add(G.box(0.3, 0.3, 1.0, 0.12), 0xffd23c, 0, 0, 0.42);
+      pb.add(G.box(0.24, 0.24, 0.9, 0.1), 0xffd23c, 0, 0, 1.15);
+      pb.add(G.cyl(0.17, 0.17, 0.34, 14), INK, 0, 0, 0.88, { rz: PI / 2 });
+      pb.add(G.box(0.32, 0.07, 0.6, 0.03), 0xffffff, 0, 0.15, 0.42);
+      pb.add(G.sphere(10, 7), INK, 0, 0, 1.62, { s: 0.15 });
     });
     const head = P(fore, [0, 0, 1.62], (pb) => {
-      pb.add(G.box(0.36 * s, 0.3 * s, 0.36 * s, 0.11), c, 0, -0.2, 0);
-      pb.add(G.box(0.4 * s, 0.08, 0.4 * s, 0.04), 0xffffff, 0, -0.07, 0);
-      pb.add(G.cyl(0.06, 0.02, 0.24, 8), STEEL, 0, -0.45, 0);
+      pb.add(G.box(0.4 * s, 0.24 * s, 0.4 * s, 0.11), c, 0, -0.18, 0);
+      pb.add(G.box(0.44 * s, 0.07, 0.44 * s, 0.03), 0xffffff, 0, -0.06, 0);
+      // two gripper fingers
+      pb.add(G.box(0.07, 0.24, 0.16, 0.03), STEEL, -0.13 * s, -0.4, 0);
+      pb.add(G.box(0.07, 0.24, 0.16, 0.03), STEEL, 0.13 * s, -0.4, 0);
     });
-    const base = 0.63;
+    const base = 0.55;
     return {
-      ...cab, top,
+      ...cab, top, peak: top + 1.15,
       emit: { kind: 'spark', y: 0.6, rate: 0, onBeat: 2 },
       anim(st) {
         const tap = Math.pow(Math.abs(Math.sin(st.beat * PI * 2)), 6);
@@ -175,7 +179,7 @@ const MACHINES = {
 
   paint(b, P, th, tier, root) {
     const c = th.machineColor[2];
-    const cab = cabinet(b, c, 0.8, tier);
+    const cab = cabinet(b, c, 0.68, tier);
     const top = cab.top;
     const cans = [0xff5a5f, 0xffcc29, 0x3fa9f5];
     const spots = [[-0.48, -0.12], [-0.12, -0.5], [-0.52, -0.52]];
@@ -195,12 +199,14 @@ const MACHINES = {
     boom(b, py, STEEL, 0.56, OFF - 0.02);
     const s = 1 + tier * 0.07;
     const nozzle = P(root, [OFF - 0.02, py, OFF - 0.02], (pb) => {
-      pb.add(G.cyl(0.13 * s, 0.13 * s, 0.32, 12), c, 0, -0.16, 0);
-      pb.add(G.cyl(0.15 * s, 0.15 * s, 0.07, 12), 0xffffff, 0, -0.06, 0);
-      pb.add(G.cone(0.11 * s, 0.18, 12), STEEL, 0, -0.42, 0, { rx: PI });
+      pb.add(G.box(0.3 * s, 0.24 * s, 0.3 * s, 0.1), 0xff5a8a, 0, -0.17, 0);
+      pb.add(G.cyl(0.17 * s, 0.17 * s, 0.07, 14), 0xffffff, 0, -0.04, 0);
+      pb.add(G.cyl(0.1 * s, 0.13 * s, 0.14, 12), 0xffd23c, 0, -0.35, 0);
+      pb.add(G.cone(0.1 * s, 0.16, 12), STEEL, 0, -0.5, 0, { rx: PI });
+      pb.add(G.sphere(8, 6), 0x3fa9f5, 0.16 * s, -0.17, 0.0, { s: 0.06 });
     });
     return {
-      ...cab, top,
+      ...cab, top, peak: py + 0.12,
       emit: { kind: 'paint', y: 0.75, rate: 11 },
       anim(st) {
         nozzle.rotation.z = Math.sin(st.beat * TAU * 2) * 0.32 * st.work;
@@ -211,12 +217,12 @@ const MACHINES = {
 
   wrap(b, P, th, tier, root) {
     const c = th.machineColor[3];
-    const cab = cabinet(b, c, 0.8, tier);
+    const cab = cabinet(b, c, 0.68, tier);
     const top = cab.top;
     // brackets for the paper roll
     const ax = Math.SQRT1_2;
     for (const k of [-1, 1]) b.add(G.box(0.1, 0.42, 0.1, 0.04), STEEL, -0.32 + k * 0.62 * ax, top + 0.21, -0.32 - k * 0.62 * ax);
-    const paper = P(root, [-0.32, top + 0.4, -0.32], (pb) => roll(pb, [0xffffff, th.box[1], 0xffffff, th.box[0]], 0.27 + tier * 0.02, 1.2, 8), { ry: -DIAG });
+    const paper = P(root, [-0.32, top + 0.4, -0.32], (pb) => roll(pb, [0xffffff, th.box[1], 0xffffff, th.box[0]], 0.27 + tier * 0.02, 1.2, 8), { ry: DIAG });
     // ribbon spool on the side
     b.add(G.cyl(0.2, 0.2, 0.14, 16), th.ribbon, 0.45, top + 0.07, -0.42);
     b.add(G.cyl(0.07, 0.07, 0.18, 8), 0xffffff, 0.45, top + 0.1, -0.42);
@@ -232,7 +238,7 @@ const MACHINES = {
     });
     const hy = py - 0.3;
     return {
-      ...cab, top,
+      ...cab, top, peak: py + 0.12,
       emit: null,
       anim(st) {
         const x = (st.beat % 1);
@@ -245,32 +251,38 @@ const MACHINES = {
 
   cutter(b, P, th, tier, root) {
     const c = th.machineColor[0];
-    const cab = cabinet(b, c, 0.82, tier);
+    const cab = cabinet(b, c, 0.7, tier);
     const top = cab.top;
     b.add(G.box(1.5, 0.08, 1.5, 0.04), 0xffffff, 0, top, 0);
     const ax = Math.SQRT1_2;
     for (const k of [-1, 1]) b.add(G.box(0.1, 0.42, 0.1, 0.04), STEEL, -0.32 + k * 0.62 * ax, top + 0.21, -0.32 - k * 0.62 * ax);
-    const fab = P(root, [-0.32, top + 0.42, -0.32], (pb) => roll(pb, [th.fabric, shade(th.fabric, 0.18)], 0.28 + tier * 0.02, 1.15, 6), { ry: -DIAG });
-    // fabric sheet hanging from the roll onto the table
-    b.add(G.box(0.95, 0.03, 0.62, 0.01), th.fabric, -0.05, top + 0.06, -0.05, { ry: -DIAG });
-    const py = post(b, top, 0.55, STEEL, 0.5);
-    b.push(0.5, py, 0.5, { ry: DIAG });
-    b.add(G.box(0.18, 0.14, 1.32, 0.06), STEEL, 0, 0, 0.62);
-    b.add(G.box(0.24, 0.06, 1.2, 0.03), c, 0, 0.09, 0.66);
-    b.pop();
+    const fab = P(root, [-0.32, top + 0.42, -0.32], (pb) => roll(pb, [th.fabric, th.fabricPink], 0.28 + tier * 0.02, 1.15, 6), { ry: DIAG });
+    // fabric sheet from the roll onto the table, with a dashed cut line
+    b.add(G.box(0.95, 0.03, 0.62, 0.0), th.fabric, -0.02, top + 0.06, -0.02, { ry: DIAG });
+    const py = post(b, top, 0.62, STEEL, 0.52);
+    boom(b, py, STEEL, 0.52, OFF);
+    b.add(G.cyl(0.05, 0.05, 0.24, 8), STEEL, OFF, py - 0.12, OFF);
     const s = 1 + tier * 0.07;
-    const head = P(root, [OFF, py, OFF], (pb) => {
-      pb.add(G.box(0.32 * s, 0.3 * s, 0.32 * s, 0.1), c, 0, -0.1, 0);
-      pb.add(G.box(0.34 * s, 0.07, 0.34 * s, 0.03), 0xffffff, 0, 0.02, 0);
-      pb.add(G.cone(0.08, 0.2, 10), INK, 0, -0.34, 0, { rx: PI });
-      pb.add(G.sphere(8, 6), 0xff4d6d, 0, -0.46, 0, { s: 0.055 });
+    // giant scissors facing the camera: two blades on one pivot
+    const piv = P(root, [OFF, py - 0.34, OFF], (pb) => {
+      pb.add(G.cyl(0.06, 0.06, 0.08, 10), INK, 0, 0, 0.04, { rx: PI / 2 });
     }, { ry: DIAG });
+    const blade = (handle) => (pb) => {
+      pb.add(G.box(0.1 * s, 0.46 * s, 0.035, 0.0), 0xf4f7ff, 0.02, -0.25 * s, 0);
+      pb.add(G.box(0.05 * s, 0.44 * s, 0.04, 0.0), 0xc9d2ea, 0.05, -0.24 * s, 0.004);
+      pb.add(G.torus(0.1 * s, 0.035, 6, 14), handle, 0.06, 0.17 * s, 0);
+      pb.add(G.box(0.06, 0.12, 0.04, 0.0), handle, 0.03, 0.06, 0);
+    };
+    const bladeA = P(piv, [0, 0, 0.02], blade(th.fabricPink));
+    const bladeB = P(piv, [0, 0, -0.02], blade(0x4fb8ff));
+    bladeB.scale.x = -1;
     return {
-      ...cab, top,
-      emit: { kind: 'scrap', y: 0.5, rate: 6 },
+      ...cab, top, peak: py + 0.15,
+      emit: { kind: 'scrap', y: 0.6, rate: 6 },
       anim(st) {
-        const k = Math.sin(st.beat * TAU * 1.5) * 0.24 * st.work;
-        head.position.set(OFF + k * Math.SQRT1_2 - 0.12, head.position.y, OFF - k * Math.SQRT1_2 - 0.12);
+        const snip = 0.12 + Math.abs(Math.sin(st.beat * PI * 3)) * 0.32 * st.work;
+        bladeA.rotation.z = snip;
+        bladeB.rotation.z = -snip;
         fab.rotation.x = st.spin * 1.2;
       },
     };
@@ -278,7 +290,7 @@ const MACHINES = {
 
   stuffing(b, P, th, tier, root) {
     const c = th.machineColor[1];
-    const cab = cabinet(b, c, 0.7, tier);
+    const cab = cabinet(b, c, 0.6, tier);
     const top = cab.top;
     const s = 1 + tier * 0.06;
     const tank = P(root, [-0.25, top, -0.25], (pb) => {
@@ -287,7 +299,7 @@ const MACHINES = {
       pb.add(G.cyl(0.6 * s, 0.6 * s, 0.08, 20), shade(c, 0.2), 0, 0.7, 0);
       // cotton cloud on top
       const puffs = [[0, 0.86, 0, 0.36], [0.26, 0.8, 0.1, 0.26], [-0.24, 0.8, 0.16, 0.25], [0.06, 0.82, -0.26, 0.27], [0.1, 1.08, 0.05, 0.22]];
-      for (const [x, y, z, r] of puffs) pb.add(G.sphere(12, 8), 0xffffff, x * s, y, z * s, { s: r * s });
+      for (const [x, y, z, r] of puffs) pb.add(G.sphere(10, 7), 0xffffff, x * s, y, z * s, { s: r * s });
       // window with cotton inside
       pb.push(0, 0.38, 0, { ry: DIAG });
       pb.add(G.box(0.46, 0.32, 0.08, 0.06), 0xffffff, 0, 0, 0.55 * s);
@@ -299,7 +311,7 @@ const MACHINES = {
     b.add(G.cone(0.2, 0.3, 14), 0xffffff, OFF, py - 0.32, OFF, { rx: PI });
     b.add(G.torus(0.12, 0.04, 6, 14), c, OFF, py - 0.2, OFF, { rx: PI / 2 });
     return {
-      ...cab, top,
+      ...cab, top, peak: top + 1.25,
       emit: { kind: 'cotton', y: 0.9, rate: 7 },
       anim(st) {
         const w = Math.sin(st.beat * TAU * 2) * 0.05 * st.work;
@@ -310,49 +322,53 @@ const MACHINES = {
 
   stitching(b, P, th, tier, root) {
     const c = th.machineColor[2];
-    const cab = cabinet(b, c, 0.75, tier);
+    const cab = cabinet(b, c, 0.66, tier);
     const top = cab.top;
-    const cream = 0xfff1d6;
-    // sewing machine: pillar, arm over the turntable, head
-    b.add(G.box(1.2, 0.12, 0.7, 0.05), cream, 0, top + 0.06, 0, { ry: DIAG });
-    b.add(G.box(0.36, 0.95, 0.36, 0.12), cream, -0.05, top + 0.55, -0.05);
-    const ay = top + 0.92;
-    b.push(-0.05, ay, -0.05, { ry: DIAG });
-    const len = (OFF + 0.05) * Math.SQRT2;
-    b.add(G.box(0.3, 0.26, len + 0.1, 0.1), cream, 0, 0, len / 2);
-    b.add(G.box(0.32, 0.06, len - 0.2, 0.03), th.machineColor[3], 0, 0.12, len / 2);
-    b.add(G.box(0.36, 0.4, 0.36, 0.1), cream, 0, -0.08, len);
-    b.pop();
+    const pink = th.machineColor[3];
+    // pincushion (a red tomato with pins) at the back
+    b.add(G.sphere(10, 8), 0xff5a6e, -0.5, top + 0.16, -0.5, { sx: 0.26, sy: 0.19, sz: 0.26 });
+    b.add(G.cone(0.08, 0.1, 6), 0x4fd18b, -0.5, top + 0.37, -0.5);
+    for (let k = 0; k < 5; k++) {
+      const a = k * 1.3;
+      b.add(G.sphere(6, 4), [0xffd23c, 0x3fa9f5, 0xffffff][k % 3], -0.5 + Math.cos(a) * 0.17, top + 0.36, -0.5 + Math.sin(a) * 0.17, { s: 0.04 });
+    }
+    // measuring tape
+    b.add(G.cyl(0.13, 0.13, 0.08, 14), 0xffd23c, 0.42, top + 0.04, -0.5);
+    b.add(G.box(0.36, 0.012, 0.07, 0.0), 0xffd23c, 0.5, top + 0.01, -0.22, { ry: 1.1 });
     const s = 1 + tier * 0.06;
-    const needle = P(root, [OFF, ay - 0.3, OFF], (pb) => {
-      pb.add(G.cyl(0.035, 0.035, 0.4, 8), STEEL, 0, -0.15, 0);
-      pb.add(G.cone(0.03, 0.08, 6), STEEL, 0, -0.39, 0, { rx: PI });
+    // big thread spool
+    const spool = P(root, [-0.2, top, -0.05], (pb) => {
+      pb.add(G.cyl(0.24 * s, 0.24 * s, 0.4, 16), pink, 0, 0.26, 0);
+      pb.add(G.cyl(0.33 * s, 0.33 * s, 0.07, 16), 0xfff6e8, 0, 0.04, 0);
+      pb.add(G.cyl(0.33 * s, 0.33 * s, 0.07, 16), 0xfff6e8, 0, 0.48, 0);
+      pb.add(G.cyl(0.25 * s, 0.25 * s, 0.03, 16), shade(pink, 0.25), 0, 0.2, 0);
+      pb.add(G.cyl(0.25 * s, 0.25 * s, 0.03, 16), shade(pink, 0.25), 0, 0.33, 0);
     });
-    // thread spool + hand wheel
-    const spool = P(root, [-0.05, top + 1.14, -0.05], (pb) => {
-      pb.add(G.cyl(0.12 * s, 0.12 * s, 0.24, 12), th.machineColor[3], 0, 0.12, 0);
-      pb.add(G.cyl(0.16 * s, 0.16 * s, 0.04, 12), 0xffffff, 0, 0.02, 0);
-      pb.add(G.cyl(0.16 * s, 0.16 * s, 0.04, 12), 0xffffff, 0, 0.24, 0);
+    const py = post(b, top, 0.7, 0xfff6e8, 0.56);
+    boom(b, py, 0xfff6e8, 0.56, OFF);
+    // thread from the spool to the needle holder
+    b.rod([-0.2, top + 0.45, -0.05], [0.56, py + 0.05, 0.56], 0.018, pink);
+    b.rod([0.56, py + 0.05, 0.56], [OFF, py - 0.05, OFF], 0.018, pink);
+    b.add(G.box(0.22, 0.22, 0.22, 0.08), 0xfff6e8, OFF, py - 0.12, OFF);
+    const needle = P(root, [OFF, py - 0.22, OFF], (pb) => {
+      pb.add(G.cyl(0.035 * s, 0.035 * s, 0.46, 8), 0xf4f7ff, 0, -0.2, 0);
+      pb.add(G.cone(0.035 * s, 0.12, 8), 0xf4f7ff, 0, -0.49, 0, { rx: PI });
+      pb.add(G.torus(0.03, 0.01, 4, 10), INK, 0, -0.05, 0);
     });
-    const wheel = P(root, [-0.27, top + 0.6, -0.27], (pb) => {
-      pb.add(G.cyl(0.24 * s, 0.24 * s, 0.08, 16), INK, 0, 0, 0, { rz: PI / 2 });
-      pb.add(G.box(0.1, 0.36 * s, 0.06, 0.02), 0xffffff, 0.05, 0, 0);
-    }, { ry: -DIAG + PI / 2 });
-    const ny = ay - 0.3;
+    const ny = py - 0.22;
     return {
-      ...cab, top,
-      emit: { kind: 'thread', y: 0.55, rate: 5 },
+      ...cab, top, peak: py + 0.15,
+      emit: { kind: 'thread', y: 0.6, rate: 5 },
       anim(st) {
         needle.position.y = ny - Math.abs(Math.sin(st.beat * PI * 4)) * 0.16 * st.work;
         spool.rotation.y = st.spin * 2;
-        wheel.rotation.x = st.spin * 2.5;
       },
     };
   },
 
   ribbon(b, P, th, tier, root) {
     const c = th.machineColor[3];
-    const cab = cabinet(b, c, 0.8, tier);
+    const cab = cabinet(b, c, 0.68, tier);
     const top = cab.top;
     const ax = Math.SQRT1_2;
     for (const k of [-1, 1]) b.add(G.box(0.1, 0.4, 0.1, 0.04), STEEL, -0.32 + k * 0.66 * ax, top + 0.2, -0.32 - k * 0.66 * ax);
@@ -365,7 +381,7 @@ const MACHINES = {
         pb.add(G.cyl(0.26, 0.26, 0.03, 16), 0xffffff, x - 0.11, 0, 0, { rz: PI / 2 });
         pb.add(G.cyl(0.26, 0.26, 0.03, 16), 0xffffff, x + 0.11, 0, 0, { rz: PI / 2 });
       }
-    }, { ry: -DIAG });
+    }, { ry: DIAG });
     const py = post(b, top, 0.75);
     boom(b, py, STEEL);
     b.add(G.cyl(0.05, 0.05, 0.3, 8), STEEL, OFF, py - 0.12, OFF);
@@ -378,7 +394,7 @@ const MACHINES = {
     });
     const hy = py - 0.3;
     return {
-      ...cab, top,
+      ...cab, top, peak: py + 0.12,
       emit: null,
       anim(st) {
         const x = (st.beat % 1);
@@ -412,7 +428,7 @@ function buildPlot(theme) {
     b.add(G.cyl(0.085, 0.1, 0.07, 12), 0xffffff, x, 0.3, z);
   }
   // little sawhorse barrier in front (toward the camera)
-  b.push(0.38, 0, 0.38, { ry: -DIAG });
+  b.push(0.38, 0, 0.38, { ry: DIAG });
   b.add(G.box(0.9, 0.14, 0.06, 0.03), 0xffffff, 0, 0.42, 0);
   for (let i = 0; i < 3; i++) b.add(G.box(0.14, 0.145, 0.065, 0.01), 0xff5a5f, -0.3 + i * 0.3, 0.42, 0, { rz: 0.5 });
   b.add(G.box(0.06, 0.42, 0.06, 0.02), INK, -0.38, 0.21, 0);
@@ -434,6 +450,8 @@ const _s = new THREE.Vector3();
 const _v = new THREE.Vector3();
 const _c = new THREE.Color();
 const _up = new THREE.Vector3(0, 1, 0);
+const DEFAULT_OPEN = Object.freeze({ open: true, level: 1, progress: 0, tray: 0, boostT: 0 });
+const DEFAULT_LOCKED = Object.freeze({ open: false, level: 1, progress: 0, tray: 0, boostT: 0 });
 
 export function createStations(theme, preset) {
   const group = new THREE.Group();
@@ -448,6 +466,7 @@ export function createStations(theme, preset) {
   ttb.add(G.cyl(0.1, 0.1, 0.02, 12), 0xffffff, 0, 0.045, 0);
   const turntables = new THREE.InstancedMesh(ttb.build(), mat, 4);
   turntables.name = 'turntables';
+  turntables.frustumCulled = false;
   group.add(turntables);
 
   // progress fills on the machine screens
@@ -455,14 +474,16 @@ export function createStations(theme, preset) {
   fb.add(G.box(1, 1, 1, 0.3), 0xffffff, 0.5, 0, 0, { tint: 1 });
   const fills = new THREE.InstancedMesh(fb.build(), mat, 4);
   fills.name = 'progress-fills';
+  fills.frustumCulled = false;
   fills.setColorAt(0, _c.set(0xffffff));
   fills.count = 0;
   group.add(fills);
 
   // floor glows (milestone gold, boost cyan)
-  const glowMat = new THREE.MeshBasicMaterial({ map: radialTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: false });
+  const glowMat = new THREE.MeshBasicMaterial({ map: radialTexture(), transparent: true, opacity: 0.85, depthWrite: false });
   const glows = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-PI / 2), glowMat, 8);
   glows.name = 'glows';
+  glows.frustumCulled = false;
   glows.setColorAt(0, _c.set(0xffffff));
   glows.count = 0;
   glows.renderOrder = 2;
@@ -541,15 +562,17 @@ export function createStations(theme, preset) {
     // milestone beacon and star
     let beacon = null, star = null;
     if (tier >= 2) {
-      b.add(G.cyl(0.05, 0.05, 0.3, 8), STEEL, 0.55, info.top + 0.15, -0.55);
-      beacon = P(st.machine, [0.55, info.top + 0.34, -0.55], (pb) => {
-        pb.add(G.cyl(0.13, 0.15, 0.06, 12), INK, 0, -0.03, 0);
-        pb.add(G.hemi(12, 6), tier >= 3 ? GOLD : 0xff5a5f, 0, 0, 0, { s: 0.14 });
-        pb.add(G.box(0.2, 0.05, 0.05, 0.02), 0xffffff, 0, 0.07, 0);
+      // warning beacon on the front-left corner of the roof (visible from the camera)
+      b.add(G.cyl(0.06, 0.07, 0.22, 8), STEEL, -0.62, info.top + 0.11, 0.62);
+      beacon = P(st.machine, [-0.62, info.top + 0.26, 0.62], (pb) => {
+        pb.add(G.cyl(0.17, 0.19, 0.08, 14), INK, 0, -0.03, 0);
+        pb.add(G.hemi(12, 6), tier >= 3 ? GOLD : 0xff5a5f, 0, 0, 0, { sx: 0.19, sy: 0.24, sz: 0.19 });
+        pb.add(G.box(0.27, 0.06, 0.06, 0.0), 0xffffff, 0, 0.1, 0);
       });
     }
     if (tier >= 4) {
-      star = P(st.machine, [-0.06, info.screenY + 0.42, 0.86], (pb) => star5(pb, GOLD, 0, 0, 0, 1.1));
+      b.add(G.cyl(0.04, 0.05, 0.3, 8), GOLD, 0.62, info.top + 0.15, -0.62);
+      star = P(st.machine, [0.62, info.top + 0.48, -0.62], (pb) => star5(pb, GOLD, 0, 0, 0, 1.5), { ry: DIAG });
     }
     const body = new THREE.Mesh(b.build(), mat);
     st.machine.add(body);
@@ -574,7 +597,7 @@ export function createStations(theme, preset) {
     anchorPoint(i, out) {
       const st = stations[i];
       out.set(0, 0, 0).applyMatrix4(st.spot.matrixWorld);
-      out.y = st.open && st.built ? st.built.top + 0.95 : 1.45;
+      out.y = st.open && st.built ? Math.max(st.built.peak || 0, st.built.top + 0.5) + 0.25 : 0.95;
       return out;
     },
     /** centre of the machine (for bursts) */
@@ -584,10 +607,11 @@ export function createStations(theme, preset) {
       return out;
     },
     turntableAngle(i) { return stations[i].spin * 0.55; },
-    workerSpot(i, out) {
+    /** worker stand spot -> out; returns the facing (radians) for a work amount 0..1 */
+    workerSpot(i, out, work = 1) {
       const st = stations[i];
       out.set(WORKER_SPOT.x, 0, WORKER_SPOT.z).applyMatrix4(st.frame.matrixWorld);
-      let ry = WORKER_SPOT.ry;
+      let ry = WORKER_SPOT.idleRy + (WORKER_SPOT.ry - WORKER_SPOT.idleRy) * work;
       if (st.mirrored) ry = PI / 2 - ry;
       return ry;
     },
@@ -601,7 +625,7 @@ export function createStations(theme, preset) {
       let nFill = 0, nGlow = 0;
       for (let i = 0; i < 4; i++) {
         const st = stations[i];
-        const s = ss[i] || { open: i < 2, level: 1, progress: 0, tray: 0, boostT: 0 };
+        const s = ss[i] || (i < 2 ? DEFAULT_OPEN : DEFAULT_LOCKED);
         // open / level changes
         const open = !!s.open;
         if (!st.init) { st.level = s.level || 1; setOpen(st, open, false); st.init = true; st.lastP = s.progress || 0; }
@@ -659,7 +683,7 @@ export function createStations(theme, preset) {
             const bl = 1 + 0.12 * Math.sin(st.t * 6) * st.work;
             st.built.beacon.scale.setScalar(bl);
           }
-          if (st.built.star) { st.built.star.rotation.y = Math.sin(st.t * 1.5) * 0.5; }
+          if (st.built.star) { st.built.star.rotation.y = DIAG + st.t * 1.6; }
         }
         // turntable
         _p.set(CORNERS[i][0], BELT_Y - 0.03, CORNERS[i][1]);
@@ -671,7 +695,6 @@ export function createStations(theme, preset) {
         if (st.open && st.built && st.openT < 0) {
           const w = 0.8 * clamp(p, 0, 1);
           if (w > 0.01) {
-            st.spot.updateMatrixWorld(true);
             const mirrored = st.mirrored;
             // canonical screen spans x in [-0.46, 0.34] on the +Z face
             const x0 = mirrored ? 0.34 - w : -0.46;
@@ -690,18 +713,18 @@ export function createStations(theme, preset) {
         // glows
         if (st.open && st.boostAmt > 0.02) {
           api.center(i, _v, 0.02);
-          const sc = 3.0 + Math.sin(st.t * 10) * 0.15;
-          _m4.compose(_v.set((_v.x + CORNERS[i][0]) / 2, 0.03, (_v.z + CORNERS[i][1]) / 2), _q.identity(), _s.set(sc * 1.2, 1, sc * 1.2));
+          const sc = (4.2 + Math.sin(st.t * 10) * 0.2) * (0.6 + 0.4 * st.boostAmt);
+          _m4.compose(_v.set(_v.x * 0.45 + CORNERS[i][0] * 0.55, 0.03, _v.z * 0.45 + CORNERS[i][1] * 0.55), _q.identity(), _s.set(sc, 1, sc));
           glows.setMatrixAt(nGlow, _m4);
-          glows.setColorAt(nGlow, _c.set(0x46e0ff).multiplyScalar(0.55 * st.boostAmt));
+          glows.setColorAt(nGlow, _c.set(0x1fcfff));
           nGlow++;
         }
         if (st.open && st.tier >= 3) {
           api.center(i, _v, 0.025);
-          const sc = 2.7 + Math.sin(st.t * 2) * 0.12;
-          _m4.compose(_v, _q.identity(), _s.set(sc, 1, sc));
+          const sc = 3.4 + Math.sin(st.t * 2) * 0.12;
+          _m4.compose(_v.set(_v.x * 0.6 + CORNERS[i][0] * 0.4, 0.025, _v.z * 0.6 + CORNERS[i][1] * 0.4), _q.identity(), _s.set(sc, 1, sc));
           glows.setMatrixAt(nGlow, _m4);
-          glows.setColorAt(nGlow, _c.set(st.tier >= 4 ? 0xff9cf2 : 0xffd23c).multiplyScalar(0.45));
+          glows.setColorAt(nGlow, _c.set(st.tier >= 4 ? 0xff8ae6 : 0xffc21a));
           nGlow++;
         }
       }

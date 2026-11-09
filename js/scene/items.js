@@ -8,7 +8,8 @@ import { BELT_Y } from './factory.js';
 
 const PI = Math.PI;
 const MAX = 72;
-const SLOT0 = 0.66, SLOT_GAP = 0.46;
+const SLOT0 = 0.68, SLOT_GAP = 0.52;
+const ITEM_SCALE = 1.15;
 const M_QUEUE = 1, M_WORK = 2, M_FLIGHT = 3, M_HOP = 4, M_CARGO = 5, M_DOCK = 6;
 
 // ------------------------------------------------------------- geometries
@@ -50,7 +51,7 @@ function carGeo(th, painted) {
   if (painted) {
     b.add(G.box(0.27, 0.09, 0.18, 0.04), 0xcdf3ff, 0, 0.29, -0.04);
     b.add(G.box(0.2, 0.09, 0.25, 0.04), 0xcdf3ff, 0, 0.29, -0.04);
-    for (const sx of [-1, 1]) b.add(G.sphere(8, 6), 0xfff2a8, sx * 0.09, 0.17, 0.24, { s: 0.035 });
+    for (const sx of [-1, 1]) b.add(G.sphere(7, 5), 0xfff2a8, sx * 0.09, 0.17, 0.24, { s: 0.035 });
     b.add(G.box(0.04, 0.012, 0.42, 0.006), 0xffffff, 0, 0.226, 0.0);
   } else {
     b.add(G.box(0.2, 0.02, 0.1, 0.01), shade(th.wood, -0.2), 0, 0.36, -0.04);
@@ -66,23 +67,23 @@ function giftGeo(ribbon, inner = null) {
   b.add(G.box(0.08, 0.33, 0.42, 0.02), ribbon, 0, 0.165, 0);
   if (inner) inner(b);
   else {
-    b.add(G.sphere(10, 8), ribbon, -0.08, 0.38, 0, { sx: 0.1, sy: 0.07, sz: 0.05, rz: 0.5 });
-    b.add(G.sphere(10, 8), ribbon, 0.08, 0.38, 0, { sx: 0.1, sy: 0.07, sz: 0.05, rz: -0.5 });
-    b.add(G.sphere(8, 6), shade(ribbon, -0.15), 0, 0.36, 0, { s: 0.045 });
+    b.add(G.sphere(7, 5), ribbon, -0.08, 0.38, 0, { sx: 0.1, sy: 0.07, sz: 0.05, rz: 0.5 });
+    b.add(G.sphere(7, 5), ribbon, 0.08, 0.38, 0, { sx: 0.1, sy: 0.07, sz: 0.05, rz: -0.5 });
+    b.add(G.sphere(7, 5), shade(ribbon, -0.15), 0, 0.36, 0, { s: 0.045 });
   }
   return b.build();
 }
 
 function teddyHead(b, fur, x, y, z, s, face = true, tint = 0) {
-  b.add(G.sphere(14, 10), fur, x, y, z, { s: 0.13 * s, tint });
+  b.add(G.sphere(7, 5), fur, x, y, z, { s: 0.13 * s, tint });
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(10, 8), fur, x + sx * 0.1 * s, y + 0.09 * s, z - 0.01 * s, { s: 0.055 * s, tint });
-    if (face) b.add(G.sphere(8, 6), 0xffc9d8, x + sx * 0.1 * s, y + 0.09 * s, z + 0.03 * s, { s: 0.03 * s });
+    b.add(G.sphere(7, 5), fur, x + sx * 0.1 * s, y + 0.09 * s, z - 0.01 * s, { s: 0.055 * s, tint });
+    if (face) b.add(G.sphere(7, 5), 0xffc9d8, x + sx * 0.1 * s, y + 0.09 * s, z + 0.03 * s, { s: 0.03 * s });
   }
   if (face) {
-    b.add(G.sphere(10, 8), 0xfff1e0, x, y - 0.03 * s, z + 0.1 * s, { sx: 0.06 * s, sy: 0.045 * s, sz: 0.045 * s });
-    b.add(G.sphere(8, 6), 0x2a2238, x, y - 0.015 * s, z + 0.145 * s, { s: 0.02 * s });
-    for (const sx of [-1, 1]) b.add(G.sphere(8, 6), 0x2a2238, x + sx * 0.05 * s, y + 0.03 * s, z + 0.115 * s, { s: 0.018 * s });
+    b.add(G.sphere(7, 5), 0xfff1e0, x, y - 0.03 * s, z + 0.1 * s, { sx: 0.06 * s, sy: 0.045 * s, sz: 0.045 * s });
+    b.add(G.sphere(7, 5), 0x2a2238, x, y - 0.015 * s, z + 0.145 * s, { s: 0.02 * s });
+    for (const sx of [-1, 1]) b.add(G.sphere(7, 5), 0x2a2238, x + sx * 0.05 * s, y + 0.03 * s, z + 0.115 * s, { s: 0.018 * s });
   }
 }
 
@@ -110,28 +111,28 @@ function teddyStages(th) {
   // 2: stuffed blank body (no face yet)
   b = new Builder();
   const blank = shade(fab, 0.25);
-  b.add(G.sphere(14, 10), blank, 0, 0.15, 0, { sx: 0.17, sy: 0.15, sz: 0.15 });
-  b.add(G.sphere(14, 10), blank, 0, 0.36, 0.0, { s: 0.12 });
-  for (const sx of [-1, 1]) b.add(G.sphere(8, 6), blank, sx * 0.09, 0.45, 0, { s: 0.045 });
+  b.add(G.sphere(7, 5), blank, 0, 0.15, 0, { sx: 0.17, sy: 0.15, sz: 0.15 });
+  b.add(G.sphere(7, 5), blank, 0, 0.36, 0.0, { s: 0.12 });
+  for (const sx of [-1, 1]) b.add(G.sphere(7, 5), blank, sx * 0.09, 0.45, 0, { s: 0.045 });
   b.add(G.torus(0.15, 0.01, 4, 16), shade(fab, -0.1), 0, 0.15, 0, { rx: PI / 2 });
   out.push(b.build());
   // 3: teddy bear (tinted fur)
   b = new Builder();
-  b.add(G.sphere(14, 10), 0xffffff, 0, 0.16, 0, { sx: 0.16, sy: 0.15, sz: 0.14, tint: 1 });
-  b.add(G.sphere(10, 8), 0xfff1e0, 0, 0.15, 0.1, { sx: 0.09, sy: 0.09, sz: 0.05 });
+  b.add(G.sphere(7, 5), 0xffffff, 0, 0.16, 0, { sx: 0.16, sy: 0.15, sz: 0.14, tint: 1 });
+  b.add(G.sphere(7, 5), 0xfff1e0, 0, 0.15, 0.1, { sx: 0.09, sy: 0.09, sz: 0.05 });
   for (const sx of [-1, 1]) {
-    b.add(G.sphere(10, 8), 0xffffff, sx * 0.15, 0.2, 0.04, { s: 0.06, tint: 1 });   // arms
-    b.add(G.sphere(10, 8), 0xffffff, sx * 0.09, 0.05, 0.1, { s: 0.065, tint: 1 }); // legs
-    b.add(G.sphere(8, 6), 0xfff1e0, sx * 0.09, 0.05, 0.155, { sx: 0.04, sy: 0.04, sz: 0.02 });
+    b.add(G.sphere(7, 5), 0xffffff, sx * 0.15, 0.2, 0.04, { s: 0.06, tint: 1 });   // arms
+    b.add(G.sphere(7, 5), 0xffffff, sx * 0.09, 0.05, 0.1, { s: 0.065, tint: 1 }); // legs
+    b.add(G.sphere(7, 5), 0xfff1e0, sx * 0.09, 0.05, 0.155, { sx: 0.04, sy: 0.04, sz: 0.02 });
   }
   teddyHead(b, 0xffffff, 0, 0.38, 0.01, 1.05, true, 1);
-  b.add(G.sphere(8, 6), th.ribbon, 0, 0.27, 0.11, { sx: 0.05, sy: 0.03, sz: 0.03 });
+  b.add(G.sphere(7, 5), th.ribbon, 0, 0.27, 0.11, { sx: 0.05, sy: 0.03, sz: 0.03 });
   out.push(b.build());
   // 4: ribbon box with a teddy peeking out
   out.push(giftGeo(th.ribbon, (bb) => {
     teddyHead(bb, fab, 0, 0.4, 0.02, 0.85, true, 0);
-    bb.add(G.sphere(10, 8), th.ribbon, 0.15, 0.34, 0.15, { sx: 0.09, sy: 0.06, sz: 0.05, rz: 0.5, ry: -0.8 });
-    bb.add(G.sphere(10, 8), th.ribbon, 0.2, 0.34, 0.08, { sx: 0.09, sy: 0.06, sz: 0.05, rz: -0.5, ry: -0.8 });
+    bb.add(G.sphere(7, 5), th.ribbon, 0.15, 0.34, 0.15, { sx: 0.09, sy: 0.06, sz: 0.05, rz: 0.5, ry: -0.8 });
+    bb.add(G.sphere(7, 5), th.ribbon, 0.2, 0.34, 0.08, { sx: 0.09, sy: 0.06, sz: 0.05, rz: -0.5, ry: -0.8 });
   }));
   return out;
 }
@@ -144,6 +145,7 @@ const _s = new THREE.Vector3();
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
+const counts = new Int32Array(5);
 
 export function createItems(theme, path, preset) {
   const group = new THREE.Group();
@@ -241,6 +243,12 @@ export function createItems(theme, path, preset) {
       truckHops++;
       truck.slot(slot[id], _w);
       stn[id] = -1;
+    } else if (truck.phase === 'parked') {
+      // truck is full and about to leave: hop onto the pile and disappear inside
+      slot[id] = truck.capacity - 1;
+      truck.slot(slot[id], _w);
+      _w.y += 0.3;
+      stn[id] = -3;
     } else {
       if (dockN >= 3) { release(id); return; }
       slot[id] = dockN;
@@ -360,7 +368,7 @@ export function createItems(theme, path, preset) {
       }
 
       // ---- move and draw
-      const counts = [0, 0, 0, 0, 0];
+      counts.fill(0);
       for (let id = 0; id < MAX; id++) {
         if (!act[id]) continue;
         const md = mode[id];
@@ -403,10 +411,11 @@ export function createItems(theme, path, preset) {
           tt[id] += dt;
           const k = clamp(tt[id] / dur[id], 0, 1);
           // the truck may move: re-aim at the slot
-          if (stn[id] === -1 && slot[id] >= 0 && slot[id] < 6) { truck.slot(slot[id], _w); hy[id * 3] = _w.x; hy[id * 3 + 1] = _w.y; hy[id * 3 + 2] = _w.z; }
+          if ((stn[id] === -1 || stn[id] === -3) && slot[id] >= 0 && slot[id] < 6) { truck.slot(slot[id], _w); if (stn[id] === -3) _w.y += 0.3; hy[id * 3] = _w.x; hy[id * 3 + 1] = _w.y; hy[id * 3 + 2] = _w.z; }
           _p.set(hx[id * 3] + (hy[id * 3] - hx[id * 3]) * k, hx[id * 3 + 1] + (hy[id * 3 + 1] - hx[id * 3 + 1]) * k + Math.sin(k * PI) * 0.7, hx[id * 3 + 2] + (hy[id * 3 + 2] - hx[id * 3 + 2]) * k);
           heading = k * PI * 0.5;
           if (k >= 1) {
+            if (stn[id] === -3) { truck.bounce = 1; release(id); continue; }
             if (stn[id] === -1) {
               truckHops = Math.max(0, truckHops - 1);
               if (truck.phase === 'parked' && slot[id] < truck.capacity) { mode[id] = M_CARGO; truck.addLoad(); }
@@ -427,6 +436,7 @@ export function createItems(theme, path, preset) {
         // raw feed items shuffle forward when station 1 starts a cycle
         const stg = stage[id];
         _q.setFromAxisAngle(_up, heading);
+        sc *= md === M_CARGO || (md === M_HOP && stn[id] !== -2) ? 1 : ITEM_SCALE;
         _s.set(sc, sc, sc);
         _m.compose(_p, _q, _s);
         const mesh = meshes[stg];
@@ -443,7 +453,7 @@ export function createItems(theme, path, preset) {
           const heading = path.at(s, _p);
           _p.y = BELT_Y;
           _q.setFromAxisAngle(_up, heading);
-          const sc = k === 2 ? 1 - feedShift : 1;
+          const sc = (k === 2 ? 1 - feedShift : 1) * ITEM_SCALE;
           _s.set(sc, sc, sc);
           _m.compose(_p, _q, _s);
           const n = counts[0]++;
