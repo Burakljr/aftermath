@@ -68,6 +68,7 @@ export function createActors(world) {
       if (name === 'corpse:head') return corpse.anchor('head', out);
       return null;
     },
+    cutSite(out) { return attack.cutSite(out); },
     setQuality(q) { corpse.setQuality(q); attack.setQuality(q); },
     stats() { return { vehicles: fleet.count() + buyer.count(), particles: attack.particles() }; },
     dispose() { fleet.dispose(); routes.dispose(); work.dispose(); corpse.dispose(); attack.dispose(); buyer.dispose(); },

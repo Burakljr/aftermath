@@ -21,10 +21,15 @@ export const TL = { land: 0.9, wind: 1.0, strike: 1.45, contact: 1.58, release: 
 // hit-stop on the punch contact frame (visual only: logic's clock and audio cues are untouched)
 export const HITSTOP = 0.07;
 const ptime = (t) => (t < TL.contact ? t : t < TL.contact + HITSTOP ? TL.contact : t - HITSTOP);
+// polish fixer (review P1): KALKAN-07 lifts off at the end of the settle hold and banks out of the side of the frame
+// before the camera rises into the gameplay framing (it read as a flat blue slab from above, then a cropped chunk
+// crossing a corner). It is hidden once it has left the frame, and always from LIFT1 on.
+const LIFT0 = TL.out - 0.14, LIFT1 = TL.out + 0.26;
 const MON_DIR = new THREE.Vector3(-0.78, 0, -0.62).normalize();
 const ROB_DIR = new THREE.Vector3(-0.62, 0, 0.78).normalize();
 const QUAY = -186, SEA_Y = -1.1;
 const ROLL = 1.3;
+const FOAM_T = [1.08, 1.34, 1.6, 1.86];
 const ROB_RATIO = 0.72;          // KALKAN-07 height / Magmadon height in the fight (review F11: 60-75 %)
 
 export function createAttack(world, { corpse }) {
@@ -39,6 +44,7 @@ export function createAttack(world, { corpse }) {
   const _gp = new THREE.Vector3(), _gt = new THREE.Vector3();
   const RP = newPoseR(), RP2 = newPoseR(), RP3 = newPoseR();
   let setupKey = '', F = null;           // fight geometry for the current attack
+  let robGoneT = 1e9;                    // attack t at which KALKAN-07 left the frame on lift-off
   let owning = false, framedChain = false, lastT = -99, lastKey = '';
   let preview = null;
   const pose = { visible: false };
@@ -99,7 +105,14 @@ export function createAttack(world, { corpse }) {
     const yawSet = Math.atan2(faceSet.x, faceSet.z);
     const keyChain = new THREE.Vector3().copy(dirSet).multiplyScalar(0.7).add(new THREE.Vector3(0, 0.75, 0)).normalize();
     const D = 215 * S + 0.25 * pl.length;
-    F = { S, RS, P, M, R, cam, camT, shardO, keyTV, wadeFrom: new THREE.Vector3(M.x - 20 * S, 0, M.z - 105 * S),
+    // lift-off: out of the side of the settle frame the robot already stands on (camera right = (w.z, 0, -w.x)),
+    // a little away from the lens, so it shrinks and leaves instead of growing toward the rising camera
+    const rightSet = new THREE.Vector3(dirSet.z, 0, -dirSet.x);
+    const flySide = Math.sign(rightSet.x * (CR.x + back.x - head.x) + rightSet.z * (CR.z + back.z - head.z)) || 1;
+    const fly = new THREE.Vector3().copy(rightSet).multiplyScalar(flySide).addScaledVector(dirSet, -0.3).normalize();
+    const tiltAxis = new THREE.Vector3(0, 1, 0).cross(fly).normalize();
+    robGoneT = 1e9;
+    F = { fly, tiltAxis, S, RS, P, M, R, cam, camT, shardO, keyTV, wadeFrom: new THREE.Vector3(M.x - 20 * S, 0, M.z - 105 * S),
       sinkY: sink(RS), pl, d, l, centre, head, CR, back, dirTop, dirSet, yawShove, yawSet, keyChain, D, len: pl.length, wid: pl.width };
   }
 
@@ -150,14 +163,18 @@ export function createAttack(world, { corpse }) {
       out.punch = -1; out.crouch = 0;
       out.shove = smooth(TL.cut + 0.06, hit, t);
       out.after = smooth(hit, TL.settle + 0.2, t);
-      const lift = smooth(a.end - 0.45, a.end, t);
-      out.ry = F.CR.y + lift * 70 * F.RS; out.thrust = smooth(a.end - 0.62, a.end - 0.45, t);
+      const u = Math.min(1, Math.max(0, (t - LIFT0) / (LIFT1 - LIFT0))), lk = u * u;
+      out.rx += F.fly.x * 260 * F.RS * lk; out.rz += F.fly.z * 260 * F.RS * lk;
+      out.ry = F.CR.y + (smooth(LIFT0 - 0.04, LIFT0 + 0.12, t) * 5 + lk * 120) * F.RS;
+      out.thrust = smooth(LIFT0 - 0.16, LIFT0, t);
+      if (t < LIFT0) robGoneT = 1e9;
+      out.robVisible = t < LIFT1 && t < robGoneT;
     }
     return out;
   }
 
   // ---------------------------------------------------------------- apply a pose to the models + camera
-  const _sc = new THREE.Vector3();
+  const _sc = new THREE.Vector3(), _qa = new THREE.Quaternion();
   function apply(a, t, fit) {
     poseInto(a, t, fit, pose);
     const mutant = !!a.mutant;
@@ -202,6 +219,8 @@ export function createAttack(world, { corpse }) {
       robot.group.scale.setScalar(F.RS);
       robot.group.position.set(pose.rx, pose.ry, pose.rz);
       robot.group.rotation.set(0, pose.ryaw, 0);
+      // lift-off: lean into the flight
+      if (!pose.tv && t > LIFT0) { _qa.setFromAxisAngle(F.tiltAxis, 0.5 * smooth(LIFT0, LIFT0 + 0.16, t)); robot.group.quaternion.premultiply(_qa); }
       const p = RP;
       if (pose.tv) {
         if (pose.punch > 0) punchPoseR(pose.punch, p); else standPoseR(p);
@@ -250,7 +269,10 @@ export function createAttack(world, { corpse }) {
       _com.set((_w.x + model.group.position.x) * 0.5, Math.max(4 * F.S, _w.y * 0.45), (_w.z + model.group.position.z) * 0.5);
       // KALKAN-07 (near side) and the toppling body share the frame
       _tgt.copy(_com).lerp(_k.set(pose.rx, pose.ry + 16 * F.RS, pose.rz), 0.42);
-      camera.position.set(_tgt.x + F.dirTop.x * Dk * 0.74, Dk * 0.67 + 4 * F.S, _tgt.z + F.dirTop.z * Dk * 0.74);
+      // polish fixer (review P2): the camera starts higher at the cut (a near block hid KALKAN-07's legs and the body's
+      // lower half) and sinks with the fall into the old low angle at the hit, where the settle frame takes over
+      const kh = smooth(TL.cut, TL.hit, at), hz = lerp(0.62, 0.74, kh), hy = lerp(0.82, 0.67, kh);
+      camera.position.set(_tgt.x + F.dirTop.x * Dk * hz, Dk * hy + 4 * F.S, _tgt.z + F.dirTop.z * Dk * hz);
       camera.up.set(0, 1, 0); camera.lookAt(_tgt);
       return;
     }
@@ -263,11 +285,31 @@ export function createAttack(world, { corpse }) {
     _v.set(_tgt.x + _w.x * Ds * 0.76, Ds * 0.65 + 4 * F.S, _tgt.z + _w.z * Ds * 0.76);
     const e = smooth(TL.out, a.end, at);
     if (e > 0) {
+      // ease into the gameplay framing around the target (azimuth / elevation / distance), not along the straight
+      // line between the two camera positions: that line swept low over the body in a whip pan (review P1)
       _gp.copy(rig.target).addScaledVector(rig.fwd, -rig.dist);
-      _v.lerp(_gp, e); _tgt.lerp(rig.target, e);
+      const ox0 = _v.x - _tgt.x, oy0 = _v.y - _tgt.y, oz0 = _v.z - _tgt.z;
+      const ox1 = _gp.x - rig.target.x, oy1 = _gp.y - rig.target.y, oz1 = _gp.z - rig.target.z;
+      const h0 = Math.hypot(ox0, oz0), h1 = Math.hypot(ox1, oz1);
+      const r0 = Math.hypot(h0, oy0), r1 = Math.hypot(h1, oy1);
+      const az = lerpAngle(Math.atan2(ox0, oz0), Math.atan2(ox1, oz1), e);
+      const el = lerp(Math.atan2(oy0, h0), Math.atan2(oy1, h1), e);
+      const r = r0 * Math.pow(r1 / Math.max(1e-3, r0), e);
+      _tgt.lerp(rig.target, e);
+      _v.set(_tgt.x + Math.sin(az) * Math.cos(el) * r, _tgt.y + Math.sin(el) * r, _tgt.z + Math.cos(az) * Math.cos(el) * r);
     }
     camera.position.copy(_v); camera.up.set(0, 1, 0); camera.lookAt(_tgt);
+    // lift-off: once KALKAN-07 has left the frame it stays gone (no chunk re-entering a corner as the camera rises)
+    if (at > LIFT0 && robot.group.visible) {
+      camera.updateMatrixWorld();
+      _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      _fr.setFromProjectionMatrix(_pm);
+      // gone once its centre has left the frame (it moves fast; the rest is out a frame or two later)
+      _sph.center.set(pose.rx, pose.ry + 26 * F.RS, pose.rz); _sph.radius = 0;
+      if (!_fr.intersectsSphere(_sph)) { robGoneT = Math.min(robGoneT, at); robot.group.visible = false; robot.thrust(0); }
+    }
   }
+  const _pm = new THREE.Matrix4(), _fr = new THREE.Frustum(), _sph = new THREE.Sphere();
   let curA = null, curT = 0, tvFov = false;
   // the promenade palms read as black sticks in front of the TV camera (review 2 F12): hidden for the TV shot only
   let palms;
@@ -300,15 +342,26 @@ export function createAttack(world, { corpse }) {
     }
     if (cross(TL.contact + HITSTOP)) {
       // release: camera kick, shockwave dust at the monster's feet, glass from the waterfront
-      world.fx.ring(F.P.x, F.P.z + 6 * F.S, 55 * F.S, 12);
+      // a small, sparse dust ring (review P5: the 55 S ring laid a flat orange wash over the robot's legs for 0.3 s)
+      world.fx.ring(F.P.x, F.P.z + 6 * F.S, 28 * F.S, 5);
       world.fx.sparks(F.P.x, F.P.y, F.P.z, 12, { speed: 14, size: 0.7 });
       world.cam.shake(0.75);
       shards.burst(F.shardO, F.S, t1);
     }
+    // polish fixer (review P11): white water churned at KALKAN-07's feet while it stands in the shallows (it read as
+    // floating on the sea): a few small pooled puffs per foot, no new draw call
+    for (let i = 0; i < FOAM_T.length; i++) {
+      if (!cross(FOAM_T[i])) continue;
+      const lx = ROB_DIR.z, lz = -ROB_DIR.x;
+      for (const sd of [-1, 1]) {
+        const fx = F.R.x + lx * sd * 5.6 * F.RS + ROB_DIR.x * 2 * F.RS, fz = F.R.z + lz * sd * 5.6 * F.RS + ROB_DIR.z * 2 * F.RS;
+        world.fx.steam(fx, SEA_Y + 0.6, fz, 2, { size: 4.5 * F.RS, spread: 4 * F.RS, life: 1.0 });
+      }
+    }
     if (cross(TL.roar)) world.fx.steam(F.M.x, 20 * F.S, F.M.z, 4, { size: 10 * F.S, life: 1.6 });
     if (cross(TL.cut + 0.02)) world.fx.dust(F.CR.x, F.CR.y + 1, F.CR.z, 5, { size: 5 + 6 * F.RS, spread: 10, rise: 2, life: 1.8 });
     if (cross(TL.hit + 0.05)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 4, { size: 5 + 5 * F.RS, spread: 9, rise: 2, life: 1.6 });
-    if (cross(a.end - 0.5)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 6, { size: 6 + 6 * F.RS, spread: 12, rise: 3, life: 1.8 });
+    if (cross(LIFT0)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 6, { size: 6 + 6 * F.RS, spread: 12, rise: 3, life: 1.8 });
   }
 
   // ---------------------------------------------------------------- update (game state or preview)
@@ -378,6 +431,13 @@ export function createAttack(world, { corpse }) {
       return h;
     },
     previewState() { return preview ? preview.a : null; },
+    // polish fixer (review P2): during the topple (cut .. just past the hit) the facades between KALKAN-07's feet and
+    // the camera are cut away (the gameplay cutaway capsule), so a near block cannot hide its legs; writes
+    // (x, y, z, radius) into out (a Vector4) or returns null
+    cutSite(out) {
+      if (!F || !pose.visible || pose.tv || !pose.robVisible || pose.t > TL.hit + 0.06) return null;
+      return out.set(pose.rx, 4, pose.rz, 22 * F.RS + 10);
+    },
     setQuality() {},
     particles() { return shards.count(); },
     dispose() { world.scene.remove(robot.group); shards.dispose(); shock.dispose(); release(); },

@@ -643,6 +643,10 @@
 .pbubble::after { content: ''; position: absolute; left: calc(50% + var(--ax, 0px)); bottom: -7px; margin-left: -7px; border: 7px solid transparent; border-bottom: 0; border-top-color: var(--tebesir); }
 @keyframes bob { 50% { margin-top: -5px; } }
 /* review 2 F15b: beside a tab (left or right of it), tail pointing sideways; it bobs towards the tab */
+/* polish fixer (review P7): compact two-line bubble without the hand, so it stays between the neighbouring tab's
+   label and the tab it points at */
+.pbubble.side-l, .pbubble.side-r { white-space: normal; max-width: 88px; padding: 7px 9px; font-size: 13px; line-height: 1.15; }
+.pbubble.side-l .i, .pbubble.side-r .i { display: none; }
 .pbubble.side-l { translate: -100% -50%; }
 .pbubble.side-r { translate: 0 -50%; }
 .pbubble.side-l.on, .pbubble.side-r.on { animation-name: bobX; }
@@ -768,7 +772,9 @@
 .loading__tag { display: none; }
 .loading { background-color: rgba(11, 13, 14, 1); transition: opacity 400ms var(--ease), visibility 0s 400ms, background-color 900ms var(--ease); }
 .loading::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 900ms var(--ease);
-  background: linear-gradient(180deg, rgba(8, 10, 12, .9) 0%, rgba(8, 10, 12, .55) 24%, rgba(8, 10, 12, .08) 46%, rgba(8, 10, 12, .1) 62%, rgba(8, 10, 12, .78) 84%, rgba(8, 10, 12, .95) 100%); }
+  background: linear-gradient(180deg, rgba(8, 10, 12, .9) 0%, rgba(8, 10, 12, .55) 24%, rgba(8, 10, 12, .08) 46%, rgba(8, 10, 12, .1) 64%, rgba(8, 10, 12, .6) 72%, rgba(8, 10, 12, .97) 77%, rgba(8, 10, 12, .98) 100%); }
+/* polish fixer (review P6): opaque from about three quarters down, so the end of the ground plane never shows behind
+   the tap pill */
 .loading.prompt { background-color: rgba(11, 13, 14, 0); isolation: isolate; place-content: stretch; grid-template-rows: auto auto auto 1fr auto; align-items: start;
   padding: calc(var(--safe-top) + 92px) 24px calc(var(--safe-bottom) + 56px); }
 .loading.prompt::before { opacity: 1; }

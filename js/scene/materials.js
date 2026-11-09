@@ -483,11 +483,13 @@ int distAt(vec2 p){
     float scorch = (1.0 - smoothstep(2.0, 14.0 + 10.0 * fbm(p * 0.05), cd)) * smoothstep(0.35, 0.55, fbm(p * 0.09 + 11.0) + 0.25);
     float crack = 1.0 - smoothstep(0.0, 0.06 + aw * 0.2, abs(fbm(p * 0.18) - 0.5));
     crack *= 1.0 - smoothstep(4.0, 26.0, cd);
-    float rim = 1.0 - smoothstep(0.0, 6.0, cd);
+    // polish fixer (review P9): a darker contact band hugging the body, so the pale carcass keeps its outline on the
+    // lightened scorch and dust (it relied on its cast shadow alone)
+    float rim = 1.0 - smoothstep(-1.0, 7.0, cd);
     // polish W1: lighter scorch so the dark carcass separates from the ground at phone size (it sat on a black hole)
     col *= 1.0 - scorch * 0.36 * dz;
     col *= 1.0 - crack * 0.5 * dz;
-    col *= 1.0 - rim * 0.32 * dz;
+    col *= 1.0 - rim * 0.5 * dz;
     col *= 1.0 - (1.0 - smoothstep(-3.0, 0.0, cd)) * 0.3 * dz;   // scorched crater floor under the body
     // embers along the footprint edge: patchy (noise-broken), never a continuous glowing outline (review V6)
     float emb = smoothstep(0.52, 0.72, fbm(p * 0.11 + 3.0));

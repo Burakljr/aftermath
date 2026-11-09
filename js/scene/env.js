@@ -87,6 +87,9 @@ const RAW = {
     shadowTint: [0.88, 0.95, 1.14], highTint: [1.06, 1.0, 0.93], sat: 1.05, alert: 0, desat: 0.6, bloom: 0.55, contrast: 1.16, fireK: 1.0,
   },
 };
+// polish fixer (review P3): the clean payoff (receipt pending). Removing the district's dust coat made the frame
+// darker right as "Temiz" showed; this lifts the work look a step (exposure, fill) while the block rises
+RAW.clean = { ...RAW.work, sunI: 5.3, hemiI: 1.85, exposure: 1.4, fogD: 0.0007, contrast: 1.12, sat: 1.08 };
 const toVec = (P) => { const v = new Float32Array(SIZE); for (const [k, n] of FIELDS) { const val = P[k]; if (n === 1) v[OFF[k]] = val; else for (let i = 0; i < n; i++) v[OFF[k] + i] = val[i]; } return v; };
 export const PRESETS = Object.fromEntries(Object.entries(RAW).map(([k, P]) => [k, toVec(P)]));
 

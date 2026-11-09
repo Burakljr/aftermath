@@ -81,6 +81,7 @@ class Kit {
     const g = new RoundedBoxGeometry(w, h, d, o.seg ?? 1, r);
     if (o.taper) taperX(g, o.taper, h);
     if (o.taperZ) taperZ(g, o.taperZ, h);
+    if (o.rake) rakeZ(g, o.rake, h, d);
     if (o.rx) g.rotateX(o.rx); if (o.rz) g.rotateZ(o.rz); if (o.ry) g.rotateY(o.ry);
     g.translate(x, y, z);
     return this.push(g, color, o);
@@ -153,6 +154,8 @@ class Kit {
 }
 // scale x (or z) of a centred box by y: k(-h/2) = t[0], k(+h/2) = t[1]
 function taperX(g, t, h) { const p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) * lerp(t[0], t[1], (p.getY(i) + h / 2) / h)); }
+// rake the front (+z) face back by k per unit of height (a slanted windscreen); the back face stays put
+function rakeZ(g, k, h, d) { const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const z = p.getZ(i); if (z > 0) p.setZ(i, z - k * (p.getY(i) + h / 2) * (z / (d / 2))); } }
 function taperZ(g, t, h) { const p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, p.getZ(i) * lerp(t[0], t[1], (p.getY(i) + h / 2) / h)); }
 
 // ------------------------------------------------------------------------------------ decal atlas
@@ -273,36 +276,46 @@ function buildKit() {
   K.rbox(10.0, 9.0, 2.6, 0, 38.0, -5.6, BLUE2, { r: 0.8 });
   for (let i = 0; i < 4; i++) K.box(8.0, 0.45, 0.4, 0, 35.0 + i * 1.9, -7.0, DARK);
   for (const s of [-1, 1]) { K.cyl(1.5, 1.9, 2.6, s * 7.6, 40.0, -6.4, DARK, { seg: 10 }); K.cyl(1.95, 1.95, 0.5, s * 7.6, 38.6, -6.4, STEEL, { seg: 10 }); }
+  // polish fixer (review P4): a hydraulic power pack with two tanks on the back (the top view was a flat slab)
+  K.rbox(8.6, 7.4, 3.0, 0, 41.2, -8.1, BLUE2, { r: 0.8 });
+  for (const s of [-1, 1]) { K.cyl(1.45, 1.45, 8.6, s * 2.6, 41.4, -10.1, STEEL, { seg: 10 }); K.cyl(1.62, 1.62, 0.7, s * 2.6, 45.9, -10.1, ORANGE, { seg: 10, wear: 0 }); }
+  K.cyl(0.4, 0.4, 6.0, 0, 41.4, -10.6, DARK, { seg: 6 });
   // flood lamps on the yoke front
   for (const s of [-1, 1]) K.box(2.2, 0.9, 0.3, s * 9.4, 43.6, 5.8, 0xfff1d8, { em: EM_STEADY(3.2), jitter: 0 });
 
   // ---------------- head: operator cab between the shoulders
   K.on('head');
-  K.cyl(2.5, 2.8, 2.0, 0, 44.4, 0.4, FRAME, { seg: 10 });
-  K.rbox(9.6, 6.4, 8.8, 0, 47.6, 0.8, BLUE, { r: 1.1, seg: 2, taper: [1.0, 0.9], taperZ: [1.0, 0.92] }); // cab body
-  K.rbox(9.9, 1.1, 9.1, 0, 45.1, 0.8, ORANGE, { r: 0.4 });                                  // hi-vis band
-  K.rbox(8.6, 2.4, 1.0, 0, 47.9, 5.05, DARK, { r: 0.4 });                                   // visor recess
-  K.box(7.4, 0.9, 0.3, 0, 47.9, 5.6, 0xd8f4ff, { em: EM_STEADY(3.6), jitter: 0 });          // lit visor slit
-  for (const s of [-1, 1]) K.box(0.5, 2.6, 0.5, s * 2.2, 47.9, 5.75, FRAME);                // cab guard bars
-  for (let i = 0; i < 3; i++) K.box(4.6, 0.3, 0.3, 0, 45.8 + i * 0.4, 5.25, DARK);           // grille
-  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) K.box(0.3, 0.4, 4.4, s * 4.85, 47.2 + i * 0.8, 0.0, DARK);
-  K.rbox(8.6, 0.8, 7.8, 0, 50.95, 0.6, FRAME, { r: 0.3 });                                  // roof plate
-  K.rbox(6.8, 0.8, 1.6, 0, 51.7, 1.8, FRAME, { r: 0.3 });                                   // light bar
-  for (const s of [-1, 1]) K.rbox(1.6, 1.1, 1.3, s * 2.4, 52.5, 1.8, 0xffa126, { r: 0.35, em: EM_BLINK(5.0), wear: 0 });
-  K.box(1.4, 0.7, 0.5, 0, 52.4, 2.4, 0xfff4e0, { em: EM_STEADY(2.6), jitter: 0 });          // work lamp
-  K.cyl(0.18, 0.18, 4.0, -3.4, 53.0, -2.6, DARK, { seg: 5 });                               // antenna
+  // polish fixer (review P4): the cab sits higher above the shoulder line and its front is a raked windscreen (it read
+  // as a flat box between the pauldrons); every front part follows the slope (frontZ)
+  const HY = 1.8, CAB_Y = 47.6 + HY, CAB_H = 6.4, CAB_K = 0.42;
+  const frontZ = (y) => { const t = (y - (CAB_Y - CAB_H / 2)) / CAB_H; return 0.8 + 4.4 * (1 - 0.08 * t) - CAB_K * CAB_H * t; };
+  const RX = -Math.atan(CAB_K + 4.4 * 0.08 / CAB_H);
+  K.cyl(2.4, 2.8, 2.0 + HY, 0, 44.4 + HY / 2, 0.4, FRAME, { seg: 10 });
+  K.rbox(9.6, CAB_H, 8.8, 0, CAB_Y, 0.8, BLUE, { r: 1.1, seg: 2, taper: [1.0, 0.9], taperZ: [1.0, 0.92], rake: CAB_K }); // cab body
+  K.rbox(9.9, 1.1, 8.7, 0, 45.1 + HY, 0.7, ORANGE, { r: 0.4 });                             // hi-vis band
+  K.rbox(8.4, 3.0, 1.0, 0, 48.1 + HY, frontZ(48.1 + HY) - 0.15, DARK, { r: 0.4, rx: RX });  // windscreen recess
+  K.box(7.2, 1.4, 0.3, 0, 48.1 + HY, frontZ(48.1 + HY) + 0.42, 0xd8f4ff, { em: EM_STEADY(3.6), jitter: 0, rx: RX }); // lit windscreen
+  for (const s of [-1, 1]) K.box(0.5, 3.0, 0.5, s * 2.2, 48.1 + HY, frontZ(48.1 + HY) + 0.6, FRAME, { rx: RX }); // cab guard bars
+  for (let i = 0; i < 3; i++) { const y = 45.8 + HY + i * 0.4; K.box(4.6, 0.3, 0.3, 0, y, frontZ(y) + 0.1, DARK, { rx: RX }); } // grille
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { const y = 47.2 + HY + i * 0.8, t = (y - (CAB_Y - CAB_H / 2)) / CAB_H; K.box(0.3, 0.4, 3.6, s * (4.8 * (1 - 0.1 * t) + 0.08), y, -0.3, DARK); }
+  K.rbox(8.4, 0.8, 5.8, 0, 50.95 + HY, -0.55, FRAME, { r: 0.3 });                             // roof plate
+  K.rbox(6.8, 0.8, 1.6, 0, 51.7 + HY, 1.0, FRAME, { r: 0.3 });                                // light bar
+  for (const s of [-1, 1]) K.rbox(1.6, 1.1, 1.3, s * 2.4, 52.5 + HY, 1.0, 0xffa126, { r: 0.35, em: EM_BLINK(5.0), wear: 0 });
+  K.box(1.4, 0.7, 0.5, 0, 52.4 + HY, 1.6, 0xfff4e0, { em: EM_STEADY(2.6), jitter: 0 });       // work lamp
+  K.cyl(0.18, 0.18, 4.0, -3.4, 53.0 + HY, -2.6, DARK, { seg: 5 });                            // antenna
 
   // ---------------- arms
   for (const side of [1, -1]) {
     const S = side > 0 ? 'L' : 'R', x = side * 16.2;
     // pauldron: big sloped armour block, orange cap stripe, white "07" on the outer face
     K.on('shoulder' + S);
-    K.rbox(10.2, 8.4, 12.0, x + side * 0.9, 43.2, 0.2, BLUE, { r: 1.8, seg: 2, rz: side * -0.16 });
-    K.rbox(10.4, 1.3, 12.2, x + side * 0.55, 46.6, 0.2, ORANGE, { r: 0.5, rz: side * -0.16 });
+    // polish fixer (review P4): chamfered (tapered) pauldrons instead of flat-topped blocks
+    K.rbox(10.2, 8.4, 12.0, x + side * 0.9, 43.2, 0.2, BLUE, { r: 1.8, seg: 2, rz: side * -0.16, taper: [1.0, 0.8], taperZ: [1.0, 0.88] });
+    K.rbox(8.9, 1.3, 11.0, x + side * 1.3, 46.6, 0.2, ORANGE, { r: 0.5, rz: side * -0.16 });
     K.rbox(10.6, 1.6, 12.4, x + side * 1.3, 39.0, 0.2, FRAME, { r: 0.5, rz: side * -0.16 });
     K.cyl(2.8, 2.8, 3.6, x, 40.6, 0.2, FRAME, { rz: Math.PI / 2 });
-    K.decal(5.6, 5.6, x + side * 6.1, 42.4, 0.2, side * Math.PI / 2, UV07, { rz: side * -0.16 });
-    K.box(0.22, 6.0, 0.3, x + side * 0.9, 43.0, 6.25, DARK, { rz: side * -0.16 });            // seam
+    K.decal(5.6, 5.6, x + side * 5.66, 42.4, 0.2, side * Math.PI / 2, UV07, { rz: side * -0.04 });
+    K.box(0.22, 6.0, 0.3, x + side * 0.9, 43.0, 5.92, DARK, { rz: side * -0.16, rx: -0.085 }); // seam
     // upper arm
     K.on('upper' + S);
     const xu = side * 16.6;
@@ -329,16 +342,17 @@ function buildKit() {
     } else {
       // right forearm: the hydraulic ram housing (much bigger than the left), hazard chevrons, hoses
       K.on('foreR');
-      K.rbox(8.6, 10.8, 8.6, xu, 24.4, 0.2, BLUE, { r: 1.5, seg: 2, taper: [1.08, 0.92], taperZ: [1.08, 0.92] });
-      K.rbox(8.9, 1.2, 8.9, xu, 28.6, 0.2, ORANGE, { r: 0.4 });
-      K.chevrons(xu - 4.6, xu + 4.6, 21.4, 1.8, 4.75, 6);                                          // front
-      K.chevrons(-4.6, 4.6, 21.4, 1.8, 0, 6, { ry: -Math.PI / 2, ox: xu - 4.62 });                 // outer face
+      // polish fixer (review P4): the ram housing is a frustum, wide at the business end
+      K.rbox(8.6, 10.8, 8.6, xu, 24.4, 0.2, BLUE, { r: 1.5, seg: 2, taper: [1.18, 0.86], taperZ: [1.18, 0.86] });
+      K.rbox(8.0, 1.2, 8.0, xu, 28.6, 0.2, ORANGE, { r: 0.4 });
+      K.chevrons(xu - 4.6, xu + 4.6, 21.4, 1.8, 5.12, 6);                                          // front
+      K.chevrons(-4.6, 4.6, 21.4, 1.8, 0, 6, { ry: -Math.PI / 2, ox: xu - 4.95 });                 // outer face
       K.cyl(3.0, 3.0, 1.0, xu, 18.8, 0.2, STEEL, { seg: 12 });                                     // gland ring
-      for (const s of [-1, 1]) K.cyl(0.55, 0.55, 9.0, xu + s * 4.9, 24.2, -2.6, DARK, { seg: 6 });  // hoses
+      for (const s of [-1, 1]) K.cyl(0.55, 0.55, 9.0, xu + s * 5.3, 24.2, -2.6, DARK, { seg: 6 });  // hoses
       K.on('handR');
       K.cyl(1.55, 1.55, 9.0, xu, 22.6, 0.2, STEEL, { seg: 12, wear: 0, grad: 0.35 });             // chrome ram rod
-      K.rbox(7.2, 5.6, 7.0, xu, 15.6, 0.2, FRAME, { r: 1.0 });                                     // ram head / fist
-      K.rbox(7.6, 1.8, 7.4, xu, 18.0, 0.2, BLUE2, { r: 0.5 });
+      K.cyl(3.5, 3.95, 5.6, xu, 15.6, 0.2, FRAME, { seg: 8, wear: 0.38, ry: Math.PI / 8 });            // octagonal ram head / fist
+      K.cyl(4.15, 4.15, 1.8, xu, 18.0, 0.2, BLUE2, { seg: 8, wear: 0.38, ry: Math.PI / 8 });
       for (let k = 0; k < 4; k++) K.rbox(1.55, 2.4, 2.6, xu - 2.4 + k * 1.6, 13.2, 1.6, STEEL, { r: 0.5, wear: 0.2 });
       K.rbox(1.9, 2.8, 2.2, xu + 3.6, 14.6, 2.0, STEEL, { r: 0.5, rz: -0.4, wear: 0.2 });
     }
@@ -357,9 +371,9 @@ function buildKit() {
     K.cyl(2.7, 2.7, 6.6, x, 14.2, 0, STEEL, { rz: Math.PI / 2 });
     K.on('knee' + S);
     K.rbox(6.2, 11.2, 6.6, x, 8.6, -0.3, FRAME, { r: 0.7 });
-    K.rbox(8.4, 8.8, 8.2, x, 8.0, 0.6, BLUE, { r: 1.4, seg: 2, taper: [1.14, 0.94] });       // heavy shin guard
+    K.rbox(8.4, 8.8, 8.2, x, 8.0, 0.6, BLUE, { r: 1.4, seg: 2, taper: [1.22, 0.84], taperZ: [1.16, 0.9] }); // heavy shin guard (frustum)
     K.rbox(6.6, 4.6, 3.4, x, 14.4, 3.4, ORANGE, { r: 1.0 });                                  // knee cap
-    K.box(0.22, 6.0, 0.3, x, 7.8, 4.75, DARK);
+    K.box(0.22, 6.0, 0.3, x, 7.8, 4.97, DARK, { rx: -0.12 });
     // chrome pistons from the knee to the ankle on both sides (visible at both joints)
     for (const s of [-1, 1]) K.piston(V(x + s * 4.4, 13.4, -1.6), V(x + s * 4.4, 3.8, -1.2), 0.75);
     K.on('ankle' + S);

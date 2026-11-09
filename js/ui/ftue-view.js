@@ -139,7 +139,7 @@ export function createFtueView(ctx) {
         if (!c) return;
         const W0 = ctx.root.clientWidth || 390;
         side = c.x > W0 / 2 ? 'l' : 'r';
-        x = side === 'l' ? c.x - 30 : c.x + 30;
+        x = side === 'l' ? c.x - 22 : c.x + 22;
         y = c.y - 4;
       }
       if (side !== bubble.dataset.side) { bubble.dataset.side = side; C(bubble, 'side-l', side === 'l'); C(bubble, 'side-r', side === 'r'); }

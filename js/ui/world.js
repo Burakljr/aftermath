@@ -172,6 +172,7 @@ export function createWorld(ctx) {
   }
 
   const HEAD = { x: 0, y: 0, visible: false };
+  let goalRect = null;
   /** screen top-centre of a district's chip as last placed (floats start above it), or null */
   ctx.chipTop = (id) => {
     const c = chips[id];
@@ -238,6 +239,18 @@ export function createWorld(ctx) {
         c.h = hgt + 10;
         c.hw = halfW;
         c.shown = true;
+      }
+      // polish fixer (review P10): the "Hedef tamamlandı" card owns its corner while it shows; labels and chips under it
+      // drop below it (its rect is read once per showing, not every frame)
+      const goalOn = ctx.root.classList.contains('goal-on');
+      if (!goalOn) goalRect = null;
+      else if (!goalRect) { const el = ctx.root.querySelector('.unlock.on'); goalRect = el ? { l: el.offsetLeft, t: el.offsetTop, r: el.offsetLeft + el.offsetWidth, b: el.offsetTop + el.offsetHeight } : { l: 0, t: 0, r: 0, b: 0 }; }
+      if (goalRect && goalRect.b > goalRect.t) {
+        for (const c of chips) {
+          if (!c.shown) continue;
+          if (c.x + c.hw < goalRect.l - 4 || c.x - c.hw > goalRect.r + 4 || c.y < goalRect.t - 4 || c.y - c.h > goalRect.b + 4) continue;
+          c.y = Math.min(bottom - 6, goalRect.b + c.h + 6);
+        }
       }
       // pass 2: screen-space collision, chips push apart vertically (review 2 F10)
       for (let it = 0; it < 3; it++) {

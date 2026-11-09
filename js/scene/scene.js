@@ -298,13 +298,19 @@ export function createScene(canvas, opts = {}) {
 
   // ---------------------------------------------------------------- state sync
   function lookFor(s) {
-    if (s.phase === 'calm') return 'golden';
-    if (s.phase === 'attack') return s.attack && (s.attack.hit || s.attack.t >= HIT_T) ? 'blue' : 'dusk';
+    // polish fixer (review P3): while the receipt is pending a slightly brighter work look ('clean') holds, so the
+    // clean payoff (scaffold, tarp, windows, "Temiz") is not dimmed by the golden crossfade; golden follows once the
+    // payment is collected
+    if (s.phase === 'calm') return s.result ? 'clean' : 'golden';
+    // polish fixer (review P2): the blue impact look from the cut on (the topple read as dark murk under the low dusk
+    // sun); the switch is instant on the cut itself, where the hard camera cut hides it
+    if (s.phase === 'attack') return s.attack && (s.attack.hit || s.attack.t >= CUT_T) ? 'blue' : 'dusk';
     return 'work';
   }
   function syncState(s, dt, juice) {
     lastState = s;
-    env.setLook(lookFor(s), !juice);
+    const cutNow = s.phase === 'attack' && s.attack && lastAttackT < CUT_T && s.attack.t >= CUT_T;
+    env.setLook(lookFor(s), !juice || cutNow);
     traffic.setPhase(s.phase === 'calm' && s.result ? 'result' : s.phase); // nobody walks in before the receipt is collected
     const a = s.attack;
     if (a && a.n !== attackN) startAttack(a);
@@ -418,6 +424,7 @@ export function createScene(canvas, opts = {}) {
     for (; kv < 8; kv++) K[kv].set(0, 0, 0, 0);
     const working = lastState && lastState.phase !== 'calm' && lastState.phase !== 'attack';
     if (sel !== null && working) { const D = layout.DISTRICTS[sel]; cityUniforms.uCutA.value.set(D.cx, 4, D.cz + 16, 30); }
+    else if (lastState && lastState.phase === 'attack' && actors && actors.cutSite && actors.cutSite(cityUniforms.uCutA.value)) { /* topple: KALKAN-07's feet */ }
     else cityUniforms.uCutA.value.set(0, 0, 0, 0);
     // facade fire light: the 8 strongest burning spots
     const F = cityUniforms.uFires.value;
@@ -664,7 +671,7 @@ export function createScene(canvas, opts = {}) {
       renderer.dispose();
     },
     // debugging / tests
-    _debug: { scene, camera, rig, env, dmg, jobs,
+    _debug: { scene, camera, rig, env, dmg, jobs, post,
       projectXYZ(x, y, z) { const v = new THREE.Vector3(x, y, z).project(camera); return { x: (v.x * 0.5 + 0.5) * size.w, y: (1 - (v.y * 0.5 + 0.5)) * size.h }; },
       damageHash() { let h = 0; for (const cd of city.districts) { const a = cd.mesh.geometry.attributes.aDmg.array; for (let i = 0; i < a.length; i += 7) h = (h * 31 + Math.round(a[i] * 100)) | 0; } return h; }, get city() { return city; }, get fx() { return fx; }, get rubble() { return rubble; }, get districts() { return districts; }, layout },
   };

@@ -156,8 +156,9 @@ void main(){
   bool base = aExtra.y > 3.5;
   float on = aExtra.z * step(0.001, lv) * (aExtra.y > 2.5 && !base ? 1.0 - uLow : 1.0);
   float sc = aEmit.w * (0.3 + 0.7 * lv) * on;
-  float w = 8.5 * sc * (0.85 + 0.3 * aSeed.y), h = 10.0 * sc * (0.85 + 0.35 * aSeed.z) * (0.9 + 0.1 * sin(uTime * 3.0 + aSeed.x * 20.0));
-  if (base) { w = 15.0 * sc; h = 10.0 * sc * (0.92 + 0.08 * sin(uTime * 4.1 + aSeed.y * 9.0)); }
+  // polish fixer (review P8): shorter, wider tongues and a wider base glow (they read as candle tips at 1x)
+  float w = 9.6 * sc * (0.85 + 0.3 * aSeed.y), h = 7.4 * sc * (0.85 + 0.35 * aSeed.z) * (0.9 + 0.1 * sin(uTime * 3.0 + aSeed.x * 20.0));
+  if (base) { w = 19.0 * sc; h = 9.5 * sc * (0.92 + 0.08 * sin(uTime * 4.1 + aSeed.y * 9.0)); }
   vec3 right = normalize(vec3(camRight().x, 0.0, camRight().z));
   float yy = position.y + 0.5;
   vec3 p = aEmit.xyz + right * position.x * w + vec3(0.0, yy * h, 0.0) + uWind * yy * yy * h * (base ? 0.25 : 0.55);
@@ -192,7 +193,7 @@ void main(){
   col = mix(col, vec3(0.62, 0.07, 0.02) * 1.3, smoothstep(0.08, 0.28, T));
   col = mix(col, vec3(1.0, 0.3, 0.05) * 2.0, smoothstep(0.26, 0.56, T));
   col = mix(col, vec3(1.0, 0.58, 0.2) * 2.5, smoothstep(0.62, 0.92, T) * (1.0 - smoothstep(0.16, 0.4, vUv.y)));
-  float edge = smoothstep(0.0, 0.3, vUv.x) * smoothstep(1.0, 0.7, vUv.x) * smoothstep(1.0, 0.58, vUv.y);
+  float edge = smoothstep(0.0, 0.3, vUv.x) * smoothstep(1.0, 0.7, vUv.x) * smoothstep(0.92, 0.42, vUv.y);
   float emitA = smoothstep(0.04, 0.5, T) * mask * edge * vFlick;
   float sootA = soot * 0.5 * mask;
   col *= (1.0 - vFog * 0.85);
