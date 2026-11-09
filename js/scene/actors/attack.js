@@ -60,7 +60,7 @@ export function createAttack(world, { corpse }) {
     const tc = TL.contact;
     model.setPose(standPose(1.3 + 0.9 * 2.4 + (tc - 0.9) * 0.3, { lunge: smooth(0.8, 1.4, tc) * 0.5, roar: 0, snap: 0, stagger: 0, breath: Math.sin(tc * 1.6) }));
     const mouth = model.worldPoint('mouth').clone(), headP = model.worldPoint('head').clone();
-    const monTop = model.worldPoint('shellTop').y + 3.5 * S;
+    const monTop = model.worldPoint('backTop').y + 3.5 * S;
     // robot: ROB_RATIO of the monster's height above the water (review F11: it read as a third of the monster),
     // the fist meets the face at whatever height that gives (between the jaw and the brow)
     robot.group.position.set(0, 0, 0); robot.group.rotation.set(0, Math.atan2(ROB_DIR.x, ROB_DIR.z), 0); robot.group.scale.setScalar(1);
@@ -265,7 +265,7 @@ export function createAttack(world, { corpse }) {
     if (at < TL.hit) {
       const k = smooth(TL.cut, TL.hit, at);
       const Dk = D * (1.06 - 0.06 * k);
-      model.worldPoint('shellTop', _w);
+      model.worldPoint('backTop', _w);
       _com.set((_w.x + model.group.position.x) * 0.5, Math.max(4 * F.S, _w.y * 0.45), (_w.z + model.group.position.z) * 0.5);
       // KALKAN-07 (near side) and the toppling body share the frame
       _tgt.copy(_com).lerp(_k.set(pose.rx, pose.ry + 16 * F.RS, pose.rz), 0.42);

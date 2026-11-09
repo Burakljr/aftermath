@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { createMagmadon, corpsePose, standPose, magmaMaterial, magmaDepthMaterial, carveUniforms } from './magmadon.js';
 
 const ROLL = 1.3, SINK = 2.6;
+const VENTS = [1, 3, 5];                // chimney indices (rump to shoulders) that steam on the carcass
 const CAM_DIR = { x: Math.sin(0.14), z: Math.cos(0.14) };
 const KEY_GAME = new THREE.Vector3(0.085, 1.2, 0.61).normalize();
 // the head rolls back toward upright on the dead body, so from the gameplay camera the brow, the hooked beak and the
@@ -31,6 +32,7 @@ export function createCorpse(world) {
   const LIFT = -minY;
   const headW = model.worldPoint('head').clone(), eyeW = model.worldPoint('eye').clone();
   const plateW = []; for (let k = 0; k < model.plateCount; k++) plateW.push(model.plateCentre(k).clone());
+  const ventW = []; for (let i = 0; i < model.chimneyCount; i++) ventW.push(model.chimneyTop(i).clone());
   const bake = model.bakeGeometry();
   model.root.position.set(0, 0, 0); model.root.rotation.set(0, 0, 0);
   model.setPose(standPose(0));
@@ -92,9 +94,9 @@ export function createCorpse(world) {
     holder.updateMatrixWorld(true);
     parts.length = 0;
     for (const p of pl.parts) parts.push({ id: p.districtId, u0: p.u0, u1: p.u1, f: 0, target: 0, step: 0, started: false, tStep: -99 });
-    // steam vents: three glands / big plate centres along the shell
+    // steam from three of the vent chimneys along the spine (they stop once their band is lifted)
     vents.length = 0;
-    for (const k of [0, 3, 4]) { const w = plateW[k].clone().applyMatrix4(holder.matrixWorld); vents.push({ p: w, u: plateU[k], t: k * 0.47 }); }
+    for (const i of VENTS) { if (i >= ventW.length) continue; const w = ventW[i].clone().applyMatrix4(holder.matrixWorld); vents.push({ p: w, u: uOf(ventW[i]), t: i * 0.47 }); }
   }
   function partOf(id) { for (const p of parts) if (p.id === id) return p; return null; }
   // carve progress -> uniforms
