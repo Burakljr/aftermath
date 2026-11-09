@@ -36,7 +36,7 @@ export function callLines(s, t) {
     return [
       'Aftermath? Nevin Aksoy, Belediye Afet Koordinasyon.',
       "Canavar Konak'a düştü. Yangın var, yol enkazla kapalı.",
-      'İlk iş sizin, pazarlığa vakit yok: 900 bin lira.',
+      'İlk iş sizin, pazarlığa vakit yok: 900 bin ₺.',
     ];
   }
   if (no === 2) {

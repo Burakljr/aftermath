@@ -40,6 +40,7 @@ const dirArr = (azDeg, elDeg) => {
   return [Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e)];
 };
 const C = (hex) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; };
+const Ck = (hex, k) => C(hex).map((v) => v * k); // a colour scaled in linear space (fill lifts)
 
 // field layout of one preset vector (colours = 3 floats in linear space)
 const FIELDS = [
@@ -61,25 +62,29 @@ const RAW = {
     shadowTint: [0.9, 0.96, 1.1], highTint: [1.05, 1.0, 0.93], sat: 1.04, alert: 0, desat: 0.74, bloom: 0.45, contrast: 1.1, fireK: 0.6,
   },
   dusk: {
-    sun: dirArr(286, 9), sunCol: C(0xff9a5a), sunI: 4.6, hemiSky: C(0x7a7aac), hemiGround: C(0x3a2a26), hemiI: 1.0,
-    zenith: C(0x2a3468), mid: C(0x8a6a8a), horizon: C(0xf0905a), glow: C(0xff8a48), fog: C(0xa8807a), fogD: 0.0015,
-    exposure: 1.12, night: 0.5, lamps: 0.6, shadowRadius: 2.5,
+    sun: dirArr(286, 9), sunCol: C(0xff9a5a), sunI: 4.6, hemiSky: C(0x7a7aac), hemiGround: Ck(0x3a2a26, 1.5), hemiI: 1.25,
+    zenith: C(0x2a3468), mid: C(0x8a6a8a), horizon: C(0xf0905a), glow: C(0xff8a48), fog: C(0xa8807a), fogD: 0.0007, // polish W3: thinner low haze (the TV shot's lower third)
+    exposure: 1.18, night: 0.5, lamps: 0.6, shadowRadius: 2.5,
     seaDeep: C(0x101a2c), seaShallow: C(0x22364a), seaSkyLo: C(0xd8885e), seaSkyHi: C(0x4a4a7a), sunPathI: 1.2,
     shadowTint: [0.86, 0.9, 1.12], highTint: [1.1, 0.96, 0.86], sat: 1.06, alert: 0.55, desat: 0.7, bloom: 0.6, contrast: 1.1, fireK: 1.0,
   },
   blue: {
-    sun: dirArr(300, 14), sunCol: C(0x8ea2d6), sunI: 1.6, hemiSky: C(0x4e64a4), hemiGround: C(0x1c1b24), hemiI: 0.95,
-    zenith: C(0x0f1a3a), mid: C(0x2a3c6e), horizon: C(0x6a5a8a), glow: C(0xa06a7a), fog: C(0x2e3a5c), fogD: 0.0016,
-    exposure: 1.3, night: 1.0, lamps: 1.0, shadowRadius: 3.0,
+    // polish W1: the impact read as brown murk at phone size; a cool moonlit key from the camera's side, a brighter
+    // sky/ground fill and more exposure separate roofs, streets and the body while fires stay the warm keys
+    sun: dirArr(258, 32), sunCol: C(0x8ea2d6), sunI: 3.0, hemiSky: Ck(0x4e64a4, 1.1), hemiGround: Ck(0x1c1b24, 2.2), hemiI: 1.5,
+    zenith: C(0x0f1a3a), mid: C(0x2a3c6e), horizon: C(0x6a5a8a), glow: C(0xa06a7a), fog: C(0x2e3a5c), fogD: 0.0013,
+    exposure: 1.62, night: 1.0, lamps: 1.0, shadowRadius: 3.0,
     seaDeep: C(0x060c18), seaShallow: C(0x101c2e), seaSkyLo: C(0x4a4a78), seaSkyHi: C(0x121c3a), sunPathI: 0.25,
-    shadowTint: [0.86, 0.94, 1.16], highTint: [1.08, 0.98, 0.88], sat: 1.06, alert: 0.15, desat: 0.7, bloom: 0.62, contrast: 1.08, fireK: 1.0,
+    shadowTint: [0.86, 0.94, 1.16], highTint: [1.08, 0.98, 0.88], sat: 1.06, alert: 0.15, desat: 0.7, bloom: 0.62, contrast: 1.06, fireK: 1.0,
   },
   work: {
-    sun: dirArr(232, 36), sunCol: C(0xe6c8d4), sunI: 3.8, hemiSky: C(0x8aa0d8), hemiGround: C(0x34303a), hemiI: 1.15,
-    zenith: C(0x22356a), mid: C(0x5a6898), horizon: C(0xc89aa0), glow: C(0xe8a088), fog: C(0x50597a), fogD: 0.0011,
-    exposure: 1.14, night: 0.8, lamps: 0.9, shadowRadius: 3.0,
+    // polish W1: cleanup was murky at 1x. The key now comes higher and from the camera's side (shadows fall behind
+    // what casts them instead of over the carcass and the crews), with a stronger sky/ground fill and exposure
+    sun: dirArr(215, 46), sunCol: C(0xe6c8d4), sunI: 5.0, hemiSky: C(0x8aa0d8), hemiGround: Ck(0x34303a, 2.0), hemiI: 1.75,
+    zenith: C(0x22356a), mid: C(0x5a6898), horizon: C(0xc89aa0), glow: C(0xe8a088), fog: C(0x50597a), fogD: 0.0009,
+    exposure: 1.34, night: 0.8, lamps: 0.9, shadowRadius: 3.0,
     seaDeep: C(0x0c1626), seaShallow: C(0x1c2c44), seaSkyLo: C(0xa88a9a), seaSkyHi: C(0x2a3a64), sunPathI: 0.35,
-    shadowTint: [0.88, 0.95, 1.14], highTint: [1.05, 1.0, 0.95], sat: 1.04, alert: 0, desat: 0.6, bloom: 0.55, contrast: 1.16, fireK: 1.0,
+    shadowTint: [0.88, 0.95, 1.14], highTint: [1.06, 1.0, 0.93], sat: 1.05, alert: 0, desat: 0.6, bloom: 0.55, contrast: 1.12, fireK: 1.0,
   },
 };
 const toVec = (P) => { const v = new Float32Array(SIZE); for (const [k, n] of FIELDS) { const val = P[k]; if (n === 1) v[OFF[k]] = val; else for (let i = 0; i < n; i++) v[OFF[k] + i] = val[i]; } return v; };

@@ -112,12 +112,19 @@ export function createCorpse(world) {
       }
     });
   }
+  // gameplay light on the carcass (attack.js drives the same uniforms with the cinematic key during the attack)
+  function gameLight() {
+    const U = model.U;
+    U.uKeyCol.value.setRGB(0, 0, 0);
+    U.uRimCol.value.setRGB(0.07, 0.09, 0.12); U.uSkyCol.value.setRGB(0.045, 0.05, 0.06);
+  }
   function axisPoint(u, out) { return out.set(P.nose.x - P.dir.x * u * P.length, 0, P.nose.z - P.dir.z * u * P.length); }
 
   const api = {
     model, bakeMs,
     get fit() { return fit; },
     get placement() { return P; },
+    placementOf: placementFor,
     fitFor(attack) { const pl = placementFor(attack); if (!pl) return null; if (fitCache.pl !== pl) { fitCache.pl = pl; fitCache.fit = computeFit(pl, attack.mutant); } return fitCache.fit; },
     bakeXC: () => XC, bakeLift: () => LIFT,
     update(state, t, dt) {
@@ -159,6 +166,7 @@ export function createCorpse(world) {
       const since = t - tHit;
       const heat = tHit > -90 && since >= 0 ? Math.max(0, 1 - since / 10) * 0.75 : 0;
       model.setHeat(false, heat, mutant);
+      if (state.phase !== 'attack') gameLight();
       model.U.uTime.value = t;
       // steam vents
       for (const v of vents) {

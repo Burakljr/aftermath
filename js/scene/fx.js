@@ -23,7 +23,8 @@ export const fxUniforms = {
   uSunCol: { value: new THREE.Color(1.0, 0.62, 0.36) },
   uSunDir: { value: new THREE.Vector3(-0.5, 0.3, 0.8) },
   uShadowCol: { value: new THREE.Color(0.25, 0.3, 0.42) },
-  uKeep: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] },
+  // must-see points (xyz + radius): carcass head, selected district, carcass body x3, up to 3 crews at work (polish W2)
+  uKeep: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
   uLvl: { value: new Array(6).fill(0) },                                        // flame level per district
   uSmk: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0.8, 1, 1e6)) }, // opacity, dark, under-glow, stop time
   uLow: { value: 0 },
@@ -31,7 +32,7 @@ export const fxUniforms = {
 
 const COMMON_VS = /* glsl */`
 attribute vec4 aSeed; attribute vec4 aEmit; attribute vec4 aExtra;
-uniform float uTime; uniform vec3 uWind; uniform float uFogDensity; uniform vec4 uKeep[3]; uniform float uLow;
+uniform float uTime; uniform vec3 uWind; uniform float uFogDensity; uniform vec4 uKeep[8]; uniform float uLow;
 varying vec2 vUv; varying float vAge; varying vec4 vSeed; varying float vFog; varying vec4 vExtra; varying float vShade; varying float vCap;
 ${HEIGHT_FOG_GLSL}
 vec3 camRight(){ return vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]); }
@@ -41,14 +42,16 @@ vec3 billboard(vec3 center, vec2 corner, float size, float rot){
   vec2 q = vec2(corner.x * c - corner.y * s, corner.x * s + corner.y * c);
   return center + (camRight() * q.x + camUp() * q.y) * size;
 }
+// polish W2: smoke between the camera and a must-see point (the carcass, the selected block, the crews at work)
+// drops to a thin veil: the work always reads through it
 float keepCap(vec3 p){
   float cap = 1.0;
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 8; i++) {
     if (uKeep[i].w <= 0.0) continue;
     vec3 a = uKeep[i].xyz, ab = cameraPosition - a;
     float t = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, 1.0);
     float d = length(p - (a + ab * t));
-    cap = min(cap, mix(0.32, 1.0, smoothstep(uKeep[i].w * 0.8, uKeep[i].w * 1.25, d)));
+    cap = min(cap, mix(0.05, 1.0, smoothstep(uKeep[i].w * 0.75, uKeep[i].w * 1.3, d)));
   }
   return cap;
 }
@@ -106,11 +109,13 @@ export function makeFlameAtlas(renderer) {
         float n1 = loopN(vec2(uv.x * 3.0, uv.y * 2.2), t, 2.4);
         float n2v = loopN(vec2(uv.x * 6.5 + 4.0, uv.y * 5.0), t, 4.0);
         float y = uv.y;
-        float x = (uv.x - 0.5) * 2.0 + (n1 - 0.5) * 0.9 * y;
-        float width = mix(0.82, 0.06, pow(y, 0.8));
-        float shape = 1.0 - smoothstep(width * 0.45, width + 0.06, abs(x));
-        shape *= smoothstep(0.0, 0.08, y);
-        float temp = shape * (1.15 - y * 0.85) * (0.55 + 0.9 * n2v * n1 * 1.3);
+        float x = (uv.x - 0.5) * 2.0 + (n1 - 0.5) * 1.3 * y;
+        // polish W3: a broad base and rounded, noise-broken licks instead of a tapered spike, soft edges
+        float width = mix(1.0, 0.3, pow(y, 0.65));
+        float shape = 1.0 - smoothstep(width * 0.18, width + 0.14, abs(x));
+        shape *= smoothstep(0.0, 0.1, y);
+        shape *= smoothstep(0.2, 0.62, n1 + (1.0 - y) * 0.8);
+        float temp = shape * (1.1 - y * 1.0) * (0.55 + 0.9 * n2v * n1 * 1.3);
         temp = clamp(temp, 0.0, 1.0);
         float soot = smoothstep(0.02, 0.2, shape) * (1.0 - smoothstep(0.18, 0.42, temp)) * smoothstep(0.25, 0.9, y + n2v * 0.3);
         gl_FragColor = vec4(temp, soot, smoothstep(0.03, 0.25, shape * (0.4 + n1)), 1.0);
@@ -125,7 +130,8 @@ export function makeFlameAtlas(renderer) {
   return rt;
 }
 
-export const SPOTS = 5, PER_SPOT = 4, COLS = 3, PUFFS = 28;
+// per spot: 4 flame tongues + 1 soft base glow (polish W3: layered fire, same single draw call)
+export const SPOTS = 5, PER_SPOT = 5, COLS = 3, PUFFS = 28;
 
 export function createFx(scene, renderer) {
   const flameRT = makeFlameAtlas(renderer);
@@ -143,22 +149,25 @@ export function createFx(scene, renderer) {
   });
   const fireMat = mkMat(/* glsl */`
 uniform float uFps; uniform float uLvl[6];
-varying float vFrame;
+varying float vFrame; varying float vFlick;
 void main(){
   vSeed = aSeed; vUv = uv; vExtra = aExtra;
   float lv = uLvl[int(aExtra.x + 0.5)];
-  float on = aExtra.z * step(0.001, lv) * (aExtra.y > 2.5 ? 1.0 - uLow : 1.0);
+  bool base = aExtra.y > 3.5;
+  float on = aExtra.z * step(0.001, lv) * (aExtra.y > 2.5 && !base ? 1.0 - uLow : 1.0);
   float sc = aEmit.w * (0.3 + 0.7 * lv) * on;
-  float w = 7.0 * sc * (0.85 + 0.3 * aSeed.y), h = 12.0 * sc * (0.85 + 0.35 * aSeed.z) * (0.9 + 0.1 * sin(uTime * 3.0 + aSeed.x * 20.0));
+  float w = 8.5 * sc * (0.85 + 0.3 * aSeed.y), h = 10.0 * sc * (0.85 + 0.35 * aSeed.z) * (0.9 + 0.1 * sin(uTime * 3.0 + aSeed.x * 20.0));
+  if (base) { w = 15.0 * sc; h = 10.0 * sc * (0.92 + 0.08 * sin(uTime * 4.1 + aSeed.y * 9.0)); }
   vec3 right = normalize(vec3(camRight().x, 0.0, camRight().z));
   float yy = position.y + 0.5;
-  vec3 p = aEmit.xyz + right * position.x * w + vec3(0.0, yy * h, 0.0) + uWind * yy * yy * h * 0.55;
-  p.y -= 0.6 * sc;
+  vec3 p = aEmit.xyz + right * position.x * w + vec3(0.0, yy * h, 0.0) + uWind * yy * yy * h * (base ? 0.25 : 0.55);
+  p.y -= (base ? 2.0 : 0.6) * sc;
   vFrame = uTime * uFps + aSeed.x * 64.0;
+  vFlick = 0.8 + 0.2 * sin(uTime * (11.0 + aSeed.y * 7.0) + aSeed.x * 40.0) * sin(uTime * 4.3 + aSeed.z * 17.0);
   vAge = 0.0; vShade = 0.0; vCap = 1.0;
   finish(p);
 }`, /* glsl */`
-uniform sampler2D uTex; varying vec2 vUv; varying vec4 vSeed; varying float vFrame;
+uniform sampler2D uTex; varying vec2 vUv; varying vec4 vSeed; varying float vFrame; varying float vFlick; varying vec4 vExtra;
 vec3 sampleF(float f){
   float fi = mod(floor(f), 64.0);
   vec2 cell = vec2(mod(fi, 8.0), 7.0 - floor(fi / 8.0));
@@ -167,17 +176,25 @@ vec3 sampleF(float f){
   return texture2D(uTex, uv).rgb;
 }
 void main(){
+  if (vExtra.y > 3.5) {
+    // soft base glow: the burning mass the tongues rise from (orange-red, no hard edge, flickers)
+    vec2 q = (vUv - vec2(0.5, 0.32)) * vec2(1.0, 1.25);
+    float g = 1.0 - smoothstep(0.05, 0.55, length(q));
+    vec3 gc = mix(vec3(0.75, 0.1, 0.02), vec3(1.0, 0.38, 0.08), g) * 1.5 * g * g * vFlick;
+    gl_FragColor = vec4(gc * (1.0 - vFog * 0.85), 0.0);
+    return;
+  }
   float fr = fract(vFrame);
   vec3 a = mix(sampleF(vFrame), sampleF(vFrame + 1.0), fr);
   float T = a.r, soot = a.g, mask = a.b;
   vec3 col = vec3(0.0);
-  col = mix(col, vec3(0.55, 0.06, 0.015) * 1.4, smoothstep(0.12, 0.3, T));
-  col = mix(col, vec3(1.0, 0.36, 0.05) * 3.0, smoothstep(0.3, 0.6, T));
-  // review 2 F13: a warmer, less blown-out core and soft tongue edges (they read as hard white cones)
-  col = mix(col, vec3(1.0, 0.7, 0.32) * 4.2, smoothstep(0.66, 0.95, T));
-  float edge = smoothstep(0.0, 0.22, vUv.x) * smoothstep(1.0, 0.78, vUv.x) * smoothstep(1.0, 0.7, vUv.y);
-  float emitA = smoothstep(0.06, 0.4, T) * mask * edge;
-  float sootA = soot * 0.55 * mask;
+  // polish W3: deep red rim -> orange body -> a yellow core kept to the lower third (no white-yellow spikes)
+  col = mix(col, vec3(0.62, 0.07, 0.02) * 1.3, smoothstep(0.08, 0.28, T));
+  col = mix(col, vec3(1.0, 0.3, 0.05) * 2.0, smoothstep(0.26, 0.56, T));
+  col = mix(col, vec3(1.0, 0.58, 0.2) * 2.5, smoothstep(0.62, 0.92, T) * (1.0 - smoothstep(0.16, 0.4, vUv.y)));
+  float edge = smoothstep(0.0, 0.3, vUv.x) * smoothstep(1.0, 0.7, vUv.x) * smoothstep(1.0, 0.58, vUv.y);
+  float emitA = smoothstep(0.04, 0.5, T) * mask * edge * vFlick;
+  float sootA = soot * 0.5 * mask;
   col *= (1.0 - vFog * 0.85);
   gl_FragColor = vec4(col * emitA, sootA * (1.0 - vFog));
 }`, { premult: true, uniforms: { uTex: { value: flameRT.texture }, uFps: { value: 22 } } });
@@ -227,7 +244,8 @@ void main(){
   float rise = H * (1.0 - pow(1.0 - age, 1.35));
   vec3 p = aEmit.xyz + vec3((aSeed.z - 0.5), 0.0, (aSeed.w - 0.5)) * sc * (2.0 + 10.0 * age);
   p.y += rise;
-  p += uWind * pow(age, 1.3) * H * 1.15;
+  // polish W2: columns lean away from the camera (-z, screen-up and behind the block), less sideways drift
+  p += vec3(uWind.x * 0.55, 0.0, uWind.z * 1.9 - 0.12) * pow(age, 1.2) * H * 1.15;
   p.x += sin(age * 5.0 + aSeed.z * 12.0) * 3.0 * age * sc;
   float size = sc * mix(6.0, 36.0, pow(age, 0.6)) * (0.75 + aSeed.w * 0.5) * alive;
   vShade = clamp(rise / max(H, 1.0), 0.0, 1.0);
@@ -255,6 +273,8 @@ void main(){
   col = mix(col, uFogColor, vFog * 0.9);
   float fade = smoothstep(0.0, 0.06, vAge) * (1.0 - smoothstep(0.55, 1.0, vAge));
   float a = t.a * fade * mix(0.42, 0.78, clamp(dark, 0.0, 1.0)) * smoothstep(0.0, 0.12, vAge) * min(vSm.x, 1.0);
+  // polish W2: thin near the ground (the base of a column sits on the work); it thickens as it climbs
+  a *= mix(0.3, 1.0, smoothstep(0.04, 0.32, vShade));
   gl_FragColor = vec4(col, min(a, vCap));
 }`, { blending: THREE.NormalBlending, uniforms: { uTex: { value: smokeTex } } });
   group.add(mesh(smokeG, smokeMat, 8, 'smoke'));
@@ -299,10 +319,10 @@ void main(){
       for (let k = 0; k < PER_SPOT; k++) {
         const i = (did * SPOTS + s) * PER_SPOT + k;
         if (!sp) { fx[i * 4 + 2] = 0; continue; }
-        const ang = (k / PER_SPOT) * Math.PI * 2 + r();
-        const rad = k === 0 ? 0 : (1.5 + r() * 2.5) * sp.s;
+        const ang = (k / (PER_SPOT - 1)) * Math.PI * 2 + r();
+        const rad = k === 0 || k === PER_SPOT - 1 ? 0 : (1.5 + r() * 2.5) * sp.s;
         fe[i * 4] = sp.x + Math.cos(ang) * rad; fe[i * 4 + 1] = sp.y; fe[i * 4 + 2] = sp.z + Math.sin(ang) * rad;
-        fe[i * 4 + 3] = sp.s * (k === 0 ? 1.25 : 0.7 + r() * 0.35);
+        fe[i * 4 + 3] = sp.s * (k === 0 ? 1.25 : k === PER_SPOT - 1 ? 1.0 : 0.7 + r() * 0.35);
         fx[i * 4 + 2] = 1;
       }
       // ground glow quad
@@ -371,8 +391,9 @@ void main(){
   vec3 alb = vShade > 0.5 ? vec3(0.95, 0.96, 0.98) : vec3(0.78, 0.74, 0.68);
   vec3 col = alb * mix(uShadowCol * (vShade > 0.5 ? 2.2 : 1.4) + vec3(0.06), uSunCol, lit) + (vShade > 0.5 ? vec3(0.1) : vec3(0.12, 0.06, 0.02));
   col = mix(col, uFogColor, vFog * 0.7);
-  float fade = smoothstep(0.0, 0.04, vAge) * (1.0 - smoothstep(0.35, 1.0, vAge));
-  gl_FragColor = vec4(col, min(t.a * t.a * fade * (vShade > 0.5 ? 0.9 : 0.62), vCap));
+  // polish W2: steam (kind 1) clears fast and stays a veil, so a water hit never whites out the block
+  float fade = smoothstep(0.0, 0.04, vAge) * (1.0 - smoothstep(vShade > 0.5 ? 0.2 : 0.35, vShade > 0.5 ? 0.8 : 1.0, vAge));
+  gl_FragColor = vec4(col, min(t.a * t.a * fade * (vShade > 0.5 ? 0.62 : 0.62), vCap));
 }`, { blending: THREE.NormalBlending, uniforms: { uTex: { value: smokeTex } } });
   group.add(mesh(puffG, puffMat, 9, 'puffs'));
   let puffHead = 0;

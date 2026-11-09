@@ -7,7 +7,10 @@
 
 /* attack and title: the broadcast owns the screen */
 #ui[data-phase="attack"] #hud, #ui[data-phase="attack"] #objective, #ui[data-phase="attack"] #headline,
-#ui[data-phase="attack"] #panel, #ui[data-phase="attack"] #tabs, #ui[data-phase="attack"] #world { opacity: 0; visibility: hidden; transition: opacity 200ms, visibility 0s 200ms; }
+#ui[data-phase="attack"] #panel, #ui[data-phase="attack"] #tabs, #ui[data-phase="attack"] #world { opacity: 0; visibility: hidden; transition: none; }
+#ui[data-phase="attack"] #bubble > *, #ui[data-phase="attack"] #fly > * { visibility: hidden; transition: none; }
+/* review 2 F14: the broadcast takes the screen in the same frame as the first TV render: the gameplay HUD goes at once
+   (no 200 ms crossfade under the letterbox) and the broadcast layer is opaque at once; only the letterboxes slide in */
 #hud, #objective, #panel, #tabs, #world { transition: opacity 250ms var(--ease); }
 #ui[data-sheet="receipt"] #objective, #ui[data-sheet="receipt"] #headline, #ui[data-sheet="tender"] #objective, #ui[data-sheet="tender"] #headline { opacity: 0; visibility: hidden; }
 
@@ -424,7 +427,8 @@
   background: var(--tebesir); color: #15191b; border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, .5); text-align: left; }
 .tbubble.on { display: grid; animation: rise 200ms var(--ease) both; }
 .tbubble::before { content: ''; position: absolute; top: -7px; left: 50%; margin-left: -7px; border: 7px solid transparent; border-top: 0; border-bottom-color: var(--tebesir); }
-.tbubble.up { transform: translateY(-100%); }
+/* the rise animation owns 'transform' (fill both), so the lift uses the separate 'translate' property (it was dropped) */
+.tbubble.up { translate: 0 -100%; }
 .tbubble.up::before { top: auto; bottom: -7px; border-bottom: 0; border-top: 7px solid var(--tebesir); }
 .tbubble__n { font-weight: 760; font-stretch: 80%; font-size: 13px; color: #6b5200; }
 .tbubble__t { font-weight: 620; font-size: 14.5px; line-height: 1.3; }
@@ -638,6 +642,15 @@
 .pbubble .i { color: #a87700; }
 .pbubble::after { content: ''; position: absolute; left: calc(50% + var(--ax, 0px)); bottom: -7px; margin-left: -7px; border: 7px solid transparent; border-bottom: 0; border-top-color: var(--tebesir); }
 @keyframes bob { 50% { margin-top: -5px; } }
+/* review 2 F15b: beside a tab (left or right of it), tail pointing sideways; it bobs towards the tab */
+.pbubble.side-l { translate: -100% -50%; }
+.pbubble.side-r { translate: 0 -50%; }
+.pbubble.side-l.on, .pbubble.side-r.on { animation-name: bobX; }
+.pbubble.side-l::after { left: auto; right: -7px; bottom: auto; top: 50%; margin: -7px 0 0; border: 7px solid transparent; border-right: 0; border-left-color: var(--tebesir); }
+.pbubble.side-r::after { left: -7px; bottom: auto; top: 50%; margin: -7px 0 0; border: 7px solid transparent; border-left: 0; border-right-color: var(--tebesir); }
+@keyframes bobX { 50% { margin-left: 5px; } }
+.pbubble.side-r.on { animation-name: bobXr; }
+@keyframes bobXr { 50% { margin-left: -5px; } }
 .hudtip { position: absolute; top: calc(var(--safe-top) + 104px); right: 12px; max-width: 250px; display: none; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; border-radius: 10px;
   background: var(--tebesir); color: #15191b; font-weight: 650; font-size: 14px; line-height: 1.3; text-align: left; box-shadow: 0 10px 24px rgba(0, 0, 0, .45); pointer-events: none; }
 .hudtip.on { display: flex; animation: rise 200ms var(--ease) both; }
@@ -662,6 +675,8 @@
 #toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: calc(var(--safe-top) + 104px); }
 #ui.goal-on #toasts { padding-top: calc(var(--safe-top) + 164px); } /* the goal card owns the line under the objective */
 #ui[data-sheet="receipt"] .unlock, #ui[data-sheet="tender"] .unlock { opacity: 0; }
+/* final verifier: a tab page that opens while the goal card fades must not show it half-transparent over its title */
+#ui[data-sheet="depot"] .unlock, #ui[data-sheet="factory"] .unlock, #ui[data-sheet="company"] .unlock, #ui[data-sheet="settings"] .unlock { opacity: 0; transition: none; }
 .toast { display: flex; align-items: center; gap: 8px; max-width: calc(100% - 40px); padding: 9px 14px 9px 10px; border-radius: 10px; background: rgba(14, 17, 19, .95); box-shadow: var(--lift);
   font-weight: 620; font-size: 14px; line-height: 1.3; animation: rise 180ms var(--ease) both; transition: opacity 200ms; border-left: 3px solid var(--beton); }
 .toast .i { flex: none; color: var(--beton); }
@@ -673,7 +688,7 @@
 
 /* ================= broadcast ================= */
 .bc { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity 250ms, visibility 0s 250ms; }
-.bc.on { opacity: 1; visibility: visible; transition: opacity 250ms; }
+.bc.on { opacity: 1; visibility: visible; transition: none; }
 /* a light edge vignette with a red rim only: no backdrop-filter over the WebGL canvas (review V2: it left an unpainted
    slab on the compositor and costs a GPU readback per frame on iOS); the attack grade itself lives in js/scene/post.js */
 .bc-grade { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 62% at 55% 46%, rgba(0, 0, 0, 0) 55%, rgba(70, 8, 4, .24) 100%);
@@ -748,6 +763,21 @@
 .loading__bar i { display: block; height: 100%; background: var(--sinyal); transform-origin: 0 50%; transform: scaleX(.04); transition: transform 300ms var(--ease); }
 .loading__line { font-size: 13px; color: var(--beton); }
 .loading.prompt { cursor: pointer; }
+/* review 2 F17: first-launch key art. The live dusk city (rendered behind) shows through a dark gradient; wordmark and
+   tagline sit in the sky, the tap pill near the bottom. The gameplay chrome stays hidden until the tap */
+.loading__tag { display: none; }
+.loading { background-color: rgba(11, 13, 14, 1); transition: opacity 400ms var(--ease), visibility 0s 400ms, background-color 900ms var(--ease); }
+.loading::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 900ms var(--ease);
+  background: linear-gradient(180deg, rgba(8, 10, 12, .9) 0%, rgba(8, 10, 12, .55) 24%, rgba(8, 10, 12, .08) 46%, rgba(8, 10, 12, .1) 62%, rgba(8, 10, 12, .78) 84%, rgba(8, 10, 12, .95) 100%); }
+.loading.prompt { background-color: rgba(11, 13, 14, 0); isolation: isolate; place-content: stretch; grid-template-rows: auto auto auto 1fr auto; align-items: start;
+  padding: calc(var(--safe-top) + 92px) 24px calc(var(--safe-bottom) + 56px); }
+.loading.prompt::before { opacity: 1; }
+.loading.prompt .loading__brand { font-size: 64px; text-shadow: 0 4px 22px rgba(0, 0, 0, .55); }
+.loading.prompt .loading__sub { color: #c9cdc9; }
+.loading.prompt .loading__tag { display: block; max-width: 300px; margin-top: 10px; text-align: center; font-weight: 640; font-size: 17px; line-height: 1.35; color: #eef0ec; text-shadow: 0 2px 10px rgba(0, 0, 0, .7); }
+.loading.prompt .loading__bar { display: none; }
+.loading.prompt .loading__line.tap { grid-row: 5; background: rgba(10, 12, 13, .6); }
+#ui.veil-art > :not(#loading) { visibility: hidden; }
 .loading__line.tap { margin-top: 4px; padding: 12px 22px; min-height: 44px; box-sizing: border-box; border-radius: 22px; border: 1px solid rgba(245, 180, 0, .55);
   color: var(--tebesir); font-weight: 650; font-size: 15px; letter-spacing: .02em; animation: tapPulse 1.6s var(--ease) infinite; }
 .loading__line.err { color: #ff8a5c; max-width: 300px; text-align: center; line-height: 1.4; }

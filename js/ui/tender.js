@@ -155,10 +155,11 @@ export function createTenderSheet(ctx) {
     if (b) {
       T(r.bub.querySelector('.tbubble__n'), `${b.index + 1}/3`);
       T(r.bub.querySelector('.tbubble__t'), b.text);
+      // final verifier: every bubble sits above what it explains (tail down), so the odds grid is never covered:
+      // 1/3 over the estimate axis (explained next), 2/3 over the summary tiles, 3/3 over the outcome meter
       const anchor = b.anchor === 'grid' ? r.grid : b.anchor === 'estimate' ? r.est : r.rival;
-      const top = anchor.offsetTop + (b.anchor === 'rival' ? -6 : anchor.offsetHeight + 4);
-      S(r.bub, 'top', `${top}px`);
-      C(r.bub, 'up', b.anchor === 'rival');
+      S(r.bub, 'top', `${anchor.offsetTop - 6}px`);
+      C(r.bub, 'up', true);
     }
   }
 

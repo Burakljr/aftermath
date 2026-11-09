@@ -1,12 +1,16 @@
-// Aftermath v2 UI: boot veil "Saha hazırlanıyor" (visible from createUI until main hides it).
+// Aftermath v2 UI: boot veil "Saha hazırlanıyor" (visible from createUI until main hides it). On the first-launch tap
+// prompt it becomes key art (review 2 F17): the live dusk city shows through a dark gradient, with the wordmark and the
+// tagline over it and the tap pill at the bottom. No extra download: the 3D scene behind it is already built.
 import { h, S } from './dom.js';
 
 export function createLoading(ctx) {
   const fill = h('i');
   const line = h('div.loading__line', { text: 'Saha hazırlanıyor' });
+  const tag = h('div.loading__tag', { text: ctx.game.TITLE.tagline });
   const box = h('div.loading',
     h('div.loading__brand', { text: 'AFTERMATH' }),
     h('div.loading__sub', { text: 'Enkaz ve leş kaldırma' }),
+    tag,
     h('div.loading__bar', fill),
     line);
   ctx.L.loading.appendChild(box);
@@ -36,12 +40,14 @@ export function createLoading(ctx) {
     prompt(text) {
       this.line(text, 'tap');
       box.classList.add('prompt');
+      ctx.root.classList.add('veil-art');
       box.setAttribute('data-key', 'start');
       return new Promise((resolve) => {
         box.addEventListener('click', function go(e) {
           e.stopPropagation();
           box.removeEventListener('click', go);
           box.classList.remove('prompt');
+          ctx.root.classList.remove('veil-art');
           box.removeAttribute('data-key');
           resolve();
         });

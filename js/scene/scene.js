@@ -161,17 +161,23 @@ export function createScene(canvas, opts = {}) {
   }
 
   // ---------------------------------------------------------------- damage lifecycle
+  let capsHoldUntil = -1, pendingPeek = null;
+  const lastCaps = [null, null, null, null, null, null], capFade = [null, null, null, null, null, null];
   function updateGroundCaps() {
     const A = cityUniforms.uSegA.value, Rr = cityUniforms.uSegR.value;
     for (let i = 0; i < 8; i++) { A[i].set(0, 0, 0, 0); Rr[i] = 0; }
     let k = 0;
-    const anyChain = placement && placement.parts.some((p) => dmg[p.districtId].applied);
+    const holding = vt < capsHoldUntil;
+    const anyChain = placement && (placement.parts.some((p) => dmg[p.districtId].applied) || holding);
     if (anyChain) for (const c of placement.capsules) { if (k >= 8) break; A[k].set(c.ax, c.az, c.bx, c.bz); Rr[k] = c.r; k++; }
     for (let d = 0; d < 6; d++) {
       const p = dmg[d].plan;
-      if (!dmg[d].applied || !p || p.mode === 'soot' || p.caps === (placement && placement.capsules) || k >= 8) continue;
-      const c = p.caps[0]; A[k].set(c.ax, c.az, c.bx, c.bz); Rr[k] = Math.max(6, c.r); k++;
+      lastCaps[d] = dmg[d].applied && p && p.mode !== 'soot' && p.caps !== (placement && placement.capsules) ? p.caps[0] : null;
+      const c = lastCaps[d] || (holding ? capFade[d] : null);
+      if (!c || k >= 8) continue;
+      A[k].set(c.ax, c.az, c.bx, c.bz); Rr[k] = Math.max(6, c.r); k++;
     }
+    if (!holding) capFade.fill(null);
     cityUniforms.uDust.value = 0;
     spotVersion++; spotCache.clear();
   }
@@ -195,6 +201,7 @@ export function createScene(canvas, opts = {}) {
     jobs.finish('d' + did);
     const cd = city.districts[did], geo = cd.mesh.geometry;
     if (rebuildAt[did] >= 0 || cd.mesh.scale.y !== 1) { rebuildAt[did] = -1; cd.mesh.scale.y = 1; cd.mesh.updateMatrix(); }
+    REB[did] = 0; capFade[did] = null;
     geo.setAttribute('aDmg', new THREE.BufferAttribute(d.plan.aDmg, 4));
     geo.setAttribute('aBite', new THREE.BufferAttribute(d.plan.aBite, 2));
     cd.mesh.material = city.matD;
@@ -211,14 +218,20 @@ export function createScene(canvas, opts = {}) {
     updateGroundCaps();
   }
   const rebuildAt = [-1, -1, -1, -1, -1, -1];
+  const REB = cityUniforms.uReb.value;
+  // polish W4: rise 0-1.6 s wrapped in scaffold netting, the tarp comes down 0.7-1.9 s, then the window wave
+  // (all inside the 2.2 s result hold before the receipt)
   function stepRebuild() {
     for (let did = 0; did < 6; did++) {
       if (rebuildAt[did] < 0) continue;
-      const k = Math.min(1, Math.max(0, (vt - rebuildAt[did]) / 1.8));
+      const t = Math.max(0, vt - rebuildAt[did]);
+      const k = Math.min(1, t / 1.6);
       const m = city.districts[did].mesh;
       m.scale.y = 0.05 + 0.95 * (1 - Math.pow(1 - k, 3));
       m.updateMatrix();
-      if (k >= 1) { rebuildAt[did] = -1; m.scale.y = 1; m.updateMatrix(); }
+      const u = Math.min(1, Math.max(0, (t - 0.7) / 1.2));
+      REB[did] = 1 - u * u * (3 - 2 * u);
+      if (t >= 1.9) { rebuildAt[did] = -1; m.scale.y = 1; m.updateMatrix(); REB[did] = 0; }
     }
   }
   function cleanDistrict(did, juice) {
@@ -238,14 +251,19 @@ export function createScene(canvas, opts = {}) {
     traffic.setDamaged(did, false);
     const wasApplied = d.applied;
     d.plan = null; d.applied = false; d.props = null; d.ready = false;
-    if (!juice && rebuildAt[did] >= 0) { rebuildAt[did] = -1; cd.mesh.scale.y = 1; cd.mesh.updateMatrix(); }
+    if (!juice && rebuildAt[did] >= 0) { rebuildAt[did] = -1; cd.mesh.scale.y = 1; cd.mesh.updateMatrix(); REB[did] = 0; }
     if (juice && wasApplied) {
-      districts.lightsWave(did);
+      // polish W4: the scorch and dust fade out with the rise instead of popping off (keep the ground capsules alive
+      // while the district's dust level eases to 0), the windows light up once the tarp is down
+      capsHoldUntil = vt + 2.4;
+      if (lastCaps[did]) capFade[did] = lastCaps[did];
+      districts.lightsWave(did, 1.5);
+      pendingPeek = did;
       traffic.carsOut(did, vt);
       const D = layout.DISTRICTS[did];
       // review 2 F3: the block is rebuilt in front of the player (it popped from ruin to new in one frame): the
       // intact block rises out of a dust cloud over 1.8 s, a puff at each building's foot, the window wave follows
-      rebuildAt[did] = vt;
+      rebuildAt[did] = vt; REB[did] = 1;
       cd.mesh.scale.y = 0.05; cd.mesh.updateMatrix();
       const bs = cd.buildings;
       const stepN = Math.max(1, Math.ceil(bs.length / 10));
@@ -331,6 +349,8 @@ export function createScene(canvas, opts = {}) {
       if (!corpseCleared) { corpseCleared = true; layout.setBlocked(null); traffic.setCorpse(null); spotVersion++; spotCache.clear(); }
     } else if (placement && hitApplied && corpseCleared) { corpseCleared = false; layout.setBlocked(placement.capsules); traffic.setCorpse(placement.capsules); }
     districts.sync(secs, dt, vt, { juice, upkeepOn: !!(s.progress && s.progress.unlocked && s.progress.unlocked.upkeep) });
+    // review F9: a district cleaned off-screen mid-contract gets a short camera visit (the final one has the result move)
+    if (pendingPeek !== null) { if (juice && !s.result && (s.phase === 'cleanup' || s.phase === 'rival')) startPeek(pendingPeek); pendingPeek = null; }
     if (s.inv) yard.setInventory(s.inv);
     yard.setJobs(s.jobs, s.clock || 0);
   }
@@ -368,12 +388,34 @@ export function createScene(canvas, opts = {}) {
       env.fitShadow(rig.target.x, rig.target.z - half * 0.15, half * 0.9, half * 1.25, 40);
     }
   }
+  const vehKey = new Map();
   function applyKeep() {
     const K = fxUniforms.uKeep.value;
     const sel = districts.selected();
-    if (placement && hitApplied) { K[0].set(placement.nose.x, 8, placement.nose.z, 28); K[2].set(placement.x, 6, placement.z, placement.width * 0.75); }
-    else { K[0].set(0, 0, 0, 0); K[2].set(0, 0, 0, 0); }
+    // polish W2: the whole carcass is a must-see (head + three points along the body), not only its middle
+    if (placement && hitApplied && !corpseCleared) {
+      const L = placement.length, r = Math.max(placement.width * 0.62, L * 0.17);
+      K[0].set(placement.nose.x, 8, placement.nose.z, 30);
+      for (let k = 0; k < 3; k++) {
+        const u = 0.22 + k * 0.28;
+        K[2 + k].set(placement.nose.x - placement.dir.x * u * L, 6, placement.nose.z - placement.dir.z * u * L, r);
+      }
+    } else { K[0].set(0, 0, 0, 0); K[2].set(0, 0, 0, 0); K[3].set(0, 0, 0, 0); K[4].set(0, 0, 0, 0); }
     if (sel !== null) { const D = layout.DISTRICTS[sel]; K[1].set(D.cx, 8, D.cz, 40); } else K[1].set(0, 0, 0, 0);
+    // crews at work: the smoke thins where a vehicle works
+    let kv = 5;
+    const fleet = lastState && lastState.phase !== 'calm' && lastState.phase !== 'attack' && lastState.fleet;
+    if (fleet && actors && actors.anchor) {
+      for (let i = 0; i < fleet.length && kv < 8; i++) {
+        const v = fleet[i];
+        if (v.state !== 'working') continue;
+        let key = vehKey.get(v.id);
+        if (!key) { key = `vehicle:${v.id}`; vehKey.set(v.id, key); }
+        const p = actors.anchor(key, _v);
+        if (p) K[kv++].set(p.x, Math.max(2, p.y - 4), p.z, 20);
+      }
+    }
+    for (; kv < 8; kv++) K[kv].set(0, 0, 0, 0);
     const working = lastState && lastState.phase !== 'calm' && lastState.phase !== 'attack';
     if (sel !== null && working) { const D = layout.DISTRICTS[sel]; cityUniforms.uCutA.value.set(D.cx, 4, D.cz + 16, 30); }
     else cityUniforms.uCutA.value.set(0, 0, 0, 0);
@@ -471,6 +513,28 @@ export function createScene(canvas, opts = {}) {
     }
     rig.frame(target, { ...o, chain: lastState && lastState.attack ? lastState.attack.chain : undefined });
   }
+  // review F9: when a block is cleaned while the camera frames elsewhere, ease to it for about 1.5 s, then go back
+  let peek = null;
+  const _peekP = { x: 0, y: 0, visible: false };
+  function startPeek(did) {
+    if (!anchors || rig.overrideFn || peek) return;
+    const p = anchors.project(`district:${did}`, _peekP);
+    const b = rig.band;
+    if (p.visible && p.y > b.top + 20 && p.y < size.h - b.bottom - 10 && p.x > 24 && p.x < size.w - 24) return;
+    peek = { did, until: vt + 2.2, frame: rig.lastFrame, chain: rig.lastChain, zoom: rig.zoom, t: rig.target.clone(), d: rig.dist };
+    rig.frame(`district:${did}`, { zoom: 'district', duration: 0.6 });
+  }
+  function endPeek() {
+    const P = peek; peek = null;
+    if (!P || rig.overrideFn || rig.lastFrame !== `district:${P.did}`) return; // someone else framed meanwhile
+    if (P.frame === 'job') frame('job', { duration: 0.9 });
+    else if (P.frame) rig.frame(P.frame, { zoom: P.zoom, chain: P.chain, duration: 0.9 });
+    else {
+      rig.from.t.copy(rig.target); rig.from.d = rig.dist;
+      rig.to.t.copy(P.t); rig.to.d = P.d;
+      rig.anim = { t: 0, dur: 0.9 }; rig.lastFrame = null; rig.zoom = P.zoom;
+    }
+  }
   // during the guided contract the frame follows a truck on its way, then settles on the site (review V1)
   let jobFitT = 0;
   const jobExtra = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
@@ -527,6 +591,8 @@ export function createScene(canvas, opts = {}) {
       yard.update(vdt, vt);
       traffic.update(vt);
       stepRebuild();
+      if (capsHoldUntil > 0 && vt >= capsHoldUntil) { capsHoldUntil = -1; updateGroundCaps(); }
+      if (peek && vt >= peek.until) endPeek();
       fx.update();
       if (actors) actors.update(state, vdt, vt);
       refitJob(state);

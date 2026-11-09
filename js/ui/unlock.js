@@ -28,7 +28,8 @@ export function createUnlockCard(ctx) {
     card,
     update() {
       const t = performance.now();
-      const blocked = ctx.activeSheet === 'receipt' || ctx.activeSheet === 'tender' || ctx.modal;
+      const sh = ctx.activeSheet;
+      const blocked = sh === 'receipt' || sh === 'tender' || sh === 'depot' || sh === 'factory' || sh === 'company' || sh === 'settings' || ctx.modal;
       const on_ = card.classList.contains('on');
       // a sheet that opens over a showing card sends it back to the queue (it is shown again after the sheet)
       if (on_ && blocked && until - t > 900) { pending.unshift(reward.textContent); card.classList.remove('on'); }

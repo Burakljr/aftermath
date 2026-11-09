@@ -27,6 +27,7 @@ export const cityUniforms = {
   uDesat: { value: 0.72 },
   uDis: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) }, // per district: wave front y, wave boost, power cut, dust
   uHi: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) },  // per district highlight tint rgb + amount
+  uReb: { value: new Array(6).fill(0) },          // per district rebuild scaffold cover (1 = wrapped, 0 = done; polish W4)
 };
 
 const COMMON = /* glsl */`
@@ -58,7 +59,7 @@ vWP = (modelMatrix * wpos).xyz;`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uTime, uNight, uLamps, uDust, uFire, uCutH, uDesat; uniform vec4 uPower; uniform vec4 uCutA; uniform vec4 uFires[8];
-uniform vec4 uDis[6]; uniform vec4 uHi[6];
+uniform vec4 uDis[6]; uniform vec4 uHi[6]; uniform float uReb[6];
 varying vec4 vFac; varying vec4 vDmg; varying vec2 vBite; varying vec2 vFUv; varying vec3 vWP; varying float vDist;
 ${COMMON}
 vec3 facEmit = vec3(0.0); float facRough = 1.0; float cutEdge = 0.0;
@@ -264,6 +265,17 @@ vec3 facEmit = vec3(0.0); float facRough = 1.0; float cutEdge = 0.0;
   }
   // cut-floor stub: a pale cut line on top of the stub walls
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.84, 0.78), cutEdge);
+  // polish W4: a cleaned block rises wrapped in scaffold netting; the tarp comes down from the roofs as it finishes
+  if (vDist > -0.5 && uReb[di] > 0.001) {
+    float front = uReb[di] * 50.0;
+    float cover = 1.0 - smoothstep(front - 1.5, front, vWP.y);
+    float alongS = (vWP.x + vWP.z) / 2.6, upS = vWP.y / 2.0;
+    float gx = abs(fract(alongS + 0.5) - 0.5), gy = abs(fract(upS + 0.5) - 0.5);
+    float grid = (1.0 - smoothstep(0.03, 0.08, min(gx, gy))) * (1.0 - smoothstep(0.2, 0.5, max(fwidth(alongS), fwidth(upS))));
+    vec3 net = vec3(0.25, 0.37, 0.4) * (0.85 + 0.25 * vn(vWP.xz * 0.4 + vWP.y * 0.25));
+    diffuseColor.rgb = mix(diffuseColor.rgb, mix(net, vec3(0.66, 0.63, 0.56), grid), cover * 0.94);
+    facEmit *= 1.0 - cover * 0.92;
+  }
   if (vDist > -0.5) {
     vec4 HI = uHi[di];
     if (HI.w > 0.0) { float roofish = smoothstep(0.6, 0.9, abs(normalize(cross(dFdx(vWP), dFdy(vWP))).y)); diffuseColor.rgb = mix(diffuseColor.rgb, HI.rgb, HI.w * (0.08 + 0.12 * roofish)); facEmit += HI.rgb * HI.w * (0.05 + 0.1 * roofish); }
@@ -425,10 +437,11 @@ int distAt(vec2 p){
     float crack = 1.0 - smoothstep(0.0, 0.06 + aw * 0.2, abs(fbm(p * 0.18) - 0.5));
     crack *= 1.0 - smoothstep(4.0, 26.0, cd);
     float rim = 1.0 - smoothstep(0.0, 6.0, cd);
-    col *= 1.0 - scorch * 0.6 * dz;
-    col *= 1.0 - crack * 0.6 * dz;
-    col *= 1.0 - rim * 0.5 * dz;
-    col *= 1.0 - (1.0 - smoothstep(-3.0, 0.0, cd)) * 0.5 * dz;   // scorched crater floor under the body
+    // polish W1: lighter scorch so the dark carcass separates from the ground at phone size (it sat on a black hole)
+    col *= 1.0 - scorch * 0.36 * dz;
+    col *= 1.0 - crack * 0.5 * dz;
+    col *= 1.0 - rim * 0.32 * dz;
+    col *= 1.0 - (1.0 - smoothstep(-3.0, 0.0, cd)) * 0.3 * dz;   // scorched crater floor under the body
     // embers along the footprint edge: patchy (noise-broken), never a continuous glowing outline (review V6)
     float emb = smoothstep(0.52, 0.72, fbm(p * 0.11 + 3.0));
     gEmit += vec3(1.0, 0.3, 0.06) * (1.0 - smoothstep(0.0, 3.0, abs(cd - 0.5))) * 0.24 * emb * dz * (0.6 + 0.4 * sin(uTime * 1.3 + p.x * 0.2));

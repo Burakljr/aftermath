@@ -27,7 +27,9 @@ export function createNpc(ctx) {
       const PAGES = ctx.activeSheet === 'depot' || ctx.activeSheet === 'factory' || ctx.activeSheet === 'company';
       const sheetBlocks = !!ctx.activeSheet && ctx.activeSheet !== 'district' && !PAGES;
       C(card, 'top', PAGES);
-      const on = !!n && key !== dismissed && !ctx.modal && !sheetBlocks;
+      // review 2 F15a: while the call card is up it speaks for Nevin; her NPC line would stack the same person twice
+      const callUp = !!ctx.game.callCard(s);
+      const on = !!n && key !== dismissed && !ctx.modal && !sheetBlocks && !callUp;
       if (n && key !== shown) {
         shown = key;
         T(av, n.initials);

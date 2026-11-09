@@ -58,9 +58,14 @@ export function createFloats(ctx) {
     setTimeout(() => el.remove(), 2200);
   }
 
+  // review 2 F15c: flights end on the top edge of the bottom panel straight above the Depo tab (they used to cross the
+  // panel and sit on its bars and text); the tab bumps when they land
   function depotTarget() {
     const slot = ctx.tabsApi && ctx.tabsApi.slot('depot');
-    return centre(slot) || { x: 390 * 0.375, y: (ctx.root.clientHeight || 844) - 40 };
+    const H = ctx.root.clientHeight || 844;
+    const c = centre(slot) || { x: 390 * 0.375, y: H - 40 };
+    const edge = ctx.band && ctx.band.bottom > 0 ? H - ctx.band.bottom - 6 : c.y;
+    return { x: c.x, y: Math.min(c.y, edge) };
   }
 
   function flyItem(item, from) {

@@ -17,7 +17,7 @@ const LAYER_COL = {
 export function createDistricts(scene, { fx, rubble, traffic }) {
   const st = Array.from({ length: 6 }, (_, i) => ({
     i, lvl: 0, lvlTarget: 0, prevFire: 0, fireOn: false, smokeStop: 1e6, smokeOp: 0, dark: 0.78,
-    power: 0, powerTarget: 0, dust: 0, dustTarget: 0, waveT: -1, boost: 0,
+    power: 0, powerTarget: 0, dust: 0, dustTarget: 0, waveT: -1, waveDelay: 0, boost: 0,
     hi: { select: 0, pulse: 0, accept: 0, spread: 0 }, upkeep: 0,
   }));
   // ---------------------------------------------------------------- highlight overlay (one mesh, 6 cells)
@@ -103,7 +103,7 @@ export function createDistricts(scene, { fx, rubble, traffic }) {
     st, overlay, setHighlight, layers,
     selected: () => (layers.select.size ? [...layers.select][0] : null),
     // juice: windows light up bottom-to-top over 0.8 s, power returns
-    lightsWave(d) { st[d].waveT = 0; st[d].powerTarget = 0; },
+    lightsWave(d, delay = 0) { if (delay > 0) { st[d].waveDelay = delay; st[d].waveT = -1; } else st[d].waveT = 0; st[d].powerTarget = 0; },
     setPower(d, cut) { st[d].powerTarget = cut ? 0.85 : 0; },
     setDust(d, v, instant = false) { st[d].dustTarget = v; if (instant) st[d].dust = v; },
     setFireOn(d, on) { st[d].fireOn = on; if (!on) { st[d].lvl = 0; st[d].lvlTarget = 0; fxUniforms.uLvl.value[d] = 0; fxUniforms.uSmk.value[d].x = 0; } },
@@ -121,19 +121,22 @@ export function createDistricts(scene, { fx, rubble, traffic }) {
         const S = fxUniforms.uSmk.value[d];
         if (s.fireOn && f > 0) {
           if (s.smokeStop < 1e5) s.smokeStop = 1e6;
-          s.smokeOp = juice ? Math.min(1, s.smokeOp + dt * 0.6) : 1;
+          // polish W2: the column thins with the fire (a quarter-strength fire smokes about 45 %)
+          const opT = 0.25 + 0.75 * s.lvl;
+          s.smokeOp = juice ? (s.smokeOp < opT ? Math.min(opT, s.smokeOp + dt * 0.6) : Math.max(opT, s.smokeOp - dt * 0.8)) : opT;
           const darkT = s.lvlTarget >= 0.25 ? 0.8 : 0.0;
           s.dark = juice ? s.dark + (darkT - s.dark) * Math.min(1, dt * 1.5) : darkT;
         } else if (s.prevFire > 0 && f <= 0) {
           // fire out: steam burst, flames gone in 250 ms, the column stops (rising puffs finish)
           s.smokeStop = now; s.dark = 0;
-          if (juice && s.fireOn) { const sp = fx.spots(d); for (const p of sp) fx.steam(p.x, p.y + 1, p.z, 12, { size: 9 * p.s }); }
-        } else if (!s.fireOn || (f <= 0 && now - s.smokeStop > 16)) s.smokeOp = juice ? Math.max(0, s.smokeOp - dt * 0.5) : 0;
+          if (juice && s.fireOn) { const sp = fx.spots(d); for (const p of sp) fx.steam(p.x, p.y + 1, p.z, 8, { size: 8 * p.s, life: 1.4 }); }
+        } else if (!s.fireOn || f <= 0) s.smokeOp = juice ? Math.max(0, s.smokeOp - dt * 0.45) : 0; // the leftover column clears in about 2 s
         s.prevFire = s.fireOn ? f : 0;
         S.x = s.smokeOp; S.y = s.dark; S.z = Math.min(1, s.lvl * 1.4); S.w = s.smokeStop;
         // power / windows wave / dust
         s.power = juice ? s.power + (s.powerTarget - s.power) * Math.min(1, dt * 2.5) : s.powerTarget;
         let waveY = 0, boost = 0;
+        if (s.waveDelay > 0) { s.waveDelay -= dt; if (s.waveDelay <= 0) { s.waveDelay = 0; s.waveT = 0; } }
         if (s.waveT >= 0) {
           s.waveT += dt;
           waveY = Math.min(1, s.waveT / 0.8) * 46;

@@ -119,6 +119,7 @@ export function createFtueView(ctx) {
       if (!anchor || !bubble.classList.contains('on')) return;
       let x;
       let y;
+      let side = '';
       if (anchor.kind === 'district') {
         ctx.project(`district:${anchor.id}`, P);
         if (!P.visible) return;
@@ -132,13 +133,23 @@ export function createFtueView(ctx) {
           S(veil, '--sy', `${(P.y + 30).toFixed(0)}px`);
         }
       } else {
+        // review 2 F15b: a tab bubble sits beside its tab, inside the tab bar's row, with the tail pointing at it, so it
+        // never covers the panel card above the tabs
         const c = centre(anchor.el);
         if (!c) return;
-        x = c.x;
-        y = c.y - 40;
+        const W0 = ctx.root.clientWidth || 390;
+        side = c.x > W0 / 2 ? 'l' : 'r';
+        x = side === 'l' ? c.x - 30 : c.x + 30;
+        y = c.y - 4;
       }
+      if (side !== bubble.dataset.side) { bubble.dataset.side = side; C(bubble, 'side-l', side === 'l'); C(bubble, 'side-r', side === 'r'); }
       const W = ctx.root.clientWidth || 390;
       const bw = bubble.offsetWidth || 160;
+      if (side) {
+        const sx = side === 'l' ? Math.max(bw + 8, x) : Math.min(W - bw - 8, x);
+        S(bubble, 'transform', `translate3d(${sx.toFixed(1)}px,${y.toFixed(1)}px,0)`);
+        return;
+      }
       const cx = Math.max(bw / 2 + 8, Math.min(W - bw / 2 - 8, x));
       S(bubble, 'transform', `translate3d(${cx.toFixed(1)}px,${y.toFixed(1)}px,0)`);
       S(bubble, '--ax', `${(x - cx).toFixed(1)}px`);

@@ -61,7 +61,7 @@ export function magmaMaterial(U, C) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHeat = aHeat; vLP = position; vCarve = aCarve; vLPc = position;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-uniform float uHeat, uEye, uGland, uTime, uPulseAmt, uMutant; uniform vec3 uHotCol, uEyeCol, uGlandCol;
+uniform float uHeat, uEye, uGland, uTime, uPulseAmt, uMutant; uniform vec3 uHotCol, uEyeCol, uGlandCol, uKeyCol, uKeyDir, uRimCol, uSkyCol;
 varying vec2 vHeat; varying vec3 vLP;
 ${CARVE_PARS}`)
       .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n  if (carved()) discard;')
@@ -111,14 +111,16 @@ ${CARVE_PARS}`)
       vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
       float upk = max(0.0, dot(normal, upV));
       float fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 3.0);
-      e += vec3(0.045, 0.05, 0.06) * upk * upk + vec3(0.07, 0.09, 0.12) * fr;
+      // polish: sky lift / rim / warm key are uniforms (attack.js lights the cinematic, corpse.js the gameplay view)
+      vec3 kd = normalize((viewMatrix * vec4(uKeyDir, 0.0)).xyz);
+      e += uSkyCol * upk * upk + uRimCol * fr + diffuseColor.rgb * uKeyCol * max(dot(normal, kd), 0.0);
     }
     // cut edge: a broken, noisy ember line rather than a hard outline (review V6)
     if (gl_FrontFacing && gCut < 1.2 && uCarveOn > 0.5) { float en = carveHash(vLPc * 0.8); e += uGlandCol * 0.07 * (1.0 - gCut / 1.2) * smoothstep(0.45, 0.9, en); diffuseColor.rgb *= 0.8; }
     totalEmissiveRadiance += e;
   }`);
   };
-  m.customProgramCacheKey = () => 'magmadon-v2c';
+  m.customProgramCacheKey = () => 'magmadon-v3a';
   return m;
 }
 // shadow depth with the same cut (a carved part casts no shadow)
@@ -474,6 +476,9 @@ export function createMagmadon() {
     uHotCol: { value: new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6) },
     uEyeCol: { value: new THREE.Color(1.0, 0.42, 0.08).multiplyScalar(3.4) },
     uGlandCol: { value: new THREE.Color(1.0, 0.24, 0.03).multiplyScalar(2.4) },
+    // shared with KALKAN-07's material (robot.js cineUniforms shape)
+    uKeyCol: { value: new THREE.Color(0, 0, 0) }, uKeyDir: { value: new THREE.Vector3(0.3, 0.8, 0.5).normalize() },
+    uRimCol: { value: new THREE.Color(0.07, 0.09, 0.12) }, uSkyCol: { value: new THREE.Color(0.045, 0.05, 0.06) },
   };
   const CU = carveUniforms();               // the articulated (alive) model never carves
   const mat = magmaMaterial(U, CU);
