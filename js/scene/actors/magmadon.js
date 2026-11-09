@@ -745,8 +745,8 @@ export function createMagmadon() {
       noise: 0.3, nfreq: 0.3, seed: 11,
     }));
     // the mouth floor follows the jaw (narrower at the front) and dips in the middle, dimmer: not a bright flat tray (O4)
-    acc.geo(mouthPlate(0.95, 0.0, 19.4, 7.8, 4.0, -0.7, 1), { color: PAL.mouth, heat: [0.28, CH_WET] });
-    acc.geo(ellipsoid(V3(0, 1.4, 8.5), 3.6, 0.9, 6.6, { nr: 6, nv: 8, color: () => C.tongue, heat: () => [0.25, CH_WET] }));
+    acc.geo(mouthPlate(0.55, 0.0, 19.4, 8.0, 4.4, -0.8, 1), { color: PAL.mouth, heat: [0.28, CH_WET] });
+    acc.geo(ellipsoid(V3(0, 1.1, 8.5), 3.6, 0.9, 6.6, { nr: 6, nv: 8, color: () => C.tongue, heat: () => [0.25, CH_WET] }));
     for (let k = 0; k < 4; k++) for (const s of [-1, 1]) {
       const tg = new THREE.CylinderGeometry(0.35, 0.75, 1.4, 5); tg.translate(s * lerp(7.2, 4.4, k / 3), 1.5, 5 + k * 4.0);
       acc.geo(tg, { color: PAL.tooth });
