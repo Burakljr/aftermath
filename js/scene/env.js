@@ -80,11 +80,11 @@ const RAW = {
   work: {
     // polish W1: cleanup was murky at 1x. The key now comes higher and from the camera's side (shadows fall behind
     // what casts them instead of over the carcass and the crews), with a stronger sky/ground fill and exposure
-    sun: dirArr(215, 46), sunCol: C(0xe6c8d4), sunI: 5.0, hemiSky: C(0x8aa0d8), hemiGround: Ck(0x34303a, 2.0), hemiI: 1.75,
+    sun: dirArr(215, 46), sunCol: C(0xe6c8d4), sunI: 4.8, hemiSky: C(0x8aa0d8), hemiGround: Ck(0x34303a, 2.0), hemiI: 1.5,
     zenith: C(0x22356a), mid: C(0x5a6898), horizon: C(0xc89aa0), glow: C(0xe8a088), fog: C(0x50597a), fogD: 0.0009,
-    exposure: 1.34, night: 0.8, lamps: 0.9, shadowRadius: 3.0,
+    exposure: 1.22, night: 0.95, lamps: 1.0, shadowRadius: 3.0,
     seaDeep: C(0x0c1626), seaShallow: C(0x1c2c44), seaSkyLo: C(0xa88a9a), seaSkyHi: C(0x2a3a64), sunPathI: 0.35,
-    shadowTint: [0.88, 0.95, 1.14], highTint: [1.06, 1.0, 0.93], sat: 1.05, alert: 0, desat: 0.6, bloom: 0.55, contrast: 1.12, fireK: 1.0,
+    shadowTint: [0.88, 0.95, 1.14], highTint: [1.06, 1.0, 0.93], sat: 1.05, alert: 0, desat: 0.6, bloom: 0.55, contrast: 1.16, fireK: 1.0,
   },
 };
 const toVec = (P) => { const v = new Float32Array(SIZE); for (const [k, n] of FIELDS) { const val = P[k]; if (n === 1) v[OFF[k]] = val; else for (let i = 0; i < n; i++) v[OFF[k] + i] = val[i]; } return v; };

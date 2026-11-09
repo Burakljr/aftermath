@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { Path, lerpAngle } from './fleet.js';
 import { smooth } from '../util.js';
 
-const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _p = { x: 0, z: 0, dx: 0, dz: 1 };
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1), _p = { x: 0, z: 0, dx: 0, dz: 1 };
 const DUMP_SPEED = 18;
 
 export function createWork(world) {
@@ -183,9 +183,11 @@ export function createWork(world) {
     setCorpse(c) { corpse = c; },
     setState(s) { stateRef = s; },
     start(u, e) {
+      if (u.pk) u.pk.on = false;
       u.w = {}; rest(u); active.add(u);
     },
     stop(u) {
+      if (u.pk) u.pk.on = false;
       if (u.w && u.w.jet) { u.w.jet.set(_v.set(0, -50, 0), _w.set(0, -50, 0), false); u.w.jet.dispose(); u.w.jet = null; }
       tarps.remove(u.id);
       active.delete(u);
@@ -193,6 +195,46 @@ export function createWork(world) {
       if (u.w) u.w = {};
     },
     idle(u) { if (active.has(u)) this.stop(u); },
+    // polish A4: a vehicle leaving its work spot packs up on the spot (boom / ladder / arm fold back, outriggers in)
+    // during the first part of its return leg instead of snapping to rest; the crane keeps its loaded crates on the
+    // bed all the way home. pack() captures the joints, packStep(u, k) eases them to rest (k 0..1, pure function).
+    pack(u) {
+      if (u.w && u.w.jet) { u.w.jet.set(_v.set(0, -50, 0), _w.set(0, -50, 0), false); u.w.jet.dispose(); u.w.jet = null; }
+      tarps.remove(u.id);
+      active.delete(u);
+      const J = u.main.J;
+      if (!u.pk) u.pk = { bones: [], rot: [], pos: [], scl: [], crates: 0, y: 0, on: false };
+      const P = u.pk;
+      let i = 0;
+      for (const k in J) {
+        const b = J[k];
+        P.bones[i] = b;
+        P.rot[i] = P.rot[i] || new THREE.Vector3(); P.rot[i].set(b.rotation.x, b.rotation.y, b.rotation.z);
+        P.pos[i] = P.pos[i] || new THREE.Vector3(); P.pos[i].copy(b.position);
+        P.scl[i] = P.scl[i] || new THREE.Vector3(); P.scl[i].copy(b.scale);
+        i++;
+      }
+      P.n = i; P.y = u.main.y; P.crates = u.type === 'carve' ? Math.min(4, (u.w && u.w.crates) || 0) : 0; P.on = true;
+      if (u.w) u.w = {};
+    },
+    packStep(u, k) {
+      const P = u.pk;
+      if (!P || !P.on) return 0;
+      const e = smooth(0, 1, k);
+      for (let i = 0; i < P.n; i++) {
+        const b = P.bones[i], r = b.userData.rest;
+        const name = b.name;
+        b.rotation.set(P.rot[i].x * (1 - e), P.rot[i].y * (1 - e), P.rot[i].z * (1 - e));
+        if (r) b.position.lerpVectors(P.pos[i], r, e);
+        const crate = name.startsWith('crate'), hidden = name === 'load' || name === 'scoop' || crate;
+        if (crate) { const c = +name.slice(5); b.scale.setScalar(c < P.crates ? 1 : 0.001); }
+        else if (hidden) b.scale.setScalar(0.001);
+        else b.scale.lerpVectors(P.scl[i], _one, e);
+      }
+      u.main.y = P.y * (1 - e);
+      return P.crates;
+    },
+    unpack(u) { if (u.pk && u.pk.on) { u.pk.on = false; rest(u); } },
     update(u, e, t) {
       if (u.type === 'fire') fire(u, e, t);
       else if (u.type === 'debris') debris(u, e, t);

@@ -12,7 +12,10 @@ import { createMagmadon, corpsePose, standPose, magmaMaterial, magmaDepthMateria
 
 const ROLL = 1.3, SINK = 2.6;
 const CAM_DIR = { x: Math.sin(0.14), z: Math.cos(0.14) };
-const LOOK = { neck: [0.6, 0, 0], head: [0.45, 0, -0.2] };
+const KEY_GAME = new THREE.Vector3(0.085, 1.2, 0.61).normalize();
+// the head rolls back toward upright on the dead body, so from the gameplay camera the brow, the hooked beak and the
+// tusks face the sky (polish A3); attack.js topples into exactly this pose
+export const LOOK = { neck: [0.55, 0, -0.35], head: [0.4, 0.1, -0.75] };
 
 export function createCorpse(world) {
   const model = createMagmadon();
@@ -115,8 +118,11 @@ export function createCorpse(world) {
   // gameplay light on the carcass (attack.js drives the same uniforms with the cinematic key during the attack)
   function gameLight() {
     const U = model.U;
-    U.uKeyCol.value.setRGB(0, 0, 0);
-    U.uRimCol.value.setRGB(0.07, 0.09, 0.12); U.uSkyCol.value.setRGB(0.045, 0.05, 0.06);
+    // a soft warm fill from the gameplay camera, a cool fresnel rim and a sky lift: the carcass separates from the
+    // scorched ground at 1x without glowing (polish A3)
+    U.uKeyDir.value.copy(KEY_GAME);
+    U.uKeyCol.value.setRGB(0.19, 0.16, 0.13);
+    U.uRimCol.value.setRGB(0.15, 0.17, 0.21); U.uSkyCol.value.setRGB(0.06, 0.064, 0.072);
   }
   function axisPoint(u, out) { return out.set(P.nose.x - P.dir.x * u * P.length, 0, P.nose.z - P.dir.z * u * P.length); }
 

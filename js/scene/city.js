@@ -5,7 +5,7 @@
 // can write damage tiers into the aDmg / aBite attributes at attack time without rebuilding geometry.
 import * as THREE from 'three';
 import { Builder, rng, mergeNonIndexed, clamp, fbm2, capsDist } from './util.js';
-import { facadeMaterial, groundMaterial, seaMaterial, cityUniforms } from './materials.js';
+import { facadeMaterial, facadeDepthMaterial, groundMaterial, seaMaterial, cityUniforms } from './materials.js';
 import { DISTRICTS, ROADS, XR, ZR, COAST, YARD, TOWER } from './layout.js';
 
 export const GF = 4.0, FH = 3.0;
@@ -498,6 +498,7 @@ export function buildCity(scene, { fogU }) {
     const geo = B.build();
     const mesh = new THREE.Mesh(geo, matI);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'district' + did;
+    mesh.customDepthMaterial = facadeDepthMaterial(); // destroyed parts cast no shadow (polish W1)
     scene.add(mesh);
     districts[did] = { did, mesh, buildings, props, D: DISTRICTS[did] };
   }

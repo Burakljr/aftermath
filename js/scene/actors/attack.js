@@ -11,6 +11,7 @@
 // First attack: t runs from -2.4 (about 6.2 s). Later attacks start at 0 (3.6 s).
 import * as THREE from 'three';
 import { standPose, corpsePose } from './magmadon.js';
+import { LOOK } from './corpse.js';
 import { createRobot, punchPoseR, afterPoseR, standPoseR, shovePoseR, mixPoseR, newPoseR, setLeg, setArm } from './robot.js';
 import { smooth, lerp, noise2 } from '../util.js';
 
@@ -85,7 +86,7 @@ export function createAttack(world, { corpse }) {
     // KALKAN-07 stands on the camera side level with the head (it shoved the staggering monster over), so the settle
     // frame is the hero shot: the robot in the foreground on one side, the head, tusks and the fires on the other,
     // the body receding behind them (the portrait band is narrow: the body is seen from its head end, foreshortened)
-    const CR = new THREE.Vector3(pl.nose.x + d.x * 6 * S + l.x * 40 * S, 0, pl.nose.z + d.z * 6 * S + l.z * 40 * S);
+    const CR = new THREE.Vector3(pl.nose.x - d.x * 8 * S + l.x * 36 * S, 0, pl.nose.z - d.z * 8 * S + l.z * 36 * S);
     CR.y = world.groundY(CR.x, CR.z);
     const back = new THREE.Vector3().copy(l).multiplyScalar(5 * RS).addScaledVector(d, 2 * RS);
     // camera direction on the chain: from the head end, turned toward the robot's side
@@ -149,8 +150,8 @@ export function createAttack(world, { corpse }) {
       out.punch = -1; out.crouch = 0;
       out.shove = smooth(TL.cut + 0.06, hit, t);
       out.after = smooth(hit, TL.settle + 0.2, t);
-      const lift = smooth(a.end - 0.75, a.end, t);
-      out.ry = F.CR.y + lift * 70 * F.RS; out.thrust = smooth(a.end - 1.0, a.end - 0.75, t);
+      const lift = smooth(a.end - 0.45, a.end, t);
+      out.ry = F.CR.y + lift * 70 * F.RS; out.thrust = smooth(a.end - 0.62, a.end - 0.45, t);
     }
     return out;
   }
@@ -188,8 +189,8 @@ export function createAttack(world, { corpse }) {
         const ox = fit.pos.x - fit.lx.x * xs * (1 - k), oz = fit.pos.z - fit.lx.z * xs * (1 - k);
         model.group.position.set(ox, lerp(0, fit.pos.y, k), oz);
         const st = standPose(2.3 + (t - TL.cut) * 2, { snap: pose.snap, stagger: pose.stag, roar: pose.roar });
-        const cp = side > 0 ? (CP_POS || (CP_POS = corpsePose({ roll: ROLL, side: 1, neck: [0.6, 0, 0], head: [0.45, 0, -0.2], jaw: 0.66 })))
-          : (CP_NEG || (CP_NEG = corpsePose({ roll: ROLL, side: -1, neck: [0.6, 0, 0], head: [0.45, 0, -0.2], jaw: 0.66 })));
+        const cp = side > 0 ? (CP_POS || (CP_POS = corpsePose({ roll: ROLL, side: 1, neck: LOOK.neck, head: LOOK.head, jaw: 0.66 })))
+          : (CP_NEG || (CP_NEG = corpsePose({ roll: ROLL, side: -1, neck: LOOK.neck, head: LOOK.head, jaw: 0.66 })));
         model.setPose(mixPose(st, cp, k, MIX));
         model.root.rotation.set(0, 0, side * ROLL * k);
         model.root.position.set(0, corpse.bakeLift() * k, 0);
@@ -249,7 +250,7 @@ export function createAttack(world, { corpse }) {
       _com.set((_w.x + model.group.position.x) * 0.5, Math.max(4 * F.S, _w.y * 0.45), (_w.z + model.group.position.z) * 0.5);
       // KALKAN-07 (near side) and the toppling body share the frame
       _tgt.copy(_com).lerp(_k.set(pose.rx, pose.ry + 16 * F.RS, pose.rz), 0.42);
-      camera.position.set(_tgt.x + F.dirTop.x * Dk * 0.88, Dk * 0.48 + 4 * F.S, _tgt.z + F.dirTop.z * Dk * 0.88);
+      camera.position.set(_tgt.x + F.dirTop.x * Dk * 0.74, Dk * 0.67 + 4 * F.S, _tgt.z + F.dirTop.z * Dk * 0.74);
       camera.up.set(0, 1, 0); camera.lookAt(_tgt);
       return;
     }
@@ -259,7 +260,7 @@ export function createAttack(world, { corpse }) {
     _com.set(F.head.x, 6 * F.S, F.head.z);
     _tgt.copy(_com).lerp(_k.set(pose.rx, pose.ry + 16 * F.RS, pose.rz), 0.42);
     _w.copy(F.dirTop).lerp(F.dirSet, ks).normalize();
-    _v.set(_tgt.x + _w.x * Ds * 0.86, Ds * 0.52 + 4 * F.S, _tgt.z + _w.z * Ds * 0.86);
+    _v.set(_tgt.x + _w.x * Ds * 0.76, Ds * 0.65 + 4 * F.S, _tgt.z + _w.z * Ds * 0.76);
     const e = smooth(TL.out, a.end, at);
     if (e > 0) {
       _gp.copy(rig.target).addScaledVector(rig.fwd, -rig.dist);
@@ -307,7 +308,7 @@ export function createAttack(world, { corpse }) {
     if (cross(TL.roar)) world.fx.steam(F.M.x, 20 * F.S, F.M.z, 4, { size: 10 * F.S, life: 1.6 });
     if (cross(TL.cut + 0.02)) world.fx.dust(F.CR.x, F.CR.y + 1, F.CR.z, 5, { size: 5 + 6 * F.RS, spread: 10, rise: 2, life: 1.8 });
     if (cross(TL.hit + 0.05)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 4, { size: 5 + 5 * F.RS, spread: 9, rise: 2, life: 1.6 });
-    if (cross(a.end - 0.8)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 6, { size: 6 + 6 * F.RS, spread: 12, rise: 3, life: 1.8 });
+    if (cross(a.end - 0.5)) world.fx.dust(F.CR.x + F.back.x, F.CR.y + 1, F.CR.z + F.back.z, 6, { size: 6 + 6 * F.RS, spread: 12, rise: 3, life: 1.8 });
   }
 
   // ---------------------------------------------------------------- update (game state or preview)
@@ -438,23 +439,32 @@ function createShards(world) {
   };
 }
 
-// shock ring at the punch contact: a thin additive ring facing the camera, expanding over 0.22 s (pure function of
-// the time since the hit-stop released). One draw call while it lives, invisible otherwise.
+// shock ring at the punch contact: a soft, warm, camera-facing ring of air expanding over 0.22 s (pure function of the
+// time since the hit-stop released). One draw call while it lives, invisible otherwise. Depth-tested, so the monster's
+// head hides the part behind it (a crisp full circle read as a UI element).
 function createShockRing(world) {
-  const g = new THREE.RingGeometry(0.9, 1.0, 48, 1);
-  const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.35, 1.05), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const g = new THREE.PlaneGeometry(1, 1);
+  const U = { uK: { value: 0 } };
+  const m = new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform float uK; varying vec2 vUv;
+      void main(){ vec2 p = vUv * 2.0 - 1.0; float r = length(p); float a = atan(p.y, p.x);
+        float R = 0.22 + 0.7 * uK, w = 0.05 + 0.16 * uK;
+        float ring = exp(-pow((r - R) / w, 2.0)) * (0.75 + 0.25 * sin(a * 7.0 + uK * 9.0));
+        float k = (1.0 - uK); gl_FragColor = vec4(vec3(1.0, 0.78, 0.5) * ring * k * k * 1.3, 1.0); }`,
+  });
   const mesh = new THREE.Mesh(g, m);
   mesh.visible = false; mesh.frustumCulled = false; mesh.renderOrder = 9; mesh.name = 'shockRing';
   world.scene.add(mesh);
   return {
     update(dt, P, S, camera) {
       if (dt < 0 || dt > 0.22) { mesh.visible = false; return; }
-      const k = dt / 0.22;
       mesh.visible = true;
       mesh.position.copy(P);
       mesh.quaternion.copy(camera.quaternion);
-      mesh.scale.setScalar((3 + 15 * Math.pow(k, 0.6)) * S);
-      m.opacity = 0.75 * (1 - k) * (1 - k);
+      mesh.scale.setScalar(34 * S);
+      U.uK.value = dt / 0.22;
     },
     off() { mesh.visible = false; },
     dispose() { world.scene.remove(mesh); g.dispose(); m.dispose(); },

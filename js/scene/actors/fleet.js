@@ -240,8 +240,9 @@ export function createFleet(world, { work, route }) {
           if (prev !== 'enroute' || !u.spot) { u.slot = slotFor(u, list, e); u.spot = spotFor(u, e.sector, u.slot); }
           u.tWork = t; route.set(u.id, null);
           work.start(u, e);
-        } else if (prev === 'working') work.stop(u);
-        if (e.state === 'yard') { route.set(u.id, null); u.leg = null; }
+        } else if (prev === 'working') { if (e.state === 'returning') work.pack(u); else work.stop(u); }
+        if (e.state === 'yard') { route.set(u.id, null); u.leg = null; work.unpack(u); }
+        if (e.state === 'enroute') work.unpack(u);
         u.state = e.state; u.seq = e.seq; u.sector = e.sector;
       }
       drive(u, e, t, dt);
@@ -271,7 +272,13 @@ export function createFleet(world, { work, route }) {
     }
     if (e.state === 'enroute' || e.state === 'returning') {
       work.idle(u);
-      const p = e.eta0 > 0 ? Math.max(0, Math.min(1, 1 - e.eta / e.eta0)) : 1;
+      let p = e.eta0 > 0 ? Math.max(0, Math.min(1, 1 - e.eta / e.eta0)) : 1;
+      // polish A4: leaving a work spot, the vehicle first packs up on the spot (0.7 s of the leg), then drives
+      if (u.pk && u.pk.on && u.leg === 'home') {
+        const pk = Math.min(0.35, 0.7 / Math.max(0.5, e.eta0 || 1));
+        work.packStep(u, p / pk);
+        p = Math.max(0, (p - pk) / (1 - pk));
+      }
       u.progress = p;
       const P = u.legMain;
       const s = ease(p) * P.len;

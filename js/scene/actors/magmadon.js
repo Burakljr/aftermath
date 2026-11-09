@@ -19,8 +19,9 @@ const D2R = Math.PI / 180;
 const _c = new THREE.Color(), _p = new THREE.Vector3(), _n = new THREE.Vector3(), _v = new THREE.Vector3();
 
 export const PAL = {
-  basalt: 0x2c2826, basaltHi: 0x6a645e, basaltLo: 0x121012, sulfur: 0x9a8448, crust: 0x1a0b07,
-  hideDark: 0x3c312a, hide: 0x6a5545, hideMid: 0x8a6e55, belly: 0xb99b74, bellyFold: 0x987b5b,
+  // polish (review F5: a near-black mass at 1x): lighter basalt and hide, pale worn plate rims
+  basalt: 0x4a4541, basaltHi: 0x958b81, basaltLo: 0x231f1d, sulfur: 0x9a8448, crust: 0x1a0b07, rimPale: 0xbdb3a2,
+  hideDark: 0x4e4036, hide: 0x7d6550, hideMid: 0x9b7d61, belly: 0xb99b74, bellyFold: 0x987b5b,
   snout: 0x553834, nostril: 0x1a0e0c, ivory: 0xe6d8ba, ivoryBase: 0x8f7d60, nail: 0xd0c2a2,
   mouth: 0x3c100c, gum: 0x6e2c27, tongue: 0x8a4446, tooth: 0xd8ccb0,
   // the inside under the plates reads volcanic (basalt layers, pale mineral, magma veins), never as red meat (DESIGN §8/§13)
@@ -33,7 +34,7 @@ const CH_MAGMA = 0, CH_EYE = 1, CH_GLAND = 2, CH_WET = 3;
 const CARVE_PARS = /* glsl */`
 uniform vec4 uPart[3]; uniform float uPlateGone[20]; uniform float uCarveOn, uCutScale;
 varying vec2 vCarve; varying vec3 vLPc;
-float gCut = 1000.0;
+float gCut = 1000.0, gPartW = 0.0;
 float carveHash(vec3 p) { return fract(sin(dot(floor(p), vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 bool carved() {
   if (uCarveOn < 0.5) return false;
@@ -46,6 +47,7 @@ bool carved() {
     if (u >= P.x && u < P.y + 0.0001) {
       float span = P.y - P.x;
       float d = P.z < 0.5 ? (u - P.x) / span : (P.y - u) / span;
+      gPartW = P.w;
       if (d < P.w) return true;
       if (P.w > 0.0005) gCut = min(gCut, (d - P.w) * span * uCutScale);
     }
@@ -94,7 +96,8 @@ ${CARVE_PARS}`)
     } else if (ch < 0.5) {
       float pulse = mix(1.0, 0.7 + 0.3 * sin(uTime * 1.7 - vLP.z * 0.05), uPulseAmt);
       float smoulder = 0.75 + 0.25 * sin(uTime * 0.6 + vLP.x * 0.21 + vLP.z * 0.13);
-      e = uHotCol * h * h * uHeat * mix(smoulder, pulse, uPulseAmt);
+      // the seams of a district's part cool down as it is carved (polish A3)
+      e = uHotCol * h * h * uHeat * mix(smoulder, pulse, uPulseAmt) * (1.0 - 0.7 * min(gPartW, 1.0));
       diffuseColor.rgb *= 1.0 - 0.55 * h;
     } else if (ch < 1.5) {
       e = uEyeCol * h * uEye;
@@ -120,7 +123,7 @@ ${CARVE_PARS}`)
     totalEmissiveRadiance += e;
   }`);
   };
-  m.customProgramCacheKey = () => 'magmadon-v3a';
+  m.customProgramCacheKey = () => 'magmadon-v3b';
   return m;
 }
 // shadow depth with the same cut (a carved part casts no shadow)
@@ -135,7 +138,7 @@ export function magmaDepthMaterial(C) {
       .replace('#include <common>', `#include <common>\n${CARVE_PARS}`)
       .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n  if (carved()) discard;');
   };
-  m.customProgramCacheKey = () => 'magmadon-depth-v2a';
+  m.customProgramCacheKey = () => 'magmadon-depth-v3a';
   return m;
 }
 export function carveUniforms() {
@@ -385,7 +388,8 @@ function buildShell(acc, data) {
     const wN = noise3(base.x * 0.07 + 4, base.y * 0.07, base.z * 0.07);
     // plate centres lighter than the seams so the shell pattern reads from the gameplay camera (playtest m16)
     const cl = mix(C.basalt, C.basaltHi, Math.min(1, 0.3 + (wN - 0.35) * 1.4) * inn);
-    cl.lerp(C.basaltLo, (1 - inn) * 0.55);
+    // worn, pale plate rims (polish A3: the plates outline at 1x instead of melting into one dark mass)
+    cl.lerp(C.rimPale, Math.pow(1 - inn, 1.6) * (big ? 0.6 : 0.4));
     if (inn < 0.6 && noise3(base.x * 0.16 + 20, base.y * 0.16, base.z * 0.16) > 0.66) cl.lerp(C.sulfur, 0.55 * (1 - inn));
     if (terr > 0.2) cl.multiplyScalar(1.12);
     colr.set(i, cl);
@@ -400,7 +404,7 @@ function buildShell(acc, data) {
     for (const [a, b] of plateInfo[k].bnd) {
       const Ao = outer.get(a), Bo = outer.get(b), Ai = inner.get(a), Bi = inner.get(b);
       const rim = isBottom(a) && isBottom(b);
-      const top = rim ? C.ivoryBase : mix(C.basaltLo, C.basalt, 0.4), bot = rim ? C.hideDark : C.crust; // pale shell rim: the outline reads from above
+      const top = rim ? C.ivoryBase : mix(C.basalt, C.rimPale, 0.55), bot = rim ? C.hideDark : C.crust; // pale shell rim: the outline reads from above
       const hT = [0, 0], hB = rim ? [0, 0] : [0.95, CH_MAGMA];
       acc.tri(Ao, Ai, Bi, top, bot, bot, hT, hB, hB, 0.12);
       acc.tri(Ao, Bi, Bo, top, bot, top, hT, hB, hT, 0.12);
@@ -585,7 +589,7 @@ export function createMagmadon() {
         const up = sa > -0.25;
         let c = sa < -0.2 ? mix(C.hide, C.hideMid, -sa) : mix(C.hide, C.hideDark, sa * 0.9);
         if (up) c = mix(c, mix(C.basalt, C.basaltHi, noise3(P.x * 0.7, P.y * 0.7, P.z * 0.7) * 0.6), Math.max(beak, smooth(4, 7, P.y)));
-        else c = mix(c, C.basaltLo, beak * 0.7);
+        else c = mix(c, C.basaltLo, beak * 0.45);
         return c.multiplyScalar(0.9 + noise3(P.x * 0.5, P.y * 0.5, P.z * 0.5) * 0.2);
       },
       noise: 0.3, nfreq: 0.35, seed: 7,
@@ -593,7 +597,7 @@ export function createMagmadon() {
     // beak edge: a serrated basalt ridge along the upper jaw line + the hook tip
     for (const s of [-1, 1]) {
       const pts = [V3(s * 7.6, -1.6, 6), V3(s * 6.4, -2.0, 12), V3(s * 4.6, -2.4, 18), V3(s * 2.4, -3.4, 23), V3(s * 0.6, -5.6, 25.2)];
-      acc.geo(tube(pts, [1.0, 0.95, 0.85, 0.7, 0.35], 5, C.basaltLo));
+      acc.geo(tube(pts, [1.0, 0.95, 0.85, 0.7, 0.35], 5, mix(C.basalt, C.rimPale, 0.35)));
       for (let k = 0; k < 6; k++) { const p = new THREE.CatmullRomCurve3(pts).getPointAt(0.08 + k * 0.15); const tg = new THREE.ConeGeometry(0.75, 2.2, 4); tg.rotateX(Math.PI); tg.translate(p.x - s * 0.4, p.y - 1.2, p.z); acc.geo(tg, { color: PAL.tooth }); }
     }
     // slit nostrils high on the beak (small, angled, dark)
@@ -637,7 +641,7 @@ export function createMagmadon() {
       { z: 14, w: 5.8, top: 0.9, bot: 3.2 }, { z: 19, w: 4.2, top: 0.9, bot: 2.6 }, { z: 22.4, w: 2.4, top: 1.4, bot: 2.0, ex: 2.2 },
     ].map((r) => ({ ...r, c: V3(0, 0, r.z), d: V3(0, 0, 1), u: V3(1, 0, 0), ex: r.ex ?? 2.6 }));
     acc.geo(loft(jr, 14, {
-      color: (t, a, P) => { const sa = Math.sin(a); const c = mix(C.hideMid, C.belly, -sa * 0.8); return mix(c, C.basaltLo, smooth(12, 20, P.z) * 0.85).multiplyScalar(0.88 + noise3(P.x * 0.5, P.y * 0.5, P.z * 0.5) * 0.24); },
+      color: (t, a, P) => { const sa = Math.sin(a); const c = mix(C.hideMid, C.belly, -sa * 0.8); return mix(c, C.basalt, smooth(12, 20, P.z) * 0.85).multiplyScalar(0.88 + noise3(P.x * 0.5, P.y * 0.5, P.z * 0.5) * 0.24); },
       noise: 0.3, nfreq: 0.3, seed: 11,
     }));
     const floor = new THREE.PlaneGeometry(10, 20); floor.rotateX(-Math.PI / 2); floor.translate(0, 0.95, 10.5);
@@ -725,7 +729,7 @@ export function createMagmadon() {
     tail.rotation.set(t[0], t[1], 0);
   }
   // the cooled corpse keeps bright seams so the shell plates read from the gameplay camera (review V6)
-  const HOT = new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6), COOL = new THREE.Color(0.95, 0.27, 0.05).multiplyScalar(2.9);
+  const HOT = new THREE.Color(1.0, 0.36, 0.06).multiplyScalar(4.6), COOL = new THREE.Color(0.95, 0.3, 0.06).multiplyScalar(2.3);
   const HOT_M = new THREE.Color(0.35, 1.0, 0.42).multiplyScalar(4.0), COOL_M = new THREE.Color(0.12, 0.55, 0.22).multiplyScalar(2.0);
   // heat: 1 alive, 0 cooled corpse; mutant: green magma
   function setHeat(alive, k, mutant) {

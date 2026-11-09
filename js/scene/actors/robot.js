@@ -78,7 +78,7 @@ class Kit {
   }
   rbox(w, h, d, x, y, z, color, o = {}) {
     const r = Math.min(o.r ?? 0.6, w / 2.2, h / 2.2, d / 2.2);
-    const g = new RoundedBoxGeometry(w, h, d, o.seg ?? 2, r);
+    const g = new RoundedBoxGeometry(w, h, d, o.seg ?? 1, r);
     if (o.taper) taperX(g, o.taper, h);
     if (o.taperZ) taperZ(g, o.taperZ, h);
     if (o.rx) g.rotateX(o.rx); if (o.rz) g.rotateZ(o.rz); if (o.ry) g.rotateY(o.ry);
@@ -111,7 +111,7 @@ class Kit {
     if (o.rodBone) this.on(o.rodBone);
     const rod = new THREE.CylinderGeometry(r * 0.55, r * 0.55, len * 0.55, 8); rod.translate(0, len * 0.22, 0); rod.applyMatrix4(m);
     this.push(rod, STEEL, { wear: 0, grad: 0.3, jitter: 0.02 });
-    for (const e of [a, b]) { const k = new THREE.SphereGeometry(r * 1.1, 8, 6); k.translate(e.x, e.y, e.z); this.push(k, FRAME, { wear: 0, grad: 0 }); }
+    for (const e of [a, b]) { const k = new THREE.SphereGeometry(r * 1.1, 6, 4); k.translate(e.x, e.y, e.z); this.push(k, FRAME, { wear: 0, grad: 0 }); }
     if (o.barrelBone) this.on(o.barrelBone);
     return this;
   }
@@ -256,7 +256,7 @@ function buildKit() {
   // ---------------- torso: tapered V chest, shoulder yoke, vest straps, emblem
   K.on('torso');
   K.rbox(11.0, 12.0, 8.6, 0, 35.6, -0.2, FRAME, { r: 0.8, taper: [0.85, 1.35] });         // inner frame
-  K.rbox(22.0, 13.6, 10.6, 0, 38.0, 0.6, BLUE, { r: 1.4, seg: 3, taper: [0.56, 1.0] });   // V chest shell
+  K.rbox(22.0, 13.6, 10.6, 0, 38.0, 0.6, BLUE, { r: 1.4, seg: 2, taper: [0.56, 1.0] });   // V chest shell
   K.rbox(27.5, 4.6, 11.4, 0, 43.4, 0.0, BLUE, { r: 1.5, seg: 2 });                        // shoulder yoke
   K.rbox(25.0, 1.2, 11.8, 0, 41.0, 0.0, BLUE2, { r: 0.4 });                               // yoke under-band
   // safety-orange vest straps in a V, crossed by a white reflective band

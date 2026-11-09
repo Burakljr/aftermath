@@ -292,6 +292,53 @@ vec3 facEmit = vec3(0.0); float facRough = 1.0; float cutEdge = 0.0;
   return mat;
 }
 
+// polish W1: depth pass for facades. The default shadow depth material ignored the damage discard, so destroyed
+// buildings (stumps, bites, cleared lots) still cast full-height shadows: a large phantom dark area around the
+// carcass at phone size. This applies the same stump/bite cut in the shadow pass (one shared program).
+let _facadeDepth = null;
+export function facadeDepthMaterial() {
+  if (_facadeDepth) return _facadeDepth;
+  const m = new THREE.MeshDepthMaterial({ side: THREE.FrontSide });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute vec4 aFac; attribute vec4 aDmg; attribute vec2 aBite;
+varying vec4 vDmgD; varying vec2 vBiteD; varying vec3 vWPD; varying float vKindD;`)
+      .replace('#include <project_vertex>', `#include <project_vertex>
+vDmgD = aDmg; vBiteD = aBite; vKindD = floor(aFac.x + 0.5);
+vec4 wposD = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+wposD = instanceMatrix * wposD;
+#endif
+vWPD = (modelMatrix * wposD).xyz;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec4 vDmgD; varying vec2 vBiteD; varying vec3 vWPD; varying float vKindD;
+${COMMON}`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+  if (vDmgD.x > 0.0) {
+    bool bite = abs(vDmgD.z) + abs(vDmgD.w) > 0.01;
+    float along = vWPD.x * 0.83 + vWPD.z * 0.57;
+    float jag = (vn(vec2(along * 0.9, 0.37)) - 0.5) * 1.3 + (vn(vec2(along * 2.4, 1.7)) - 0.5) * 0.4;
+    if (bite) {
+      float R = vBiteD.x * (vKindD > 4.5 && vKindD < 5.5 ? 0.78 : 1.0);
+      float d = distance(vWPD.xz, vDmgD.zw) + jag * 1.2;
+      float t = clamp(d / R, 0.0, 1.0);
+      float hb = vDmgD.x + pow(t, 1.6) * (vBiteD.y + 6.0 - vDmgD.x);
+      hb = floor((hb - 4.0) / 3.0 + 0.5) * 3.0 + 4.0 + jag * 0.5;
+      if (d < R && vWPD.y > hb) discard;
+    } else {
+      float cell = floor(along / 3.1);
+      float steps = floor(h21(vec2(cell, floor(vDmgD.x * 7.0))) * 2.99);
+      if (vWPD.y > vDmgD.x - steps * 1.5 + jag) discard;
+    }
+  }`);
+  };
+  m.customProgramCacheKey = () => 'facadeDepthV1';
+  _facadeDepth = m;
+  return m;
+}
+
 // ------------------------------------------------------------------------------------------- GROUND
 // aKind: 0 asphalt, 1 sidewalk/lot, 2 promenade paving, 3 park grass, 4 quay stone, 5 yard concrete,
 //        6 square paving, 7 port apron, 8 pond water

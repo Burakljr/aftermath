@@ -11,6 +11,7 @@ import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { Builder, rng, capsDist, clamp } from './util.js';
 import { GF, FH, EXTRAS, balconyGeo, CONCRETE } from './city.js';
 import { DISTRICTS, impactPoint } from './layout.js';
+import { facadeDepthMaterial } from './materials.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 const _c = new THREE.Color(), _dark = new THREE.Color(0x1d1a18);
@@ -289,7 +290,7 @@ export function* buildProps(plan, ctx) {
   }
   yield;
   const out = { facade: null, rubble: null, chunks: null };
-  if (FB.parts.length) { out.facade = new THREE.Mesh(FB.build(), ctx.matD); out.facade.castShadow = true; out.facade.receiveShadow = true; out.facade.name = 'dmgFacade' + plan.did; }
+  if (FB.parts.length) { out.facade = new THREE.Mesh(FB.build(), ctx.matD); out.facade.castShadow = true; out.facade.receiveShadow = true; out.facade.customDepthMaterial = facadeDepthMaterial(); out.facade.name = 'dmgFacade' + plan.did; }
   yield;
   if (RB.parts.length) { out.rubble = new THREE.Mesh(RB.build(), ctx.rubMat); out.rubble.castShadow = true; out.rubble.receiveShadow = true; out.rubble.name = 'dmgRubble' + plan.did; }
   if (chunks.length) {
