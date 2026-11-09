@@ -173,9 +173,10 @@ export function createCorpse(world) {
         glint.visible = true;
         const k2 = gt < 0.25 ? gt / 0.25 : Math.max(0, 1 - (gt - 0.25) / 1.15);
         glint.position.copy(glintPos);
-        glint.scale.setScalar((14 + 30 * k2) * Math.max(0.6, fit.s * 0.6));
+        // smaller and warmer than before: it bloomed into a white star over the whole cleaned block (review 2 F3)
+        glint.scale.setScalar((10 + 18 * k2) * Math.max(0.6, fit.s * 0.6));
         glint.material.rotation = gt * 1.2;
-        glintMat.color.setRGB(glintGreen ? 2.5 : 5, glintGreen ? 5 : 4.2, glintGreen ? 3.5 : 2.6).multiplyScalar(k2);
+        glintMat.color.setRGB(glintGreen ? 1.2 : 2.4, glintGreen ? 2.4 : 1.9, glintGreen ? 1.6 : 1.0).multiplyScalar(k2);
       } else glint.visible = false;
     },
     event(type, p, t) {
