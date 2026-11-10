@@ -29,7 +29,7 @@ export function createTutorial(ctx) {
     if (text) {
       setText(bubble, text);
       const bx = Math.max(130, Math.min(window.innerWidth - 130, p.x));
-      // below the hand (p.by: a lower spot for station hints, clear of the counter and cook)
+      // above: its bottom at p.by - 10 (above the card, or above a station); else below the hand
       const by = bubbleAbove ? p.by - 10 : (p.by || p.y + 62);
       toggle(bubble, 'above', bubbleAbove);
       setStyle(bubble, 'left', Math.round(bx) + 'px');
@@ -37,17 +37,34 @@ export function createTutorial(ctx) {
     }
   }
 
-  // where to point for a station: its level badge (open) or its sign (next station)
+  // where to point for a station: its counter (open) or its sign (next station). The bubble
+  // waits ABOVE the station, over the back wall (p.above): below the kitchen are the tables,
+  // the next table's buy chip and the guests' order bubbles.
   function stationPoint(id) {
     const a = ctx.anchor('station', id);
     if (!a || a.visible === false) return null;
     const s = game.state.stations.find((x) => x.id === id);
-    // the Open sign (38 px tall) stands on the anchor of its plot
-    if (s && !s.open) return { x: a.x, y: a.y - 6, rx: a.x, ry: a.y - 19 };
-    // open station: the ring pulses on the appliance itself, the hand points up at it from the
-    // counter front, and the bubble waits below the pass so the station stays in view
-    const k = ctx.scale ? ctx.scale() : 1;
-    return { x: a.x + 8, y: a.y + 44 * k, rx: a.x, ry: a.y + 26 * k, by: a.y + 128 * k };
+    // the Open sign (38 px tall) stands on the anchor of its plot; the bubble above the ring
+    // and above the level badges of the open stations (24 px tall, bottoms on their anchors)
+    if (s && !s.open) {
+      let by = a.y - 52;
+      for (const o of game.state.stations) {
+        if (!o.open) continue;
+        const b = ctx.anchor('station', o.id);
+        if (b && b.visible !== false && Math.abs(b.x - a.x) < 150) by = Math.min(by, b.y - 30);
+      }
+      return { x: a.x, y: a.y - 6, rx: a.x, ry: a.y - 19, by, above: true };
+    }
+    // open station: the ring pulses on the counter, the hand points up at it from below, a
+    // little to the outer side (clear of the next station's Open sign near the corner); the
+    // bubble sits above the level badge (24 px tall, its bottom on the anchor)
+    const c = ctx.anchor('counter', id);
+    if (c && c.visible !== false) {
+      const side = c.x < window.innerWidth / 2 ? -1 : 1;
+      return { x: c.x + side * 8, y: c.y + 16, rx: c.x, ry: c.y, by: a.y - 30, above: true };
+    }
+    // a stand-in scene without counters: ring on the station under the badge
+    return { x: a.x + 8, y: a.y + 44, rx: a.x, ry: a.y + 26, by: a.y - 30, above: true };
   }
 
   // resting position of a button (offsets ignore the card's slide-in transform)
@@ -113,7 +130,7 @@ export function createTutorial(ctx) {
       }
     }
     if (!p) { shown = false; toggle(root, 'is-hidden', true); return; }
-    place(p, text, above);
+    place(p, text, above || !!p.above);
   }
 
   return {
@@ -122,6 +139,8 @@ export function createTutorial(ctx) {
     pointAt(point, seconds = 3.5) { hint = { point, t: seconds }; },
     pointAtStation(id, seconds = 3.5) { hint = { point: () => stationPoint(id), t: seconds }; },
     hush(sec) { hushT = sec; },
+    // is the bubble shown low on the screen (over the card)? Toasts then move up under the HUD
+    bubbleLow() { if (!shown) return false; const r = bubble.getBoundingClientRect(); return r.bottom > window.innerHeight * 0.5; },
     stationPoint,
     bubbleRect() { return root.classList.contains('is-hidden') ? null : bubble.getBoundingClientRect(); },
     bubbleShown: () => shown,

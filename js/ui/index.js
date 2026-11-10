@@ -72,11 +72,12 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   const tutorial = createTutorial(ctx);
   const menus = { upgrades, goals, places };
 
+  ctx.tutorialShown = () => tutorial.bubbleShown();
   ctx.coinTarget = () => hud.coinTarget();
   // distance of the toast from the screen bottom: above the card or the goal pill
   ctx.toastBottom = () => {
     if (panelOpen()) return 'sheet'; // a menu sheet covers the bottom: a slim banner at the top
-    if (tutorial.bubbleShown()) return null; // never over a tutorial bubble: under the HUD
+    if (tutorial.bubbleLow()) return null; // never over a low tutorial bubble: under the HUD
     const h = window.innerHeight;
     const top = card.isOpen() ? card.root.offsetTop : menu.root.offsetTop;
     return Math.max(80, h - top + 12);

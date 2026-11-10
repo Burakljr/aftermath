@@ -69,7 +69,8 @@ export function createMarks(ctx) {
   function update() {
     const hints = ctx.upgradeHints();
     const hideAll = ctx.modalOpen();
-    updateTable(hideAll || ctx.cardStation() !== null);
+    // the table chip waits while a tutorial bubble is shown (it would sit right under it)
+    updateTable(hideAll || ctx.cardStation() !== null || !!(ctx.tutorialShown && ctx.tutorialShown()));
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const s = game.state.stations[i];

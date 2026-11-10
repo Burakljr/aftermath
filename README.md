@@ -19,8 +19,9 @@ The game title lives in the language files (`app.title` in `js/i18n/*.js`).
 
 3D art: the KayKit Restaurant Bits and Adventurers packs by Kay Lousberg (CC0), one
 consistent style, seen from a fixed diagonal (isometric) camera as a cosy cut-away diorama on a
-little garden plot (Village Inn) or a pier in the sea (Harbor Tavern); the cooks work behind
-their counters facing you and seated guests face the camera. UI: cream panels, one orange
+little garden plot (Village Inn) or a pier in the sea with a lighthouse, palms and barrels
+(Harbor Tavern); the cooks work behind their counters facing you and seated guests face the
+camera. UI: cream panels, one orange
 accent for buttons, gold for coins, soft shadows, the Fredoka font and our own simple SVG icons.
 
 ## Run
@@ -34,7 +35,7 @@ PORT=5403 node tools/serve.mjs
 
 Plain HTML/CSS/JS ES modules, three.js r187 vendored in `vendor/three`, no network
 requests at run time except the game's own files (relative paths). Works from a sub-path and
-inside a sandboxed iframe (without saving). About 3.8 MB to download (2.6 MB of models).
+inside a sandboxed iframe (without saving). About 4.0 MB (3.8 MiB) to download (2.7 MB of models).
 The plan is to wrap it with Capacitor for the App Store and Google Play later.
 
 Development pages: `ui-lab.html` (the UI on a flat stand-in scene, with presets),

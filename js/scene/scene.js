@@ -19,6 +19,9 @@ import { UI_INSETS, SCREEN } from './layout.js';
 const MODELS = ['props', 'anims', ...HERO_MODELS];
 // diagonal (iso) diorama camera: looks at the room from its open front corner
 export const CAM = { elevation: 35, yaw: 45, zoom: 1 };
+// level badge of an open station: above the cook lane (front < 0 = toward the wall), high
+// enough to clear the cook's head, shifted along the wall away from the cooks' corner
+const BADGE = { front: -0.25, y: 3.4, along: 0.5 };
 const _v = new THREE.Vector3();
 const _box = { x0: 0, y0: 0, x1: 0, y1: 0 };
 const _o = { x: 0, y: 0, visible: false };
@@ -220,7 +223,9 @@ export async function createScene(canvas, opts = {}) {
       if (steamT[i] <= 0) {
         steamT[i] = 1.1;
         const ls = v.ls;
-        fx.steam(_p3.set(ls.pos[0] - 0.1, v.kind === 'oven' ? 1.5 : 1.45, ls.pos[1] + 0.1));
+        // from the back of the counter, so the puff rises behind the pots, not over the cook's hands
+        stationFront(v, -0.3, v.kind === 'oven' ? 1.75 : 1.7, _p3);
+        fx.steam(_p3);
       }
     }
   }
@@ -245,6 +250,13 @@ export async function createScene(canvas, opts = {}) {
     const f = v.ls.facing || 0;
     return out.set(v.ls.pos[0] + Math.sin(f) * d, y, v.ls.pos[1] + Math.cos(f) * d);
   }
+  // move a point `d` units along the station's wall, away from the cooks' corner (minX, minZ):
+  // a station facing +x stands on the x = minX wall (along = +z), one facing +z on z = minZ
+  function alongWall(v, d, p) {
+    const f = v.ls.facing || 0;
+    p.x += Math.cos(f) * d; p.z += Math.sin(f) * d;
+    return p;
+  }
   function stationView(id) {
     if (!stations) return null;
     if (typeof id === 'number') return stations.views[id] || null;
@@ -262,10 +274,17 @@ export async function createScene(canvas, opts = {}) {
     if (kind === 'station') {
       const v = stationView(id);
       if (!v) return out;
-      // open: above the station and the cook behind it (clear of his head); closed: the Open
-      // sign stands on the counter
+      // open: above the station and the cook behind it (clear of his head), moved a little
+      // along the wall away from the cooks' corner, so the two badges at the corner do not
+      // bunch over the cooks walking there; closed: the Open sign stands on the counter
       if (!v.open) return project(stationFront(v, 0.6, 1.25, _p3), out);
-      return project(stationFront(v, -0.2, 3.15, _p3), out);
+      return project(alongWall(v, BADGE.along, stationFront(v, BADGE.front, BADGE.y, _p3)), out);
+    }
+    if (kind === 'counter') {
+      // the station counter itself (tutorial ring), on the side away from the corner
+      const v = stationView(id);
+      if (!v) return out;
+      return project(alongWall(v, 0.45, stationFront(v, 0.1, 1.15, _p3)), out);
     }
     if (kind === 'table') {
       const t = layout.tables.find((x) => x.id === id) || layout.tables[id];
@@ -322,7 +341,19 @@ export async function createScene(canvas, opts = {}) {
     const r = canvas.getBoundingClientRect();
     const x = clientX - r.left, y = clientY - r.top;
     const hit = (b, pad = 0) => x >= b.x0 - pad && x <= b.x1 + pad && y >= b.y0 - pad && y <= b.y1 + pad;
-    // stations first (the main tap target). Seen from the diagonal the screen boxes of two
+    // guests at their table first: at t3 / t4 / t5 they sit right in front of the counters,
+    // inside a station's tap box (counter + cook lane), and they are nearer to the camera. A
+    // tight body box (no padding) keeps the rest of the station easy to hit.
+    let seated = null, seatD = Infinity;
+    for (const [id, v] of crowd.customers) {
+      if (v.st !== 'waiting' && v.st !== 'eating' && v.st !== 'paying') continue;
+      screenBox(v.x, v.z, 0.36, 0.36, 0.45, v.seated ? 2.25 : 2.5, _box);
+      if (!hit(_box)) continue;
+      const d = Math.hypot(x - (_box.x0 + _box.x1) / 2, y - (_box.y0 + _box.y1) / 2);
+      if (d < seatD) { seatD = d; seated = id; }
+    }
+    if (seated) return { type: 'customer', id: seated };
+    // then stations (the main tap target). Seen from the diagonal the screen boxes of two
     // neighbouring stations overlap near the corner, so the nearest box centre wins.
     let sBest = null, sD = Infinity;
     for (const v of stations.views) {
@@ -414,7 +445,7 @@ export async function createScene(canvas, opts = {}) {
       }
       case 'cookStart': {
         const v = stationView(p.station);
-        if (v) fx.steam(stationFront(v, 0.2, 1.5, _p3));
+        if (v) fx.steam(stationFront(v, -0.3, 1.7, _p3));
         break;
       }
       case 'locationComplete':

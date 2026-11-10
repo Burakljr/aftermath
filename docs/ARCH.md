@@ -60,8 +60,8 @@ the room diagonally from its open front corner (+x, +z): the x = z diagonal is t
 axis of the screen (kitchen corner at the top, door corner at the bottom); facing PI/4 looks
 straight at the camera.
 `LAYOUTS[id]` / `getLayout(id)`:
-`{ id, bounds, door { pos, node: 'door', outside: 'out' }, queue, tables [{ id: 't1'..'t6', pos,
-front: 't<n>f', seats [{ id: 't<n>a|b' (= graph node), pos, facing, plate [x,y,z], chair }] }],
+`{ id, bounds, door { pos, node: 'door', outside: 'out' }, queue (spare spots, unused by the logic), tables [{ id: 't1'..'t6', pos,
+front: 't<n>f' (t6: 't6R'), seats [{ id: 't<n>a|b' (= graph node), pos, facing, plate [x,y,z], chair }] }],
 stations [{ id, pos, facing, cookSpot, node: 'st_<id>', dishSpot, helperSpot, helperNode: 'sh_<id>',
 helperDishSpot }] (helper* = a second cook working at the station, 1 unit further along the wall),
 cookHomes ['h1'..'h4'],
@@ -78,14 +78,22 @@ Plan (`buildIso()` in `layout.js`, both places, 14 x 14 room, bounds -7..7):
   come out past the end of each counter row (nodes EL / ER -> XL / XR) into the dining room.
 - Tables: both seats on the far side of the table (seat a on the -x side facing +x, seat b on
   the -z side facing +z), so every seated guest faces the camera at 3/4; the cook hands the
-  dish over at the table's front corner (`t<n>f`). Six tables in a 3-2-1 pyramid pointing at the
-  door: t4 t3 t5 by the kitchen, t1 t2 in the middle (owned at the start), t6 by the door. Shared
-  hub nodes between neighbouring tables (H12, H34, H35) keep the graph small.
-- Door = the open front corner (6.25, 6.25), outside node at (9.4, 9.4), queue spots outside.
+  dish over at the table's front corner (`t<n>f`), except t6 right in front of the door, whose
+  dish is handed over at its right side (`sideFront: { t6: 'R' }`, front = `t6R`), so no cook
+  stands in the doorway. Six tables in a 3-2-1 pyramid pointing at the door: t4 t3 t5 by the
+  kitchen, t1 t2 in the middle (owned at the start), t6 by the door. Shared hub nodes between
+  neighbouring tables (H12, H34, H35) and a link behind t6 (t1f-t2f) keep the graph small.
+- Door = the open front corner (6.25, 6.25), outside node at (9.4, 9.4). The door node splits at
+  once to both sides of t6 (door-t6L, door-t6R; no shared waypoint in the doorway), so guests for
+  the left tables walk up the left half of the room and guests for the right tables the right
+  half. The spare queue spots q1..q3 sit inside the door corner along the low front walls (graph
+  dead ends; the logic never queues guests, nobody comes in while every seat is taken).
 - Harbor Tavern = the same plan mirrored across x = z (`swap: true`, `swapXZ()`): the kitchen
   sides, the sink and the windows swap on screen and every walk keeps its length (same pacing).
 - Speeds: customer 2.8, cook 3.9 units/s (walks average a little longer than in the old
   12 x 20 plan; pacing re-checked with the bot and the e2e run).
+- Obstacles (decor the walks keep clear of): the sink (x 0.95..2.95 on the back-right wall) and
+  the fridge past the back-right counter row, the dresser (z 1.0..3.0 on the back-left wall).
 
 Timing rule: the logic times every walk as `pathLength(from, to) / speed` and stores
 `{ from, to, t, dur }`; the scene places the walker at `t / dur` along `path(from, to)`.
@@ -136,7 +144,8 @@ station), `boost {station}`, `cookSpeed {level}`, `claim {id, reward}`, `money {
 
 `createScene(canvas, { quality }) -> Promise<{ setLocation(id), update(state, dt), fx(event,
 payload), pick(x, y) -> { type: 'station'|'table'|'customer'|'cook', id } | null,
-anchor(kind, id) -> { x, y, visible } (CSS px; kinds station, table, customer, cook, coins),
+anchor(kind, id) -> { x, y, visible } (CSS px; kinds station, table, customer, cook, coins,
+counter (the station counter itself: the tutorial ring; null on stand-in scenes)),
 setQuality(q), stats() -> { fps, calls, tris }, resize() }>`; optional `setInsets({ top, bottom,
 left, right })` (the UI calls it with the HUD bottom and the bottom bar top). Anchors used by the
 UI: `station` = above an open station (level badge) and just above a closed plot (Open sign);
@@ -193,9 +202,9 @@ new game (default: phone language, English otherwise).
   the simulation (tests/logic/estimate.test.mjs).
 - Offline: estimate x min(away, 2 h), only if away >= 60 s, collected on return.
 - Measured by `node tests/logic/bot.mjs` (attentive player, seeds 3/7/11/19, diagonal 14 x 14
-  plan): first upgrade 0 s, first coins 9 s, 2nd cook ~0:30, Grill 0:50-0:51, Stew 2:54-3:10,
-  Oven 5:49-6:30, Village Inn complete 10:56-11:36, longest gap between reward moments
-  22-27 s (e2e run: Grill 0:36, Stew 3:09, Oven 5:58, complete 11:39). Guests wait ~10 s for
+  plan): first upgrade 0 s, first coins 9 s, 2nd cook ~0:30, Grill 0:50-0:51, Stew 2:48-3:07,
+  Oven 5:50-6:18, Village Inn complete 11:14-12:04, longest gap between reward moments
+  22-27 s (e2e run: Grill 0:36, Stew 3:04, Oven 5:53, complete 11:09). Guests wait ~10 s for
   food (p90 ~11 s, max ~30 s), waiting guests all showing the same dish (3 or more waiting)
   ~6 % of the time after minute 2 (was 26 %), a cook idle while an order waits ~1 % (was 21 %)
   (these three measured on the earlier 12 x 20 plan; the walks are similar).
@@ -225,7 +234,7 @@ detection; the only per-frame layout writes are transforms at scene anchors.
   station: a price chip that becomes a compact orange "+ coin price" button when affordable
   (tap: station card; the word Open is on the card); later plots: a tiny lock.
 - Next table (`.tmark` at `anchor('table', next)`): the same orange "+ coin price" chip, only
-  while it is affordable and no card / sheet is open; tap = buy.
+  while it is affordable and no card / sheet / tutorial bubble is shown; tap = buy.
 - Order bubbles at `anchor('customer', id)` for waiting guests: 32 px dish icon, progress ring
   while a cook prepares it (the bubble shrinks a little once a cook has the order), a little
   bounce while it is carried; "+coins" float (gold on a small brown pill, a bit bigger for the
@@ -242,16 +251,19 @@ detection; the only per-frame layout writes are transforms at scene anchors.
 - Modals: Restaurant complete (stars, guests served, Next place / Keep playing), Welcome back
   (offline earnings, Collect), Settings (language, sound, graphics, FPS, credits).
 - Tutorial: pointing hand + ring + short bubble (text-wrap: balance); for an open station the
-  ring pulses on the station's cook and counter (the open-station anchor sits above the cook's
-  head), the hand points up at it from the counter front and the bubble waits below it, over
-  the dining room; bubbles for card buttons sit above the card.
+  ring pulses on its counter (`anchor('counter')`), the hand points up at it from below, a little
+  to the outer side (clear of the next station's Open sign by the corner); for the next station
+  the ring sits on its Open sign. Station bubbles wait ABOVE the station (over the back wall, and
+  above the open stations' level badges), never over the tables, the next table's buy chip or
+  the guests' order bubbles; bubbles for card buttons sit above the card.
 - Toasts (opened, new cook, new table, milestone, goal done) sit just above the bottom UI, under
-  the HUD while a tutorial bubble is shown, and as a slim banner at the very top while a menu
-  sheet is open (they follow when a card or sheet opens or closes), so they never cover the
-  stations, a tutorial bubble or a sheet row.
+  the HUD while a tutorial bubble is shown low on the screen (over the card), and as a slim
+  banner at the very top while a menu sheet is open (they follow when a card or sheet opens or
+  closes), so they never cover the stations, a tutorial bubble or a sheet row.
 - Canvas taps: `scene.pick()` -> station (boost + card), table (info; an unowned table is bought
   at once when it is the next one and affordable, otherwise Upgrades opens), customer (his
-  order), cook (info), nothing (closes the card).
+  order; a guest sitting at t3 / t4 / t5 right in front of the counters wins over the station
+  behind him), cook (info), nothing (closes the card).
 
 ## Integration (`index.html`, `js/main.js`)
 
@@ -320,20 +332,22 @@ licences (`vendor/three/LICENSE` -> `LICENSE.txt`), README.md and LICENSES.md. E
 `assets/models/*.glb` becomes `js/embed/<name>.js`
 (`(window.__EMBED || (window.__EMBED = {}))[name] = '<base64>'`), loaded by `<script type="module">` tags
 placed before main.js (module scripts run in document order). The script refuses any other
-file type. Size: about 4.6 MB (67 files). `tests/preview.cjs` checks it on
+file type. Size: about 4.7 MB (67 files). `tests/preview.cjs` checks it on
 `python3 -m http.server` from a sub-path with every .glb request blocked.
 
 ### Download size and scene cost (measured)
 
 Everything index.html loads (MiB): models 2.56 (props 1.42, four heroes 0.22-0.27 each,
-animations 0.17), three.js + 3 addons 0.88, game/UI/scene code 0.26, fonts 0.05, html/css 0.03:
-about 3.8 MiB (3.9 MB) in total, about 1.5 MiB with gzip.
+animations 0.17), three.js + 3 addons 0.88, game/UI/scene code 0.29, fonts 0.05, html/css 0.03:
+about 3.8 MiB (4.0 MB) in total, about 1.5 MiB with gzip.
 
 Real game on SwiftShader (iPhone 13 viewport, High, pixel ratio 2), diagonal camera:
-start 26 draw calls / 50k triangles; busy Village Inn (all stations, 5-6 tables, 11-13
-guests + 4 cooks) 41-45 calls / 107-115k triangles, busiest frame sampled over a whole Village
-Inn run 49 calls / 127k; busy Harbor Tavern 41-48 calls / 104-121k; Low (pixel ratio 1.25)
-harbor 43 / 93k. Budget: 120 calls / 150k triangles.
+start 26-27 draw calls / 50-55k triangles; busy Village Inn (all stations, 5-6 tables, 11-14
+guests + 4 cooks) 41-46 calls / 106-120k triangles, busiest frame sampled over a whole Village
+Inn run 47 calls / 126k; busy Harbor Tavern 41-47 calls / 97-120k (12 guests + 4 cooks in the
+e2e run: 43 / 106k); Low (pixel ratio 1.25) harbor 43 / 94k. Scene lab with 8 guests + 4
+cooks (tests/scene/smoke.cjs): High 35 / 92k, Low 35 / 77k, harbor 37 / 90k. Budget: 120
+calls / 150k triangles.
 
 ## Audio (`js/audio.js`)
 
@@ -446,10 +460,13 @@ mip levels would bleed neighbouring colours.
   seats on the left and right, the top of the far corner and the path below the door, inside
   the viewport minus the UI insets + safe areas (`setInsets()`). In portrait the frame is
   limited by the width, so the room's left and right corners bleed off the screen edges (only
-  crates, a menu stand, the sink and the fridge live there; nothing you tap is cut). On a
-  390 px wide phone that is ~30 px per unit at both 390 x 844 and 390 x 664 (standing
-  characters ~60 px, seated ~50 px); every station, table and the door sit between the HUD and
-  the goal pill at both sizes. No pan.
+  crates, a menu stand and the fridge live there; the sink and the dresser stand close enough to
+  the counter rows that their fronts stay in view; nothing you tap is cut). The bottom fit point
+  lies a little down the path (1.1 past the room corner), so on a short screen the door and
+  the first steps of the path stay clear of the goal pill (the frame zooms out a touch there
+  instead). On a 390 px wide phone that is ~30 px per unit at 390 x 844 and ~29 at 390 x 664
+  (standing characters ~60 px, seated ~50 px); every station, table and the door sit between
+  the HUD and the goal pill at both sizes. No pan.
 - Light: hemisphere (warm sky / brown ground, 1.65) + one warm directional light (2.7) from the
   camera's right (8, 12, 3.5), so the two back walls get different shading; Lambert materials,
   Neutral tone mapping (exposure 1.06), sRGB output. No shadow maps: soft blob shadows under
@@ -470,7 +487,11 @@ mip levels would bleed neighbouring colours.
   Harbor Tavern (the mirrored plan): white over sea-blue walls, blue / white checker dining
   floor, scrubbed deck planks in the kitchen, navy counter tops, blue cupboards, white enamel
   stoves / oven, a white fridge, brown tables with wooden chairs, the sea in the windows, and
-  the plot is a wooden pier on posts in the sea (foam line, sea plane) with white fences.
+  the plot is a wooden pier on posts in the sea (foam line, sea plane) with its own dressing:
+  a red and white lighthouse peeking over the far corner, palms at the sides, barrels, crates
+  and rope coils along the cut front walls, a sagging rope rail on short posts at the deck edge
+  and the two lanterns at the path (no garden: no flower beds, picket fence, oaks or tufts).
+  Still one merged vertex-coloured mesh (one draw call).
 - Room (14 x 14): two tall back walls (wall scale 0.86, 3.44 high) with wooden cupboards over
   the cooks' lanes and windows over the dining room; low cut front walls (0.52 high) with their
   thickness and pillars showing, the floor slab edge along the cut; the open front corner is
@@ -505,15 +526,24 @@ the door) and mixer; instances are pooled and reused.
 
 | entity state | what the scene shows |
 |---|---|
-| guest enter / toSeat / leaving | Walking_A along `path(from, to)` at `t / dur` (playback from `pathLength / dur`), facing the walk direction, fade in over 0.4 s at the door / out over the last 0.45 s |
+| guest enter / toSeat / leaving | Walking_A along `path(from, to)` at `t / dur` (playback from `pathLength / dur`), facing the walk direction, keeping to the right (`LANE`, below); an arriving guest fades in on the path outside (0.25..1.7 units into the walk), a leaving one fades out on it once past the door (from 3.6 to 0.8 units before the end) |
 | guest waiting / eating | Sit_Chair_Down (0.75 s) on arrival, then Sit_Chair_Idle, facing the table; eating: the dish on `seat.plate`, a small bite pulse, shrinking a little |
 | guest paying | Sit_Chair_StandUp then Cheer; empty plate / bowl / mug on the table (it pops away 1.4 s into leaving); coins pop on `pay` |
 | guest without a seat (queue) | Idle at its node, facing the camera (`FACE.yaw` = 45 deg) |
 | cook idle | Idle at home, facing the camera |
-| cook toStation / return | Running_A (playback from the real speed, so the Cook speed upgrade shows) |
-| cook cooking | Interact behind the station counter, facing it (and the camera); the dish grows on `dishSpot` (`helperDishSpot` for a helper, slot 1) during the last 45 % of the cook time; steam puffs over stove / pot / oven |
+| cook toStation / return | Running_A (playback from the real speed, so the Cook speed upgrade shows), keeping to the right outside the kitchen L |
+| cook cooking | Interact behind the station counter, facing it (and the camera); the dish grows on `dishSpot` (`helperDishSpot` for a helper, slot 1) during the last 45 % of the cook time; small steam puffs rise from the back of the stove / pot / oven |
 | cook toTable | Run_Carry (running legs, both arms forward) with the dish in front of the chest |
 | cook serving | facing the table, the dish travels from the hands to `seat.plate` in 0.32 s, then Idle |
+
+Walkers keep to the right (`LANE` in `crowd.js`): a purely visual side offset from the walk
+graph's centre line, ~0.2-0.55 units to the right of the walk (each walker his own distance, so
+people walking one behind the other up the screen do not stack into one column), plus a step
+aside (up to 0.66) from anyone standing or walking within 0.85 units. Guests going in and out
+and cooks running both ways pass side by side instead of through each other. The offset fades
+out within 0.9 units of a walk's exact start / end spot (seat, station, table front, home; the
+door is a pass-through) and inside the kitchen L (narrow cook lanes), and is smoothed over time,
+so arrivals stay exact and the logic's timing (`t / dur` along `path`) is untouched.
 
 `Walk_Carry` / `Run_Carry` / `Carry_Idle` are built at load time: legs and body from the clip,
 both arms turned to point forward (solved once on a template). Clip feet speeds (measured):
@@ -542,17 +572,23 @@ mug / bowl_dirty / plate_dirty. Unknown dish ids fall back to the burger.
   hire (puff at the cook's home), boost (sparkles), serve (small sparkle), cookStart (steam),
   locationComplete (confetti rain), locationStart (switch + confetti), setting {key: 'quality'}.
   Others are ignored.
-- `pick(clientX, clientY)`: stations first: screen box of the counter and the lane behind it
+- `pick(clientX, clientY)`: guests at their table first (waiting / eating / paying): a tight
+  body box (0.36 half size, 0.45..2.25 high, no padding) around each, because at t3 / t4 / t5
+  they sit right in front of the counters, inside a station's box and nearer to the camera.
+  Then stations: screen box of the counter and the lane behind it
   (where its cook stands); seen from the diagonal the boxes of two neighbouring stations
   overlap near the corner, so the nearest box centre wins. Then the nearest guest / cook
   (screen boxes). Tables: the tap ray must cross the table group's footprint (the round table
   top / pedestal or a chair) somewhere between the floor and the table top; a faded (not yet
   bought) table wins over a guest or cook who is just walking past it (cooks walk right in
   front of t3), otherwise people win over tables. Returns null on empty floor.
-- `anchor(kind, id, out?)`: station (open: above the station and its cook, 3.15 up and 0.2
-  toward the wall, clear of the head; closed: on the counter, 1.25 up and 0.6 toward the
-  room, where the Open sign stands), table (1.3 up), customer / cook (above the head: 2.75
-  standing, 2.35 seated), coins (`SCREEN.coins`, top centre), door. `anchor(stationId)` (one argument) = station.
+- `anchor(kind, id, out?)`: station (open: above the station and its cook, `BADGE` = 3.4 up,
+  0.25 toward the wall, clear of the head, and 0.5 along the wall away from the cooks' corner,
+  so the two badges by the corner do not bunch over the cooks walking there; closed: on the
+  counter, 1.25 up and 0.6 toward the room, where the Open sign stands), counter (the counter
+  top, 1.15 up, 0.45 along the wall away from the corner: the tutorial ring), table (1.3 up),
+  customer / cook (above the head: 2.75 standing, 2.35 seated), coins (`SCREEN.coins`, top
+  centre), door. `anchor(stationId)` (one argument) = station.
   Pass `out` to reuse an object (no allocation).
 - `setQuality(q)`, `setAutoQuality(on)`, `setInsets({ top, bottom, left, right })` (CSS px
   without safe areas; the scene adds `env(safe-area-inset-*)`), `resize()` (also automatic:

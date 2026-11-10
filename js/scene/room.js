@@ -263,19 +263,21 @@ export function buildRoom(kit, layout, quality = 'high') {
   }
   put('kitchencabinet_half', minX + 1.2, -0.55, minZ, 0, [0.6, 1, 1], cab);
   put('kitchencabinet_half', minX, -0.55, minZ + 1.2, H, [0.6, 1, 1], cab);
-  put('kitchencounter_sink_backsplash', 2.6, 0, minZ + 1);
+  // (sink and dresser sit close to the counter rows, so their fronts stay inside a 390 px
+  // wide frame; the fridge further out is mostly off-screen on a phone)
+  put('kitchencounter_sink_backsplash', 1.95, 0, minZ + 1);
   put(harbor ? 'fridge_B' : 'fridge_A', 5.6, 0, minZ + 1);
-  put('kitchencabinet', 2.6, -0.3, minZ, 0, [1, 0.9, 1], cab);
-  put('kitchencounter_straight_B_backsplash', minX + 0.9, 0, 2.6, H, [1, 1, 0.9]);
+  put('kitchencabinet', 1.95, -0.3, minZ, 0, [1, 0.9, 1], cab);
+  put('kitchencounter_straight_B_backsplash', minX + 0.9, 0, 2.0, H, [1, 1, 0.9]);
   if (decor) {
-    put('dishrack_plates', 2.15, 1.0, minZ + 1.05, 0, 0.7);
-    put('jar_A_large', 3.2, 1.0, minZ + 1.55, 0, 0.8);
+    put('dishrack_plates', 1.5, 1.0, minZ + 1.05, 0, 0.7);
+    put('jar_A_large', 2.55, 1.0, minZ + 1.55, 0, 0.8);
     put('jar_B_medium', 5.4, 2.5, minZ + 1.1, 0, 0.9);
-    put('plate_small', minX + 1.2, 1.0, 2.2, 0, 0.8);
-    put('plate_small', minX + 1.2, 1.08, 2.2, 0, 0.8);
-    put('plate_small', minX + 1.2, 1.16, 2.2, 0, 0.8);
-    put('jar_C_large', minX + 0.6, 1.0, 3.05, 0, 0.9);
-    put('crate_buns', minX + 1.0, 1.0, 2.75, H, 0.3);
+    put('plate_small', minX + 1.2, 1.0, 1.6, 0, 0.8);
+    put('plate_small', minX + 1.2, 1.08, 1.6, 0, 0.8);
+    put('plate_small', minX + 1.2, 1.16, 1.6, 0, 0.8);
+    put('jar_C_large', minX + 0.6, 1.0, 2.45, 0, 0.9);
+    put('crate_buns', minX + 1.0, 1.0, 2.15, H, 0.3);
     // the cooks' corner: jars on the shelves
     put('jar_A_medium', minX + 0.3, 2.5, minZ + 1.6, 0, 0.8);
     put('jar_D_medium', minX + 1.6, 2.5, minZ + 0.3, 0, 0.8);
@@ -428,21 +430,148 @@ export function buildRoom(kit, layout, quality = 'high') {
       og.push(g);
     }
   };
+  // harbour pieces (Harbor Tavern): a cylinder between two world points, palms, a lighthouse,
+  // barrels, crates and rope coils
+  const _up = new THREE.Vector3(0, 1, 0), _dir = new THREE.Vector3(), _q = new THREE.Quaternion();
+  const segW = (ax, ay, az, bx, by, bz, r, top, bottom = top, sides = 5) => {
+    _dir.set(bx - ax, by - ay, bz - az);
+    const len = _dir.length();
+    const g = new THREE.CylinderGeometry(r, r, len, sides, 1, true);
+    colorize(g, top, bottom, -len / 2, len / 2);
+    g.applyQuaternion(_q.setFromUnitVectors(_up, _dir.normalize()));
+    g.translate((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+    og.push(g);
+  };
+  const cyl = (x, y, z, r0, r1, h, top, bottom = top, sides = 8) => {
+    const g = new THREE.CylinderGeometry(r1, r0, h, sides).translate(x, y + h / 2, z);
+    colorize(g, top, bottom, y, y + h);
+    og.push(g);
+  };
+  const palm = (x, z, s = 1, lean = 0.5) => {
+    // a gently curved trunk (world coordinates), fronds drooping all round, three coconuts
+    let px = x, py = PT, pz = z;
+    const lx = lean * 0.7071, lz = lean * 0.7071;
+    for (let i = 0; i < 5; i++) {
+      const k = (i + 1) / 5;
+      const nx = x + lx * k * k * s, ny = PT + 0.86 * s * (i + 1), nz = z + lz * k * k * s;
+      segW(px, py, pz, nx, ny, nz, (0.17 - i * 0.014) * s, '#b48a5a', '#8c6440', 6);
+      px = nx; py = ny; pz = nz;
+    }
+    for (let f = 0; f < 7; f++) {
+      const a = (f / 7) * Math.PI * 2 + 0.3;
+      const ex = px + Math.cos(a) * 1.25 * s, ez = pz + Math.sin(a) * 1.25 * s;
+      const g = new THREE.ConeGeometry(0.3 * s, 1.6 * s, 4).scale(1, 1, 0.35);
+      colorize(g, theme.leaves[2], theme.leaves[0], -0.7 * s, 0.7 * s);
+      _dir.set(ex - px, -0.55 * s, ez - pz).normalize();
+      g.applyQuaternion(_q.setFromUnitVectors(_up, _dir));
+      g.translate(px + _dir.x * 0.75 * s, py + _dir.y * 0.75 * s + 0.08 * s, pz + _dir.z * 0.75 * s);
+      og.push(g);
+    }
+    for (let c = 0; c < 3; c++) {
+      const a = c * 2.1;
+      const g = new THREE.IcosahedronGeometry(0.13 * s, 0).translate(px + Math.cos(a) * 0.16 * s, py - 0.14 * s, pz + Math.sin(a) * 0.16 * s);
+      colorize(g, '#7a5232', '#5e3d22', 0, 1);
+      og.push(g);
+    }
+  };
+  const lighthouse = (x, z, s = 1) => {
+    // red and white rings, a gallery, a warm lamp room and a red cap
+    const rings = 5, hh = 0.62 * s;
+    for (let i = 0; i < rings; i++) {
+      const r0 = (0.82 - i * 0.07) * s, r1 = (0.82 - (i + 1) * 0.07) * s;
+      const c = i % 2 ? '#e2584a' : '#f7f3ea';
+      cyl(x, PT + i * hh, z, r0, r1, hh, c, i % 2 ? '#c8463a' : '#e6e0d2', 12);
+    }
+    const top = PT + rings * hh;
+    cyl(x, top, z, 0.62 * s, 0.62 * s, 0.1 * s, '#4a4f58', '#3a3f48', 12);
+    cyl(x, top + 0.1 * s, z, 0.34 * s, 0.34 * s, 0.5 * s, '#fff6c4', '#ffd36a', 8);
+    const cap = new THREE.ConeGeometry(0.46 * s, 0.5 * s, 8).translate(x, top + 0.85 * s, z);
+    colorize(cap, '#e2584a', '#b8402f', top + 0.6 * s, top + 1.1 * s);
+    og.push(cap);
+  };
+  const barrel = (x, z, s = 1, y = PT) => {
+    cyl(x, y, z, 0.27 * s, 0.29 * s, 0.72 * s, '#b07a46', '#8a5a32', 9);
+    cyl(x, y + 0.14 * s, z, 0.3 * s, 0.3 * s, 0.07 * s, '#5a4232', '#5a4232', 9);
+    cyl(x, y + 0.52 * s, z, 0.3 * s, 0.3 * s, 0.07 * s, '#5a4232', '#5a4232', 9);
+  };
+  const coil = (x, z) => {
+    for (const [r, y] of [[0.24, 0.06], [0.17, 0.13]]) {
+      const g = new THREE.TorusGeometry(r, 0.06, 4, 12).rotateX(H).translate(x, PT + y, z);
+      colorize(g, '#e2cc96', '#c4a86e', PT, PT + 0.2);
+      og.push(g);
+    }
+  };
   // canonical -> world for the round shapes (positions only)
   const T = (fn) => (x, z, ...a) => { const [wx, wz] = P(x, z); fn(wx, wz, ...a); };
   const tr = T(tree), bu = T(bush), fl = T(flower), tu = T(tuft);
+  const pa = T(palm), lh = T(lighthouse), ba = T(barrel), co = T(coil);
   const dc = door[0]; // the door corner is on the diagonal: dc = door x = door z
-  // trees: behind the far corner (they peek over the walls) and at the sides
-  tr(minX - 1.9, minZ - 1.7, 1.3);
-  tr(minX - 2.0, minZ + 3.6, 1.05);
-  tr(minX + 3.6, minZ - 2.0, 1.1);
-  tr(minX - 1.6, maxZ - 2.0, 0.95);
-  tr(maxX - 2.0, minZ - 1.6, 0.95);
-  if (!theme.water) {
+  if (theme.water) {
+    // the harbour: a lighthouse peeks over the far corner, palms at the sides
+    lh(minX - 2.1, minZ - 1.9, 0.92);
+    pa(minX - 2.0, minZ + 3.6, 1.0, 0.7);
+    pa(minX + 3.6, minZ - 2.0, 1.05, -0.6);
+    pa(minX - 1.6, maxZ - 2.0, 0.9, 0.6);
+    pa(maxX - 2.0, minZ - 1.6, 0.9, -0.5);
+  } else {
+    // trees: behind the far corner (they peek over the walls) and at the sides
+    tr(minX - 1.9, minZ - 1.7, 1.3);
+    tr(minX - 2.0, minZ + 3.6, 1.05);
+    tr(minX + 3.6, minZ - 2.0, 1.1);
+    tr(minX - 1.6, maxZ - 2.0, 0.95);
+    tr(maxX - 2.0, minZ - 1.6, 0.95);
     tr(minX - 1.9, maxZ + 1.9, 1.0);
     tr(maxX + 1.9, minZ - 1.9, 1.0);
   }
-  if (decor) {
+  if (decor && theme.water) {
+    // the pier: barrels, crates and rope coils along the low front walls, a rope rail on
+    // short posts at the deck edge, lanterns at the path
+    const from = minX + 1.0, to = dc - 3.0;
+    for (const side of [0, 1]) {
+      const pos = (a, off) => (side ? [maxX + off, a] : [a, maxZ + off]);
+      const ry = side ? H : 0;
+      let k = side * 2;
+      for (let a = from + 0.45; a < to - 0.3; a += 1.15) {
+        const kind = k++ % 5;
+        const [x, z] = pos(a, 0.9);
+        if (kind === 0 || kind === 3) { ba(x, z, 1); if (kind === 3) { const [x2, z2] = pos(a + 0.5, 1.35); ba(x2, z2, 0.85); } }
+        else if (kind === 1) { box(0.62, 0.56, 0.62, x, PT, z, '#d0a468', '#a77a44', ry + 0.15); box(0.66, 0.07, 0.66, x, PT + 0.24, z, '#8a6440', '#8a6440', ry + 0.15); }
+        else if (kind === 2) co(x, z);
+        else { box(0.6, 0.5, 0.6, x, PT, z, '#c99a5e', '#a07040', ry - 0.1); box(0.5, 0.42, 0.5, x, PT + 0.5, z, '#d6ab70', '#b08048', ry + 0.2); }
+      }
+      // rope rail: short posts with a sagging rope between them
+      const fFrom = minX - 2.0, fTo = dc - 2.6, off = 2.15, step = 1.8;
+      let prev = null;
+      for (let a = fFrom; a <= fTo + 1e-6; a += step) {
+        const [qx, qz] = pos(a, off);
+        box(0.2, 0.62, 0.2, qx, PT, qz, '#8a6446', '#5e4330');
+        box(0.26, 0.06, 0.26, qx, PT + 0.62, qz, '#6e4f35');
+        const [wx, wz] = P(qx, qz);
+        if (prev) {
+          const mx = (prev[0] + wx) / 2, mz = (prev[1] + wz) / 2;
+          segW(prev[0], PT + 0.5, prev[1], mx, PT + 0.36, mz, 0.04, '#e2cc96', '#c4a86e', 4);
+          segW(mx, PT + 0.36, mz, wx, PT + 0.5, wz, 0.04, '#e2cc96', '#c4a86e', 4);
+        }
+        prev = [wx, wz];
+      }
+      const [lx, lz] = pos(dc + 0.2, 2.15);
+      box(0.42, 0.22, 0.42, lx, PT, lz, '#b9a58a', '#9c8a72');
+      box(0.2, 1.35, 0.2, lx, PT + 0.2, lz, '#6a4630', '#553623');
+      box(0.36, 0.06, 0.36, lx, PT + 1.55, lz, '#4a2f1e');
+      box(0.3, 0.38, 0.3, lx, PT + 1.6, lz, '#fff2b8', '#ffcf5a');
+      box(0.46, 0.08, 0.46, lx, PT + 1.98, lz, '#4a2f1e');
+      box(0.22, 0.12, 0.22, lx, PT + 2.06, lz, '#4a2f1e');
+      // a stack of barrels at the end of the rail
+      const [ex, ez] = pos(fTo + 0.9, off + 0.1);
+      ba(ex, ez, 0.9);
+      const [ex2, ez2] = pos(fTo + 1.45, off + 0.45);
+      ba(ex2, ez2, 0.8);
+    }
+    co(minX - 1.2, maxZ + 2.3);
+    co(maxX + 2.3, minZ - 1.2);
+    ba(minX - 2.4, minZ + 7.5, 0.9);
+    ba(minX + 7.5, minZ - 2.4, 0.9);
+  } else if (decor) {
     // flower beds along the outside of the low front walls, with a picket fence in front
     const bedFrom = minX + 1.0, bedTo = dc - 3.0;
     for (const side of [0, 1]) {
@@ -522,7 +651,9 @@ export function buildRoom(kit, layout, quality = 'high') {
   const V = (x, y, z) => { const [wx, wz] = P(x, z); return new THREE.Vector3(wx, y, wz); };
   const focus = [
     V(-5.9, 0, 3.0), V(3.0, 0, -5.9),
-    V(minX - 0.5, 4 * WH, minZ - 0.5), V(maxX + 0.6, 0, maxZ + 0.6),
+    // the path a little past the door: on a short screen the door and the first steps of the
+    // path stay clear of the goal pill (the frame zooms out a touch instead)
+    V(minX - 0.5, 4 * WH, minZ - 0.5), V(maxX + 1.1, 0, maxZ + 1.1),
   ];
   return { group, tris: b.tris, focus, theme, mats };
 }

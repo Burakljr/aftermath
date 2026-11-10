@@ -17,7 +17,7 @@
 // Schema of a layout (LAYOUTS[id]):
 //   id, bounds { minX, maxX, minZ, maxZ }          room floor (walls stand on the edges)
 //   door { pos, node, outside }                     door centre; graph node inside; node outside
-//   queue [[x, z], ...]                             spots by the door (graph nodes q1..q3)
+//   queue [[x, z], ...]                             spare spots inside the door corner (graph nodes q1..q3, unused by the logic)
 //   tables [{ id, pos, front, seats: [{ id, pos, facing, plate, chair }] }]
 //      seat.id is also its graph node (where the guest sits); table.front is the node where
 //      cooks hand over dishes (the table corner toward the camera);
@@ -149,7 +149,7 @@ function attachPaths(layout) {
 // def: { id, bounds, stations: [{ id, wall: 'left'|'right', at }], tables: [[x, z]...],
 //        lane, counter, kitchenReach, nodes: { name: [x, z] }, edges: [[a, b]...], alias,
 //        obstacles, homes: [[x, z]...], door: [x, z], doorPos, out: [x, z], queue: [[x, z]...],
-//        speeds, swap }
+//        sideFront: { t<n>: 'L'|'R' } (hand the dish over at that approach node), speeds, swap }
 // Table derived nodes: t<n>f (front), t<n>L (approach to seat a), t<n>R (approach to seat b);
 // a name in def.alias maps several of them onto one shared hub node.
 const SEAT = 1.15, CHAIR = 1.25, FRONT = 0.92, APPROACH = 1.15;
@@ -164,16 +164,20 @@ function buildIso(def) {
 
   const tables = def.tables.map(([x, z], i) => {
     const id = 't' + (i + 1);
-    const front = node(id + 'f', x + FRONT, z + FRONT);
+    // side: the dish is handed over at an approach node (L or R) instead of the front corner
+    // (the table right in front of the door: a cook there would stand in the guests' way)
+    const side = def.sideFront && def.sideFront[id];
     const L = node(id + 'L', x - SEAT, z + APPROACH);
     const R = node(id + 'R', x + APPROACH, z - SEAT);
+    const front = side ? (side === 'L' ? L : R) : node(id + 'f', x + FRONT, z + FRONT);
     const seats = [
       { id: id + 'a', pos: [r2(x - SEAT), z], facing: H, plate: [r2(x - 0.36), 1.0, z], chair: { pos: [r2(x - CHAIR), z], facing: H } },
       { id: id + 'b', pos: [x, r2(z - SEAT)], facing: 0, plate: [x, 1.0, r2(z - 0.36)], chair: { pos: [x, r2(z - CHAIR)], facing: 0 } },
     ];
     node(seats[0].id, seats[0].pos[0], seats[0].pos[1]);
     node(seats[1].id, seats[1].pos[0], seats[1].pos[1]);
-    edge(front, L); edge(front, R); edge(L, seats[0].id); edge(R, seats[1].id);
+    if (!side) { edge(front, L); edge(front, R); }
+    edge(L, seats[0].id); edge(R, seats[1].id);
     return { id, pos: [x, z], front, seats };
   });
 
@@ -264,21 +268,26 @@ const ISO = {
     ['t3f', 'H34'], ['t3f', 'H35'],
     ['H34', 't4f'], ['H35', 't5f'],
     ['t4f', 't1L'], ['t5f', 't2R'],
-    ['t6L', 't1f'], ['t6R', 't2f'],
-    ['door', 't6f'],
+    ['t6L', 't1f'], ['t6R', 't2f'], ['t1f', 't2f'],
+    // the door splits at once to both sides of t6 (no shared waypoint in the doorway); t6's
+    // dish is handed over at its right side (t6R), so no cook stands in the door
+    ['door', 't6L'], ['door', 't6R'],
     ['h1', 'C'], ['h2', 'C'], ['h3', 'C'], ['h4', 'C'],
   ],
   // decor the walks must avoid (canonical): sink + fridge past the back-right arm, a dresser
   // past the back-left arm
   obstacles: [
-    { kind: 'sink', x0: 1.6, x1: 3.6, z0: -7, z1: -5 }, { kind: 'fridge', x0: 4.6, x1: 6.6, z0: -7, z1: -5 },
-    { kind: 'dresser', x0: -7, x1: -5.2, z0: 1.6, z1: 3.6 },
+    { kind: 'sink', x0: 0.95, x1: 2.95, z0: -7, z1: -5 }, { kind: 'fridge', x0: 4.6, x1: 6.6, z0: -7, z1: -5 },
+    { kind: 'dresser', x0: -7, x1: -5.2, z0: 1.0, z1: 3.0 },
   ],
   homes: [[-5.45, -6.2], [-6.2, -5.45], [-6.3, -4.65], [-4.65, -6.3]],
+  sideFront: { t6: 'R' },
   door: [6.25, 6.25],
   doorPos: [6.4, 6.4],
   out: [9.4, 9.4],
-  queue: [[7.4, 8.3], [8.3, 7.4], [8.4, 9.0]],
+  // spare waiting spots inside the front corner, along the low front walls (graph dead ends;
+  // the logic never queues guests: nobody comes in while every seat is taken)
+  queue: [[4.2, 6.35], [6.35, 4.2], [3.2, 6.4]],
 };
 const named = (ids) => ISO.stations.map((s, i) => ({ ...s, id: ids[i] }));
 const renameEdges = (ids) => ISO.edges.map((e) => e.map((n) => n.replace(/^(st|sh)_s(\d)$/, (m, p, d) => p + '_' + ids[+d])));

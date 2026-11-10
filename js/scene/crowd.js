@@ -18,6 +18,14 @@ const SIT = { back: -0.16, y: 0.0 };
 const TURN_RATE = 14;
 // where idle people look: toward the camera (the iso camera sits at yaw 45 deg)
 export const FACE = { yaw: Math.PI / 4 };
+// Walkers keep to the right of their walk (guests going in and out, cooks running both ways
+// pass side by side instead of through each other) and step aside from anyone standing or
+// walking close by. Purely visual: the logic position is the centre line of the walk graph;
+// the side offset fades out near the start / end spots, so seats, stations and table fronts
+// are reached exactly. lane = offset to the right, ease = units over which it fades in / out.
+export const LANE = { width: 0.38, ease: 0.9, avoid: 0.85, push: 0.42, max: 0.66, rate: 9 };
+// a leaving guest fades out on the path outside, an arriving one fades in on it (units)
+const FADE = { outFrom: 3.6, outTo: 0.8, inFrom: 0.25, inTo: 1.7 };
 
 const _v = new THREE.Vector3();
 
@@ -113,6 +121,8 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
   }
   // position along the entity's current walk (or its node when it stays); the route is cached
   // on the view `v` so the steady state allocates nothing. Returns the walking speed.
+  // With a view `v`, also stores the walk progress (v.ws along v.len) and the direction of
+  // the current segment (v.dx, v.dz) for the side offset.
   function walkPos(e, out, v) {
     if (e.dur > 0 && e.from !== e.to) {
       if (!v || v.rf !== e.from || v.rt !== e.to) {
@@ -120,13 +130,14 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
         if (!v) { layout.pointAt(e.from, e.to, clamp(e.t / e.dur, 0, 1) * len, out); return len / e.dur; }
         v.rf = e.from; v.rt = e.to; v.pts = pts; v.len = len;
       }
-      along(v.pts, clamp(e.t / e.dur, 0, 1) * v.len, out);
+      v.ws = clamp(e.t / e.dur, 0, 1) * v.len;
+      along(v.pts, v.ws, out, v);
       return v.len / e.dur;
     }
     nodePos(e.to, out);
     return 0;
   }
-  function along(pts, s, out) {
+  function along(pts, s, out, dir) {
     if (!pts.length) return out;
     let left = s;
     for (let i = 1; i < pts.length; i++) {
@@ -136,6 +147,7 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
         const k = d > 0 ? Math.min(1, left / d) : 1;
         out[0] = a[0] + (b[0] - a[0]) * k;
         out[1] = a[1] + (b[1] - a[1]) * k;
+        if (dir && d > 0) { dir.dx = (b[0] - a[0]) / d; dir.dz = (b[1] - a[1]) / d; }
         return out;
       }
       left -= d;
@@ -144,12 +156,70 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     return out;
   }
 
+  // ------------------------------------------------------------------ keep right / step aside
+  // Everyone on the floor this frame (x, z, walking?), filled in update(); no allocation.
+  const floor = { n: 0, x: new Float32Array(64), z: new Float32Array(64), w: new Uint8Array(64), v: [] };
+  function floorAdd(v, x, z, walking) {
+    if (floor.n >= 64) return;
+    const i = floor.n++;
+    floor.x[i] = x; floor.z[i] = z; floor.w[i] = walking ? 1 : 0; floor.v[i] = v;
+  }
+  // side offset of a walker at centre-line point (cx, cz): to the right of the walk, plus a
+  // push away from people close by; eased in / out near the ends (easeStart / easeEnd: does
+  // this walk start / end at a spot that must be reached exactly), smoothed over time.
+  function sideOffset(v, cx, cz, easeStart, easeEnd, dt) {
+    const rx = -v.dz, rz = v.dx; // right of the walking direction (characters face +z, right = -x)
+    // each walker keeps his own distance from the centre line, so people walking one behind
+    // the other up the screen do not stack into one column
+    if (v.lane === undefined) { let h = 7; for (let i = 0; i < v.id.length; i++) h = (h * 31 + v.id.charCodeAt(i)) % 1009; v.lane = LANE.width * (0.55 + 0.9 * (h / 1009)); }
+    let side = v.lane;
+    for (let i = 0; i < floor.n; i++) {
+      const o = floor.v[i];
+      if (o === v) continue;
+      const ox = floor.x[i] - cx, oz = floor.z[i] - cz;
+      const d2 = ox * ox + oz * oz;
+      if (d2 > LANE.avoid * LANE.avoid) continue;
+      const lat = ox * rx + oz * rz; // where the other one is, across my walk
+      const k = 1 - Math.sqrt(d2) / LANE.avoid;
+      // step to the other side of him (a tie: by id, so two walkers pick opposite sides)
+      const dirn = Math.abs(lat) > 0.05 ? -Math.sign(lat) : (v.id < o.id ? 1 : -1);
+      side += dirn * k * LANE.push * (floor.w[i] ? 1 : 1.4);
+    }
+    side = clamp(side, -LANE.max, LANE.max);
+    // no side steps in the kitchen L (narrow cook lanes between the counters and the walls)
+    let ease = kitchenFade(cx, cz);
+    if (easeStart) ease = Math.min(ease, v.ws / LANE.ease);
+    if (easeEnd) ease = Math.min(ease, (v.len - v.ws) / LANE.ease);
+    side *= clamp(ease, 0, 1);
+    const k = 1 - Math.exp(-LANE.rate * dt);
+    v.ox += (rx * side - v.ox) * k;
+    v.oz += (rz * side - v.oz) * k;
+    // never more than the eased amount away from the centre line (arrivals stay exact)
+    const m = Math.hypot(v.ox, v.oz), lim = LANE.max * clamp(ease, 0, 1);
+    if (m > lim && m > 0) { v.ox *= lim / m; v.oz *= lim / m; }
+  }
+  // 0 inside the kitchen L (within kitchen.depth of a back wall, up to kitchen.reach along
+  // it; the L is symmetric across x = z, so this holds for the mirrored plan too), 1 from
+  // 0.8 units outside it
+  function kitchenFade(x, z) {
+    const k = layout.kitchen, b = layout.bounds;
+    if (!k || !k.depth) return 1;
+    const xa = b.minX + k.depth, za = b.minZ + k.depth, r = (k.reach ?? 0) + 0.5;
+    const dA = Math.max(0, x - xa, z - r), dB = Math.max(0, z - za, x - r);
+    return clamp(Math.min(dA, dB) / 0.8, 0, 1);
+  }
+  function settle(v, dt) {
+    const k = Math.exp(-LANE.rate * 1.5 * dt);
+    v.ox *= k; v.oz *= k;
+    if (Math.abs(v.ox) < 1e-3 && Math.abs(v.oz) < 1e-3) { v.ox = 0; v.oz = 0; }
+  }
+
   // ------------------------------------------------------------------ customers
   function spawnCustomer(c) {
     const look = c.look || {};
     const hero = heroes.acquire(CHAR_MODEL[look.char] || 'knight', look.tint | 0);
     group.add(hero.root);
-    const v = { id: c.id, hero, st: null, prevSt: null, vt: 0, sitT: 99, x: 0, z: 0, yaw: 0, y: 0, seated: false, stamp, dish: null, emptyT: 0, standing: true };
+    const v = { id: c.id, hero, st: null, prevSt: null, vt: 0, sitT: 99, x: 0, z: 0, yaw: 0, y: 0, seated: false, stamp, dish: null, emptyT: 0, standing: true, ox: 0, oz: 0, dx: 0, dz: 1, ws: 0, len: 0 };
     walkPos(c, pt);
     v.x = pt[0]; v.z = pt[1];
     const si = seats.get(c.seat);
@@ -178,23 +248,29 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       prev[0] = v.x; prev[1] = v.z;
       const speed = walkPos(c, pt, v);
       walking = speed > 0 && c.t < c.dur;
-      v.x = pt[0]; v.z = pt[1];
+      // the door is a pass-through: only the seat end of a walk is eased
+      if (walking) sideOffset(v, pt[0], pt[1], c.state === 'leaving', c.state === 'toSeat', dt);
+      else settle(v, dt);
+      v.x = pt[0] + v.ox; v.z = pt[1] + v.oz;
       const dx = v.x - prev[0], dz = v.z - prev[1];
-      if (dx * dx + dz * dz > 1e-8) yawT = Math.atan2(dx, dz);
+      if (walking && dx * dx + dz * dz > 1e-8) yawT = Math.atan2(dx, dz);
       v.seated = false;
       v.y = 0;
-      if (c.state === 'enter') opacity = clamp(v.vt / 0.4, 0, 1);
-      if (c.state === 'leaving') opacity = clamp((c.dur - c.t) / 0.45, 0, 1);
+      // fade in on the path outside; a leaving guest fades out on it once past the door
+      if (c.state === 'enter') opacity = v.len > 0 ? clamp((v.ws - FADE.inFrom) / (FADE.inTo - FADE.inFrom), 0, 1) : clamp(v.vt / 0.4, 0, 1);
+      if (c.state === 'leaving') opacity = v.len > 0 ? clamp((v.len - v.ws - FADE.outTo) / (FADE.outFrom - FADE.outTo), 0, 1) : clamp((c.dur - c.t) / 0.45, 0, 1);
       if (walking) h.play('Walking_A', c.state === 'leaving' && v.vt < 0.3 ? 0.3 : 0.2, clamp(speed / WALK_STRIDE, 0.8, 2.6));
       else h.play('Idle', 0.25);
     } else if (!seat) {
       // no seat (a queue spot, or a lab line-up): stand and look at the camera
+      v.ox = v.oz = 0;
       walkPos(c, pt, v);
       v.x = pt[0]; v.z = pt[1];
       yawT = FACE.yaw;
       h.play('Idle', 0.25);
     } else {
       // seated (waiting / eating) or standing up (paying)
+      v.ox = v.oz = 0;
       const fx = Math.sin(seat.facing), fz = Math.cos(seat.facing);
       yawT = seat.facing;
       if (c.state === 'paying') {
@@ -243,7 +319,7 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     const hero = heroes.acquire('barbarian', 0);
     group.add(hero.root);
     walkPos(c, pt);
-    return { id: c.id, hero, st: null, vt: 0, x: pt[0], z: pt[1], yaw: 0, stamp, carry: false };
+    return { id: c.id, hero, st: null, vt: 0, x: pt[0], z: pt[1], yaw: 0, stamp, carry: false, ox: 0, oz: 0, dx: 0, dz: 1, ws: 0, len: 0 };
   }
 
   // the dish rides in front of the chest, between the hands
@@ -256,8 +332,11 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     let yawT = v.yaw;
     prev[0] = v.x; prev[1] = v.z;
     const speed = walkPos(c, pt, v);
-    v.x = pt[0]; v.z = pt[1];
     const walking = speed > 0 && c.t < c.dur;
+    // cooks walk between exact spots (station, table front, home): both ends eased
+    if (walking) sideOffset(v, pt[0], pt[1], true, true, dt);
+    else settle(v, dt);
+    v.x = pt[0] + v.ox; v.z = pt[1] + v.oz;
     const order = c.order;
     const carrying = c.state === 'toTable' || (c.state === 'serving' && v.vt < 0.32);
     if (walking) {
@@ -316,11 +395,20 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
   const custEntity = new Map();
   function dropStaleCook(v, id) { if (v.stamp !== stamp) { heroes.release(v.hero); cooks.delete(id); } }
   function dropStaleCustomer(v, id) { if (v.stamp !== stamp) { heroes.release(v.hero); cust.delete(id); } }
+  function fillFloor() {
+    floor.n = 0;
+    for (const v of cooks.values()) floorAdd(v, v.x, v.z, v.st === 'toStation' || v.st === 'toTable' || v.st === 'return');
+    for (const v of cust.values()) {
+      if (v.seated || v.st === 'waiting' || v.st === 'eating') continue; // on a chair, out of the way
+      floorAdd(v, v.x, v.z, v.st === 'enter' || v.st === 'toSeat' || v.st === 'leaving');
+    }
+  }
   function update(state, dt) {
     if (!layout) return;
     stamp++;
     served.clear();
     custEntity.clear();
+    fillFloor();
     const cs = (state && state.customers) || [];
     for (let i = 0; i < cs.length; i++) custEntity.set(cs[i].id, cs[i]);
     // cooks first (they mark guests whose dish is still on its way to the table)

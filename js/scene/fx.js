@@ -151,7 +151,7 @@ export function createFx(preset) {
     steam(pos) {
       for (let i = 0; i < n(3); i++) {
         emit('puff', pos.x + (rnd() - 0.5) * 0.5, pos.y, pos.z + (rnd() - 0.5) * 0.3, {
-          vx: (rnd() - 0.5) * 0.2, vy: 0.9 + rnd() * 0.4, vz: 0, life: 0.9 + rnd() * 0.3, size: 0.55 + rnd() * 0.3, drag: 0.6, color: 0xffffff, delay: i * 0.15,
+          vx: (rnd() - 0.5) * 0.2, vy: 0.9 + rnd() * 0.4, vz: 0, life: 0.85 + rnd() * 0.3, size: 0.42 + rnd() * 0.22, drag: 0.6, color: 0xffffff, delay: i * 0.15,
         });
       }
     },

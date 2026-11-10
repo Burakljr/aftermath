@@ -82,6 +82,15 @@ function check(ok, msg) {
         const feet = sc.debug.project(v.x, 0, v.z);
         out.guests.push({ id: c.id, state: c.state, above: a.y < feet.y - 20, visible: a.visible });
       }
+      // guests at the tables in front of the counters (t3 / t4 / t5) sit inside a station's
+      // tap box: tapping their body must still pick the guest
+      out.front = [];
+      for (const c of lab.state.customers) {
+        if ((c.state !== 'waiting' && c.state !== 'eating') || !/^t[345]$/.test(c.table)) continue;
+        const a = sc.anchor('customer', c.id);
+        const hit = sc.pick(a.x, a.y + 22);
+        out.front.push({ id: c.id, ok: !!(hit && hit.type === 'customer' && hit.id === c.id), hit });
+      }
       out.empty = sc.pick(5, 5);
       return out;
     });
@@ -89,6 +98,7 @@ function check(ok, msg) {
     check(pa.stations.every((s) => s.hit && s.hit.type === 'station' && s.hit.id === s.id), 'pick() on every station body returns that station');
     check(pa.tables.every((t) => t.a.visible && t.hit && (t.hit.type === 'table' || t.hit.type === 'customer')), 'table anchors visible, pick on a table returns the table (or a guest sitting there)');
     check(pa.guests.filter((g) => g.state !== 'leaving' && g.state !== 'enter').every((g) => g.above && g.visible), 'guest anchors above the heads');
+    check(pa.front.length > 0 && pa.front.every((g) => g.ok), `tapping a seated guest at t3 / t4 / t5 picks the guest, not the station behind (${pa.front.filter((g) => g.ok).length}/${pa.front.length})`);
     check(pa.coins.visible && pa.coins.y < 120, 'coins anchor at the top');
     check(pa.empty === null, 'pick() on the sky returns null');
     await shot('02-busy');

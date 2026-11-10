@@ -19,7 +19,7 @@ export const SCREEN = {
   // measured on the diagonal camera (Village Inn, open stations; the Harbor Tavern mirrors
   // left and right, the fallback keeps the inn order)
   stations: [
-    { x: 0.41, y: 0.3 }, { x: 0.59, y: 0.3 }, { x: 0.3, y: 0.33 }, { x: 0.7, y: 0.33 },
+    { x: 0.38, y: 0.29 }, { x: 0.62, y: 0.29 }, { x: 0.27, y: 0.32 }, { x: 0.73, y: 0.32 },
   ],
   tables: [
     { x: 0.34, y: 0.54 }, { x: 0.66, y: 0.54 }, { x: 0.5, y: 0.46 }, { x: 0.19, y: 0.47 }, { x: 0.81, y: 0.47 }, { x: 0.5, y: 0.61 },
