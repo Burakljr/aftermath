@@ -104,6 +104,10 @@ export function avgPrice(cfg, state) {
 // Steady income estimate (coins per second, no boosts): the smallest of the cook-, station-
 // and seat-limited order rates times the average price. Used for the HUD income, offline
 // earnings and the upgrade hints. Calibrated against the simulation (tests/logic).
+// Guests avoid stations that already have guests waiting (world.js pickWeight), so the order
+// mix is solved with a few fixed-point steps: waiting guests per station from Little's law.
+const _w = [0, 0, 0, 0, 0, 0, 0, 0];   // effective order weights (no allocation per call)
+const _d = [0, 0, 0, 0, 0, 0, 0, 0];   // mean station -> table distance
 export function incomeEstimate(cfg, layout, state) {
   const st = state.stations;
   const tables = layout.tables;
@@ -112,46 +116,19 @@ export function incomeEstimate(cfg, layout, state) {
   let nt = 0;
   for (let i = 0; i < tables.length && i < state.tables.length; i++) if (state.tables[i].owned) nt++;
   if (!nt) return 0;
-  let wSum = 0;
-  let pSum = 0;
-  let cookBusy = 0;     // expected cook seconds per order
-  let lead = 0;         // expected order lead time (station walk + cook + carry)
-  for (let i = 0; i < st.length; i++) {
-    const w = orderWeight(state, i);
-    if (!w) continue;
-    const ls = layout.stations[i];
+  const n = Math.min(st.length, _w.length);
+  for (let i = 0; i < n; i++) {
+    _w[i] = orderWeight(state, i);
     let d = 0;
-    for (let k = 0; k < tables.length; k++) {
-      if (!state.tables[k] || !state.tables[k].owned) continue;
-      d += layout.pathLength(ls.node, tables[k].front);
+    if (_w[i]) {
+      const ls = layout.stations[i];
+      for (let k = 0; k < tables.length; k++) {
+        if (!state.tables[k] || !state.tables[k].owned) continue;
+        d += layout.pathLength(ls.node, tables[k].front);
+      }
     }
-    d /= nt;
-    const ct = cookTime(cfg.stations[i], st[i].level);
-    wSum += w;
-    pSum += w * price(cfg.stations[i], st[i].level);
-    cookBusy += w * (2 * d / v + ct + RULES.serveTime);
-    lead += w * (d / v + ct + d / v + RULES.serveTime);
+    _d[i] = d / nt;
   }
-  if (!wSum) return 0;
-  cookBusy /= wSum;
-  lead /= wSum;
-  // per-station cap: station i only gets a share w_i / wSum of the orders
-  let stationRate = Infinity;
-  for (let i = 0; i < st.length; i++) {
-    const w = orderWeight(state, i);
-    if (!w) continue;
-    const ls = layout.stations[i];
-    let d = 0;
-    for (let k = 0; k < tables.length; k++) {
-      if (!state.tables[k] || !state.tables[k].owned) continue;
-      d += layout.pathLength(ls.node, tables[k].front);
-    }
-    d /= nt;
-    const busy = 0.5 * d / v + cookTime(cfg.stations[i], st[i].level);
-    stationRate = Math.min(stationRate, wSum / (w * busy));
-  }
-  const cooks = state.cooks.length;
-  const cookRate = cooks / cookBusy;
   // seats: walk in + wait (at least one lead time) + eat + pay
   let walkIn = 0;
   for (let k = 0; k < tables.length; k++) {
@@ -160,12 +137,56 @@ export function incomeEstimate(cfg, layout, state) {
   }
   walkIn = walkIn / nt / vc;
   const seats = nt * 2;
-  const seatRate = seats / (walkIn + lead + RULES.eatTime + RULES.payTime + RULES.arriveBase / 2);
-  // soft minimum: the tightest limit dominates, but easing the others still helps a bit
-  // (more seats keep more orders queued, so cooks wait less), like in the simulation
-  const P = 6;
-  const rate = Math.pow(Math.pow(cookRate, -P) + Math.pow(stationRate, -P) + Math.pow(seatRate, -P), -1 / P);
-  return rate * (pSum / wSum) * EST_FACTOR;
+  const cooks = state.cooks.length;
+  // up to RULES.stationSlots cooks can work at one station at once
+  const slots = Math.max(1, Math.min(cooks, RULES.stationSlots));
+  let rate = 0;
+  let avg = 0;
+  for (let iter = 0; iter < 4; iter++) {
+    let wSum = 0;
+    let pSum = 0;
+    let cookBusy = 0;     // expected cook seconds per order
+    let lead = 0;         // expected order lead time (station walk + cook + carry)
+    for (let i = 0; i < n; i++) {
+      const w = _w[i];
+      if (!w) continue;
+      const ct = cookTime(cfg.stations[i], st[i].level);
+      wSum += w;
+      pSum += w * price(cfg.stations[i], st[i].level);
+      cookBusy += w * (2 * _d[i] / v + ct + RULES.serveTime);
+      lead += w * (2 * _d[i] / v + ct + RULES.serveTime);
+    }
+    if (!wSum) return 0;
+    cookBusy /= wSum;
+    lead /= wSum;
+    // per-station cap: station i only gets a share w_i / wSum of the orders
+    let stationRate = Infinity;
+    for (let i = 0; i < n; i++) {
+      const w = _w[i];
+      if (!w) continue;
+      const busy = 0.5 * _d[i] / v + cookTime(cfg.stations[i], st[i].level);
+      stationRate = Math.min(stationRate, slots * wSum / (w * busy));
+    }
+    const cookRate = cooks / cookBusy;
+    const seatRate = seats / (walkIn + lead + RULES.eatTime + RULES.payTime + RULES.arriveBase / 2);
+    // soft minimum: the tightest limit dominates, but easing the others still helps a bit
+    // (more seats keep more orders queued, so cooks wait less), like in the simulation
+    const P = 6;
+    rate = Math.pow(Math.pow(cookRate, -P) + Math.pow(stationRate, -P) + Math.pow(seatRate, -P), -1 / P);
+    avg = pSum / wSum;
+    if (iter === 3 || !RULES.queuePenalty) break;
+    // next mix: waiting guests per station = arrival rate x time waiting (lead + queueing)
+    for (let i = 0; i < n; i++) {
+      const w0 = orderWeight(state, i);
+      if (!w0) continue;
+      const lam = rate * _w[i] / wSum;
+      const busy = 0.5 * _d[i] / v + cookTime(cfg.stations[i], st[i].level);
+      const rho = Math.min(0.9, lam * busy / slots);
+      const wait = (2 * _d[i] / v + cookTime(cfg.stations[i], st[i].level)) / (1 - rho);
+      _w[i] = 0.5 * _w[i] + 0.5 * w0 / (1 + RULES.queuePenalty * lam * wait);
+    }
+  }
+  return rate * avg * EST_FACTOR;
 }
 
 // The simulation loses a little to queueing (measured in tests/logic/estimate.test.mjs).

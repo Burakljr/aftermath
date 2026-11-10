@@ -75,7 +75,8 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   ctx.coinTarget = () => hud.coinTarget();
   // distance of the toast from the screen bottom: above the card or the goal pill
   ctx.toastBottom = () => {
-    if (panelOpen()) return null; // a menu sheet covers the bottom: the toast goes under the HUD
+    if (panelOpen()) return 'sheet'; // a menu sheet covers the bottom: a slim banner at the top
+    if (tutorial.bubbleShown()) return null; // never over a tutorial bubble: under the HUD
     const h = window.innerHeight;
     const top = card.isOpen() ? card.root.offsetTop : menu.root.offsetTop;
     return Math.max(80, h - top + 12);
@@ -189,7 +190,11 @@ export function createUI({ root, game, scene, audio, canvas } = {}) {
   on('pay', (p) => {
     const a = ctx.anchor('customer', p.customer);
     if (a && a.visible !== false && !ctx.modalOpen()) {
-      floats.floatText(a.x, a.y - 20, '+' + ctx.num(p.value), { pay: true });
+      // the newest (most valuable) dish pays a bigger "+coins"
+      const st = game.state.stations;
+      let newest = null;
+      for (let i = 0; i < st.length; i++) if (st[i].open) newest = st[i].id;
+      floats.floatText(a.x, a.y - 20, '+' + ctx.num(p.value), { pay: true, rich: p.station === newest && st.length > 1 && st[1].open });
       if (flyT <= 0) { flyT = 0.3; floats.coinFlight(a.x, a.y - 20, 1, true); }
       else ctx.sfx('coin');
     } else ctx.sfx('coin');

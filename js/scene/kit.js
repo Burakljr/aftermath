@@ -45,8 +45,9 @@ function bakeGeometry(src, matrix) {
 
 // ------------------------------------------------------------------ atlas swatches
 // Cell [col, row] of the 8 x 4 atlas (row 0 = top). Walls use [2,1] (lower half) and [4,1] (upper half),
-// floor tiles [1,0] + [4,0], wood tops [6,3], chairs / crates [6,0].
-export const CELL = { wall: [2, 1], trim: [4, 1], tileDark: [1, 0], tileLight: [4, 0], wood: [6, 3], woodDark: [6, 0], metal: [3, 0], white: [5, 3] };
+// floor tiles [1,0] + [4,0], wood tops [6,3] (counters, table_round_A, chair_A), [6,0] (table_round_B,
+// chair_B, crates), fridge body [2,1] (with the props material), stove / oven body [1,1].
+export const CELL = { wall: [2, 1], trim: [4, 1], tileDark: [1, 0], tileLight: [4, 0], wood: [6, 3], woodDark: [6, 0], metal: [3, 0], white: [5, 3], fridge: [2, 1], enamel: [1, 1] };
 
 /** A copy of the atlas image with some swatches repainted as vertical gradients. */
 export function recolorAtlas(baseTex, cells) {

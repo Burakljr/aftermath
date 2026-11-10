@@ -208,7 +208,7 @@ function applyPreset(p) {
     case 'goals': rich(() => { buy('juice', 4); game.act({ type: 'hire' }); }); s.money = 60; game.act({ type: 'tutorial', step: 'done' }); step(25); ui.openMenu('goals'); break;
     case 'places': game.act({ type: 'tutorial', step: 'done' }); step(3); ui.openMenu('places'); break;
     case 'complete': case 'placesdone': {
-      rich(() => { openAll(4); for (let i = 0; i < 4; i++) buy(i, 25); for (let i = 0; i < 4; i++) game.act({ type: 'buyTable' }); while (s.cooks.length < 4) game.act({ type: 'hire' }); for (let i = 0; i < 4; i++) game.act({ type: 'cookSpeed' }); });
+      rich(() => { openAll(4); for (let i = 0; i < 4; i++) buy(i, 29); for (let i = 0; i < 4; i++) game.act({ type: 'buyTable' }); while (s.cooks.length < 4) game.act({ type: 'hire' }); for (let i = 0; i < 4; i++) game.act({ type: 'cookSpeed' }); });
       s.served = Math.max(s.served, 400); game.act({ type: 'tutorial', step: 'done' }); step(1);
       for (let k = 0; k < 40; k++) { const v = game.select.goalViews().find((x) => x.done && !x.claimed); if (!v) break; game.act({ type: 'claimGoal', id: v.id }); }
       s.money = 123456; step(1);

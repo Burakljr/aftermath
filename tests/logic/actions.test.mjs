@@ -104,7 +104,7 @@ test('goals: collect only when done, once; all collected -> location complete ->
   rich(g);
   // satisfy every goal
   for (let i = 0; i < 4; i++) g.act({ type: 'open', station: i });
-  for (let i = 0; i < 4; i++) while (g.state.stations[i].level < 25) g.act({ type: 'upgrade', station: i });
+  for (let i = 0; i < 4; i++) while (g.state.stations[i].level < 30) g.act({ type: 'upgrade', station: i });
   for (let i = 0; i < 4; i++) g.act({ type: 'buyTable' });
   while (g.state.cooks.length < 4) g.act({ type: 'hire' });
   for (let i = 0; i < 4; i++) g.act({ type: 'cookSpeed' });

@@ -141,7 +141,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
    each open station, the next station's price chip (orange Open sign once affordable) and a
    tiny lock on later plots. The scene's anchor for a closed plot is lower (just above the
    plot), so signs stand on their plot and never hide the neighbours' badges. */
-.mark { position: absolute; left: 0; top: 0; will-change: transform; }
+.mark, .tmark { position: absolute; left: 0; top: 0; will-change: transform; }
 .mark-in { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; }
 .lvl {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -168,13 +168,17 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 }
 .sign .ico { font-size: 17px; }
 .sign .lbl { display: none; }
+.sign .pl { display: none; }
 .sign.can {
-  height: 38px; padding: 0 13px 0 11px; font-size: 15px; gap: 5px;
+  height: 32px; padding: 0 11px 0 7px; font-size: 14px; gap: 3px;
   color: #fff; background: linear-gradient(var(--accent-hi), var(--accent));
   box-shadow: inset 0 -3px 0 var(--accent-lo), 0 3px 8px rgba(226, 112, 26, .35);
   text-shadow: 0 1px 1px rgba(150, 64, 0, .35); animation: signin .35s ease-out;
 }
-.sign.can .lbl { display: inline; }
+.sign.can .pl { display: grid; place-items: center; width: 16px; height: 16px; margin-right: 1px; border-radius: 50%; background: rgba(255, 255, 255, .28); }
+.sign.can .pl .ico { font-size: 11px; }
+.sign.can .ico { font-size: 16px; }
+.tsign.can { height: 30px; font-size: 13px; }
 .sign:active { filter: brightness(.96); }
 .sign::before { content: ''; position: absolute; inset: -8px -4px; }
 .mk-soon {
@@ -186,13 +190,15 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 /* ------------------------------------------------------------------ order bubbles */
 .bubble { position: absolute; left: 0; top: 0; will-change: transform; }
 .bubble-in {
-  position: absolute; left: -19px; top: -46px; width: 38px; height: 38px; border-radius: 50%;
+  position: absolute; left: -16px; top: -40px; width: 32px; height: 32px; border-radius: 50%;
   background: #fff; box-shadow: var(--shadow-s); display: grid; place-items: center;
   transform-origin: 50% 120%; animation: bubblein .28s ease-out;
 }
 .bubble-in::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-bottom: 0; border-top-color: #fff; }
-.bubble-in .ico { font-size: 26px; }
-.bubble svg.ring { position: absolute; left: -3px; top: -3px; width: 44px; height: 44px; transform: rotate(-90deg); overflow: visible; }
+.bubble-in .ico { font-size: 22px; }
+.bubble svg.ring { position: absolute; left: -3px; top: -3px; width: 38px; height: 38px; transform: rotate(-90deg); overflow: visible; }
+/* a cook has the order: the bubble shrinks a little (the crowd reads calmer) */
+.bubble.taken .bubble-in { scale: .84; }
 .bubble svg.ring circle { fill: none; stroke-width: 3.2; stroke-linecap: round; stroke: var(--accent); stroke-dasharray: 125.7; stroke-dashoffset: calc(125.7 * (1 - var(--p, 0))); }
 .bubble.coming .bubble-in { animation: bubblecome .45s ease-in-out infinite alternate; }
 .bubble.out .bubble-in { animation: bubbleout .2s ease-in forwards; }
@@ -370,6 +376,14 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .float .ico { font-size: 18px; filter: drop-shadow(0 1px 1px rgba(74, 44, 18, .35)); }
 .float.big { font-size: 26px; }
 .float.big .ico { font-size: 26px; }
+/* "+coins" from a paying guest: gold on a small brown pill, readable on any floor */
+.float.pay {
+  font-size: 18px; color: #ffd863; padding: 1px 9px 1px 3px; border-radius: 999px; gap: 2px;
+  background: rgba(74, 44, 18, .84); text-shadow: none; box-shadow: 0 2px 5px rgba(60, 30, 10, .25);
+}
+.float.pay .ico { font-size: 18px; filter: none; }
+.float.pay.rich { font-size: 21px; padding: 2px 10px 2px 3px; }
+.float.pay.rich .ico { font-size: 21px; }
 /* pay floats from guests stay out of the way while a panel or modal is open */
 .has-modal .layer-floats .pay { display: none; }
 .flycoin { position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; will-change: transform; }
@@ -382,6 +396,8 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 }
 .toast .ico { font-size: 20px; }
 .toast.at-top { bottom: auto; top: calc(var(--safe-t) + 70px); }
+/* a menu sheet is open: a slim banner at the very top, above the sheet header */
+.toast.at-sheet { bottom: auto; top: calc(var(--safe-t) + 8px); padding: 7px 14px; font-size: 14px; }
 .toast.out { animation: toastout .25s ease-in forwards; }
 @keyframes toastin { from { transform: translate(-50%, -10px); opacity: 0; } }
 @keyframes toastout { to { transform: translate(-50%, -10px); opacity: 0; } }
@@ -401,7 +417,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .tut-bubble {
   position: absolute; left: 0; top: 0; width: max-content; max-width: 230px; padding: 10px 14px; border-radius: var(--r-m);
   background: #fff; font-size: 15px; font-weight: 700; line-height: 1.25; text-align: center;
-  box-shadow: var(--shadow); transform: translateX(-50%);
+  box-shadow: var(--shadow); transform: translateX(-50%); text-wrap: balance;
 }
 .tut-bubble.above { transform: translate(-50%, -100%); }
 

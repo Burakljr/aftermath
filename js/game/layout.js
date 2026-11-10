@@ -21,10 +21,11 @@
 //      cooks hand over dishes (kitchen side of the table, the cook faces the camera);
 //      seat.plate = [x, y, z] where the dish stands on the table in front of that seat;
 //      seat.chair = { pos: [x, z], facing } the chair model (scene)
-//   stations [{ id, pos, facing, cookSpot, node, dishSpot }]
+//   stations [{ id, pos, facing, cookSpot, node, dishSpot, helperSpot, helperNode, helperDishSpot }]
 //      pos = centre of the station model (against the back wall), facing = model rotation,
 //      cookSpot = [x, z] where the cook stands (also graph node `node`), dishSpot = [x, y, z]
-//      where the finished dish waits on the counter
+//      where the finished dish waits on the counter; helper* = the same for a second cook
+//      helping at the station (stands a little to the left)
 //   cookHomes ['node', ...]                         where idle cooks wait (one per cook)
 //   kitchen { minZ, maxZ, pass: [{ x0, x1, z }], open: [x0, x1] }   kitchen floor + pass counters
 //   graph { nodes: { id: [x, z] }, edges: [[a, b], ...] }
@@ -111,6 +112,10 @@ function build(def) {
     const id = 'st_' + s.id;
     node(id, s.x, kz - 0.01); // right in front of the station, on the kitchen line
     edges.push([id, kid(s.x)]);
+    // a second cook can help at the station, standing a little to its left
+    const hid = 'sh_' + s.id;
+    node(hid, s.x - def.helperDx, kz - 0.01);
+    edges.push([hid, kid(s.x)]);
     return {
       id: s.id,
       pos: [s.x, def.stationZ],
@@ -118,6 +123,9 @@ function build(def) {
       cookSpot: nodes[id].slice(),
       node: id,
       dishSpot: [r2(s.x + 0.5), 1.1, r2(def.stationZ + 0.6)],
+      helperSpot: nodes[hid].slice(),
+      helperNode: hid,
+      helperDishSpot: [r2(s.x - 0.45), 1.1, r2(def.stationZ + 0.6)],
     };
   });
 
@@ -231,6 +239,7 @@ const INN = build({
   aisles: [0],
   seatDx: 1.22,
   frontDz: 1.3,
+  helperDx: 1.0,
   tables: [
     { pos: [-3.2, 2.2] }, { pos: [3.2, 2.2] },
     { pos: [-3.2, -1.7] }, { pos: [3.2, -1.7] },
@@ -259,13 +268,15 @@ const HARBOR = build({
   aisles: [1.8],
   seatDx: 1.22,
   frontDz: 1.3,
+  helperDx: 1.0,
   tables: [
     { pos: [-2.4, 2.2] }, { pos: [4.2, 2.2] },
     { pos: [-3.6, -1.7] }, { pos: [4.2, -1.7] },
     { pos: [-1.2, 6.1] }, { pos: [4.2, 6.1] },
   ],
-  stations: [{ id: 'cocoa', x: -3 }, { id: 'veggie', x: -1 }, { id: 'soup', x: 1 }, { id: 'roast', x: 3 }],
-  homes: [[-0.9, -6.75], [4.9, -6.9], [-4.4, -6.9], [1.0, -6.75]],
+  // mirrored kitchen: the first station is on the right (by the fridge), the sink on the left
+  stations: [{ id: 'cocoa', x: 3 }, { id: 'veggie', x: 1 }, { id: 'soup', x: -1 }, { id: 'roast', x: -3 }],
+  homes: [[0.0, -6.75], [4.5, -6.9], [-2.0, -6.75], [-4.5, -6.9]],
   door: { x: -4.0, z: 9.0, out: 12.4 },
   queue: [[-2.7, 9.2], [-5.0, 9.2], [-1.5, 9.3]],
   speeds: { customer: 3.0, cook: 3.6 },

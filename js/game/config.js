@@ -17,6 +17,8 @@ export const RULES = {
   arriveMin: 0.7,                // ... but never faster than this
   firstArrive: 0.4,              // first customer of a fresh location
   newestWeight: 3,               // order weight of the newest open station (others 1)
+  stationSlots: 2,               // cooks that can work at one station at once (main + helper)
+  queuePenalty: 0.7,             // weight / (1 + queuePenalty * guests already waiting there)
   cookSpeedStep: 0.15,           // +15 % walking speed per Cook speed level
   cookSpeedMax: 10,              // Cook speed levels
   offlineCap: 2 * 60 * 60,       // seconds of offline earnings at most (v0: 2 h)
@@ -41,6 +43,7 @@ export const DISHES = {
 };
 
 // Goal types (see goals.js): open, level, served, tables, cooks, cookSpeed.
+// Ordered so the 3 visible goals never name the same station twice.
 // reward: coins paid when the goal is collected.
 // kind (stations): which machine the scene builds: 'drinks' | 'grill' | 'pot' | 'oven'.
 
@@ -54,7 +57,7 @@ const INN = {
     { id: 'juice', kind: 'drinks', dish: 'juice', nameKey: 'station.juice', cookTime: 2.0, basePrice: 7, baseCost: 8, openCost: 0 },
     { id: 'grill', kind: 'grill', dish: 'burger', nameKey: 'station.grill', cookTime: 3.0, basePrice: 30, baseCost: 60, openCost: 100 },
     { id: 'stew', kind: 'pot', dish: 'stew', nameKey: 'station.stew', cookTime: 4.0, basePrice: 300, baseCost: 700, openCost: 1400 },
-    { id: 'oven', kind: 'oven', dish: 'dinner', nameKey: 'station.oven', cookTime: 5.0, basePrice: 3000, baseCost: 10000, openCost: 16000 },
+    { id: 'oven', kind: 'oven', dish: 'dinner', nameKey: 'station.oven', cookTime: 5.0, basePrice: 3000, baseCost: 10000, openCost: 20000 },
   ],
   tables: { start: 2, costs: [0, 0, 80, 300, 1500, 6000] },   // cost of table n (index n-1)
   cooks: { start: 1, max: 4, costs: [0, 30, 500, 6000] },     // cost of cook n (index n-1)
@@ -70,14 +73,14 @@ const INN = {
     { id: 'i8', type: 'served', target: 50, reward: 300 },
     { id: 'i9', type: 'open', station: 'stew', reward: 600 },
     { id: 'i10', type: 'cooks', target: 3, reward: 1000 },
-    { id: 'i11', type: 'level', station: 'stew', target: 10, reward: 2000 },
-    { id: 'i12', type: 'tables', target: 4, reward: 2500 },
+    { id: 'i11', type: 'tables', target: 4, reward: 500 },
+    { id: 'i12', type: 'level', station: 'stew', target: 10, reward: 2500 },
     { id: 'i13', type: 'cookSpeed', target: 3, reward: 3000 },
-    { id: 'i14', type: 'served', target: 150, reward: 4000 },
+    { id: 'i14', type: 'served', target: 100, reward: 4000 },
     { id: 'i15', type: 'open', station: 'oven', reward: 6000 },
-    { id: 'i16', type: 'level', station: 'oven', target: 10, reward: 10000 },
-    { id: 'i17', type: 'cooks', target: 4, reward: 15000 },
-    { id: 'i18', type: 'level', station: 'oven', target: 25, reward: 30000 },
+    { id: 'i16', type: 'cooks', target: 4, reward: 10000 },
+    { id: 'i17', type: 'level', station: 'stew', target: 28, reward: 15000 },
+    { id: 'i18', type: 'level', station: 'oven', target: 10, reward: 30000 },
   ],
 };
 

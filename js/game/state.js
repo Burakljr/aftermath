@@ -11,7 +11,7 @@ const COOK_STATES = ['idle', 'toStation', 'cooking', 'toTable', 'serving', 'retu
 
 export function freshCook(layout, n) {
   const home = layout.cookHomes[n % layout.cookHomes.length];
-  return { id: 'c' + (n + 1), state: 'idle', station: null, order: null, from: home, to: home, t: 0, dur: 0, home };
+  return { id: 'c' + (n + 1), state: 'idle', station: null, slot: 0, order: null, from: home, to: home, t: 0, dur: 0, home };
 }
 
 // Location-specific part of the state (stations, tables, cooks, customers ...).
@@ -213,7 +213,8 @@ function restoreService(s, data, cfg, layout) {
     }
     Object.assign(base, {
       state: c.state,
-      station: busy ? order.station : null,
+      station: c.state === 'toStation' || c.state === 'cooking' ? order.station : null,
+      slot: c.slot === 1 ? 1 : 0,
       order,
       from: c.from,
       to: c.to,

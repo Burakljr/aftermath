@@ -52,6 +52,7 @@ export function createBubbles(ctx) {
       if (phase !== b.phase) {
         b.phase = phase;
         toggle(b.root, 'coming', phase === 'coming');
+        toggle(b.root, 'taken', phase !== 'waiting');
         toggle(b.ring, 'is-hidden', phase === 'waiting');
       }
       if (phase !== 'waiting') setVar(b.ring, '--p', p.toFixed(3));

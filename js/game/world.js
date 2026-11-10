@@ -45,12 +45,29 @@ function pickSeat(state, layout, free) {
   return null;
 }
 
+// Waiting guests (ordered, not served yet) for station id.
+function stationLoad(state, id) {
+  let n = 0;
+  const cs = state.customers;
+  for (let i = 0; i < cs.length; i++) if (cs[i].state === 'waiting' && cs[i].station === id) n++;
+  return n;
+}
+
+// Weighted pick: the newest station is ordered more often, but every guest already waiting
+// for a station makes it less likely, so orders spread over the kitchen (free cooks find
+// work, the bubbles vary) instead of piling up at one station.
+function pickWeight(state, i) {
+  const w = orderWeight(state, i);
+  if (!w) return 0;
+  return w / (1 + RULES.queuePenalty * stationLoad(state, state.stations[i].id));
+}
+
 function pickStation(state) {
   let total = 0;
-  for (let i = 0; i < state.stations.length; i++) total += orderWeight(state, i);
+  for (let i = 0; i < state.stations.length; i++) total += pickWeight(state, i);
   let r = random(state) * total;
   for (let i = 0; i < state.stations.length; i++) {
-    const w = orderWeight(state, i);
+    const w = pickWeight(state, i);
     if (!w) continue;
     if (r < w) return i;
     r -= w;
@@ -84,13 +101,26 @@ function indexById(list, id) {
   return -1;
 }
 
-function stationBusy(state, stationId, except) {
+// Cooks working at a station (walking there or cooking).
+function stationCooks(state, stationId) {
   const cs = state.cooks;
+  let n = 0;
   for (let i = 0; i < cs.length; i++) {
     const c = cs[i];
-    if (c !== except && c.station === stationId && (c.state === 'toStation' || c.state === 'cooking')) return true;
+    if (c.station === stationId && (c.state === 'toStation' || c.state === 'cooking')) n++;
   }
-  return false;
+  return n;
+}
+// The cook spot a new cook at this station uses: 0 = the main spot, 1 = the helper spot.
+function freeSlot(state, stationId, slots) {
+  const cs = state.cooks;
+  let used = 0;
+  for (let i = 0; i < cs.length; i++) {
+    const c = cs[i];
+    if (c.station === stationId && (c.state === 'toStation' || c.state === 'cooking')) used |= 1 << (c.slot | 0);
+  }
+  for (let k = 0; k < slots; k++) if (!(used & (1 << k))) return k;
+  return -1;
 }
 
 // ctx = { cfg, layout, emit(ev, payload), addMoney(value) }
@@ -221,7 +251,7 @@ function stepCook(state, ctx, c, dt, speed) {
       case 'toStation': {
         const si = indexById(state.stations, c.station);
         c.state = 'cooking';
-        stay(c, layout.stations[si].node, cookTime(cfg.stations[si], state.stations[si].level));
+        stay(c, c.to, cookTime(cfg.stations[si], state.stations[si].level));
         ctx.emit('cookStart', { cook: c.id, station: c.station, customer: c.order.customer, dish: c.order.dish });
         break;
       }
@@ -261,16 +291,19 @@ function stepCook(state, ctx, c, dt, speed) {
   }
 }
 
-// FIFO orders; each takes the nearest free cook, if its station is not in use.
+// FIFO orders; each takes the nearest free cook, if the station has a free cook spot
+// (RULES.stationSlots: the main spot, then a helper spot beside it).
 function dispatch(state, ctx, speed) {
   const { layout } = ctx;
   const orders = state.orders;
   for (let i = 0; i < orders.length; i++) {
     const o = orders[i];
-    if (stationBusy(state, o.station, null)) continue;
     const si = indexById(state.stations, o.station);
     if (si < 0) continue;
-    const target = layout.stations[si].node;
+    const ls = layout.stations[si];
+    const slot = freeSlot(state, o.station, RULES.stationSlots);
+    if (slot < 0) continue;
+    const target = slot === 0 ? ls.node : ls.helperNode;
     let best = null;
     let bestD = Infinity;
     for (let k = 0; k < state.cooks.length; k++) {
@@ -284,6 +317,7 @@ function dispatch(state, ctx, speed) {
     i--;
     best.state = 'toStation';
     best.station = o.station;
+    best.slot = slot;
     best.order = o;
     walk(best, layout, best.to, target, speed);
     if (best.dur === 0) best.dur = 1e-6;

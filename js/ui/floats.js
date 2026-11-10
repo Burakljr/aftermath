@@ -19,10 +19,10 @@ export function createFloats(ctx) {
     else setTimeout(() => { e.remove(); if (done) done(); }, opts.duration || 600);
   }
 
-  function floatText(x, y, text, { big = false, coin = true, pay = false } = {}) {
+  function floatText(x, y, text, { big = false, coin = true, pay = false, rich = false } = {}) {
     if (floats >= MAX_FLOATS) return;
     floats++;
-    const e = el('div', 'float' + (big ? ' big' : '') + (pay ? ' pay' : ''), null, [coin ? icon('coin') : null, el('span', null, { text })]);
+    const e = el('div', 'float' + (big ? ' big' : '') + (pay ? ' pay' : '') + (rich ? ' rich' : ''), null, [coin ? icon('coin') : null, el('span', null, { text })]);
     layer.appendChild(e);
     const w = big ? 70 : 50;
     x = Math.max(w, Math.min(window.innerWidth - w, x));
@@ -60,14 +60,24 @@ export function createFloats(ctx) {
     }
   }
 
+  // b: distance from the bottom (px), null = under the HUD, 'sheet' = banner above a sheet
+  function placeToast(e, b) {
+    const top = b === null;
+    const sheet = b === 'sheet';
+    if (e.classList.contains('at-top') !== top) e.classList.toggle('at-top', top);
+    if (e.classList.contains('at-sheet') !== sheet) e.classList.toggle('at-sheet', sheet);
+    if (!top && !sheet) {
+      const v = Math.round(b) + 'px';
+      if (e._b !== v) { e._b = v; e.style.setProperty('--toast-b', v); }
+    }
+  }
+
   function toast(text, iconName) {
     if (ctx.blockingModal && ctx.blockingModal()) return; // not over Welcome back / complete / settings
     if (toastEl) toastEl.remove();
     toastEl = el('div', 'toast', null, [iconName ? icon(iconName) : null, el('span', null, { text })]);
     // just above the bottom UI (goal pill / card), clear of the stations and most tables
-    const b = ctx.toastBottom();
-    if (b === null) toastEl.classList.add('at-top');
-    else toastEl.style.setProperty('--toast-b', Math.round(b) + 'px');
+    placeToast(toastEl, ctx.toastBottom());
     ctx.layers.floats.appendChild(toastEl);
     toastT = 2.2;
   }
@@ -80,15 +90,7 @@ export function createFloats(ctx) {
       if (toastEl && ctx.blockingModal && ctx.blockingModal()) { toastEl.remove(); toastEl = null; }
       // keep the toast above the bottom UI if a card opens or closes meanwhile, and move it
       // under the HUD while a menu sheet covers the bottom (and back when it closes)
-      if (toastEl) {
-        const b = ctx.toastBottom();
-        const top = b === null;
-        if (toastEl.classList.contains('at-top') !== top) toastEl.classList.toggle('at-top', top);
-        if (!top) {
-          const v = Math.round(b) + 'px';
-          if (toastEl._b !== v) { toastEl._b = v; toastEl.style.setProperty('--toast-b', v); }
-        }
-      }
+      if (toastEl) placeToast(toastEl, ctx.toastBottom());
       if (toastEl && toastT > 0) {
         toastT -= dt;
         if (toastT <= 0) {

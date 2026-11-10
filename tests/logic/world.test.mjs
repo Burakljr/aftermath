@@ -66,17 +66,23 @@ test('walk durations are pathLength / speed (scene and logic agree)', () => {
   assert(checked > 100, 'checked ' + checked);
 });
 
-test('one cook per station at a time, one guest per seat, no guest waits forever', () => {
+test('at most two cooks per station (main + helper spot), one guest per seat, no guest waits forever', () => {
   const g = busyGame();
+  const L = g.layout();
   const waitingSince = {};
   let maxOnScreen = 0;
+  let helped = 0;
   g.step(300, () => {
     const s = g.state;
     const at = {};
     for (const k of s.cooks) {
       if (k.state === 'toStation' || k.state === 'cooking') {
-        assert(!at[k.station], 'two cooks on ' + k.station);
-        at[k.station] = k.id;
+        const key = k.station + ':' + k.slot;
+        assert(!at[key], 'two cooks on the same spot of ' + k.station);
+        at[key] = k.id;
+        const ls = L.stations.find((x) => x.id === k.station);
+        eq(k.to, k.slot ? ls.helperNode : ls.node, 'cook walks to his spot');
+        if (k.slot) helped++;
       }
     }
     const seats = {};
@@ -94,6 +100,7 @@ test('one cook per station at a time, one guest per seat, no guest waits forever
     assert(seated <= 12, 'never more guests than seats');
     maxOnScreen = Math.max(maxOnScreen, s.customers.length);
   });
+  assert(helped > 0, 'a second cook helps at a busy station');
 });
 
 test('guests wait about 10 s for their food in normal play, never very long', () => {

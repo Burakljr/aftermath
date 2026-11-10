@@ -165,6 +165,7 @@ export const ICONS = {
   gear: svg(24, `<g fill="currentColor">${gearTeeth}<circle cx="12" cy="12" r="7.4"/></g><circle cx="12" cy="12" r="3.1" fill="#fff"/>`),
   close: svg(24, '<path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>'),
   arrow: svg(24, '<path d="M4 12h13M12.4 6.6L18 12l-5.6 5.4" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'),
+  plus: svg(24, '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>'),
   up: svg(24, '<path d="M12 4.4l7 7.4h-4.2v7.8H9.2v-7.8H5z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'),
   lock: svg(24, '<path d="M8 10.6V8.2a4 4 0 0 1 8 0v2.4" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="5" y="10" width="14" height="11" rx="3" fill="currentColor"/><circle cx="12" cy="15.4" r="1.6" fill="#fff"/>'),
   check: svg(24, '<path d="M5 12.6l4.4 4.4L19 7.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'),

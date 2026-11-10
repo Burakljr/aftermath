@@ -13,10 +13,12 @@ export const HERO_MODELS = ['knight', 'mage', 'rogue_hooded', 'barbarian'];
 // hue ranges (degrees) of each outfit's signature colour and the shifts of tints 1..3
 const TINTS = {
   // knights also get bronze / gold armour on two tints (grey metal pixels colourised)
-  knight: { h0: 335, h1: 12, smin: 0.42, shifts: [0, 215, 130, 275], metal: [null, null, { h: 28, s: 0.32 }, { h: 44, s: 0.55 }] },
+  // (matte: low saturation, highlights pulled down so the helmet details survive at 1x)
+  knight: { h0: 335, h1: 12, smin: 0.42, shifts: [0, 215, 130, 275], metal: [null, null, { h: 26, s: 0.2, l: 0.8 }, { h: 42, s: 0.3, l: 0.82 }] },
   mage: { h0: 228, h1: 335, smin: 0.18, shifts: [0, 320, 100, 262] },
   rogue_hooded: { h0: 95, h1: 190, smin: 0.25, shifts: [0, 215, 95, 265] },
-  barbarian: { h0: 190, h1: 230, smin: 0.15, shifts: [0, 0, 0, 0] },
+  // cooks: the blue tunic becomes cream cook's whites (tint 0 is the only one used)
+  barbarian: { h0: 190, h1: 230, smin: 0.15, shifts: [0, 0, 0, 0], whites: { h: 38, s: 0.32, l0: 0.6, l1: 0.38 } },
 };
 
 function rgb2hsl(r, g, b, out) {
@@ -67,12 +69,18 @@ function tintTexture(base, def, shift, metal) {
     rgb2hsl(d[i] / 255, d[i + 1] / 255, d[i + 2] / 255, hsl);
     const h = hsl[0];
     if (metal && hsl[1] < 0.14 && hsl[2] > 0.22 && hsl[2] < 0.9) {
-      hsl2rgb(metal.h, metal.s, hsl[2] * 0.95 + 0.03, rgb);
+      hsl2rgb(metal.h, metal.s, hsl[2] * (metal.l || 0.95) + 0.03, rgb);
       d[i] = rgb[0] * 255; d[i + 1] = rgb[1] * 255; d[i + 2] = rgb[2] * 255;
       continue;
     }
     const inside = wrap ? (h >= def.h0 || h <= def.h1) : (h >= def.h0 && h <= def.h1);
     if (!inside || hsl[1] < def.smin) continue;
+    if (def.whites) {
+      const w = def.whites;
+      hsl2rgb(w.h, w.s, w.l0 + w.l1 * hsl[2], rgb);
+      d[i] = rgb[0] * 255; d[i + 1] = rgb[1] * 255; d[i + 2] = rgb[2] * 255;
+      continue;
+    }
     hsl2rgb(h + shift, hsl[1], hsl[2], rgb);
     d[i] = rgb[0] * 255; d[i + 1] = rgb[1] * 255; d[i + 2] = rgb[2] * 255;
   }
@@ -106,7 +114,7 @@ export function createHeroLib(models, animsGltf) {
       const k = def ? tint % def.shifts.length : 0;
       const shift = def ? def.shifts[k] : 0;
       const metal = def && def.metal ? def.metal[k] : null;
-      m = shift || metal ? tintTexture(templates[name].map, def, shift, metal) : templates[name].map;
+      m = shift || metal || (def && def.whites) ? tintTexture(templates[name].map, def, shift, metal) : templates[name].map;
       maps.set(key, m);
     }
     return m;

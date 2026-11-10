@@ -1,7 +1,8 @@
 // DOM stickers at the station anchors: level badge (level, progress to the next speed
 // milestone, an orange arrow when an upgrade is worth buying), the Open sign of the next
-// station (a small price chip until it is affordable, then an orange "Open" button) and a
-// tiny "Soon" chip on later plots. Signs open the station card.
+// station (a small price chip until it is affordable, then a compact orange "+ price" button;
+// the word Open is on the card) and a tiny "Soon" chip on later plots. Signs open the station
+// card. The next table gets the same orange "+ price" chip once it is affordable (tap: buy it).
 import { el, icon, onTap, setText, toggle, setStyle, setVar, pulse } from './dom.js';
 
 export function createMarks(ctx) {
@@ -18,7 +19,7 @@ export function createMarks(ctx) {
       const badge = el('div', 'lvl', null, [lvText, el('span', 'bar', null, [barFill]), up]);
       const signPrice = el('span', 'v');
       const signLbl = el('span', 'lbl');
-      const sign = el('button', 'sign', { type: 'button' }, [signLbl, icon('coin'), signPrice]);
+      const sign = el('button', 'sign', { type: 'button' }, [signLbl, el('span', 'pl', null, [icon('plus')]), icon('coin'), signPrice]);
       const soonTxt = el('span', 'is-hidden');
       const soon = el('div', 'mk-soon', null, [icon('lock'), soonTxt]);
       const inner = el('div', 'mark-in', null, [badge, sign, soon]);
@@ -28,6 +29,26 @@ export function createMarks(ctx) {
       return { id: s.id, root, badge, lvText, barFill, up, sign, signPrice, signLbl, soon, soonTxt, level: -1, mode: '' };
     });
     relabel();
+  }
+
+  // the next table, once affordable: a small "+ coin price" chip on it (tap = buy)
+  const tPrice = el('span', 'v');
+  const tSign = el('button', 'sign can tsign', { type: 'button' }, [el('span', 'pl', null, [icon('plus')]), icon('coin'), tPrice]);
+  const tRoot = el('div', 'tmark', null, [el('div', 'mark-in', null, [tSign])]);
+  layer.appendChild(tRoot);
+  let tShown = null;
+  onTap(tSign, () => {
+    const r = game.act({ type: 'buyTable' });
+    if (!r.ok) { ctx.sfx('nope'); ctx.openMenu('upgrades'); }
+  });
+  function updateTable(hideAll) {
+    const tv = game.select.tableView();
+    const a = !hideAll && tv.next && tv.canAfford ? ctx.anchor('table', tv.next) : null;
+    const show = !!(a && a.visible !== false);
+    if (show !== tShown) { tShown = show; setStyle(tRoot, 'display', show ? '' : 'none'); }
+    if (!show) return;
+    setStyle(tRoot, 'transform', `translate3d(${Math.round(a.x)}px,${Math.round(a.y)}px,0)`);
+    setText(tPrice, ctx.num(tv.cost));
   }
 
   function relabel() {
@@ -41,6 +62,7 @@ export function createMarks(ctx) {
   function update() {
     const hints = ctx.upgradeHints();
     const hideAll = ctx.modalOpen();
+    updateTable(hideAll || ctx.cardStation() !== null);
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const s = game.state.stations[i];

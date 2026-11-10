@@ -286,7 +286,9 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       const st = stationsById.get(c.station);
       const p = c.dur > 0 ? clamp(c.t / c.dur, 0, 1) : 1;
       const k = clamp((p - 0.55) / 0.45, 0, 1);
-      if (st && k > 0) dishes.add(d.model, st.dishSpot[0], st.dishSpot[1], st.dishSpot[2], 0, d.s * clamp(easeOutBack(k, 2), 0, 1.2));
+      // a helper cook (slot 1) works at the left part of the station
+      const ds = st && (c.slot === 1 && st.helperDishSpot ? st.helperDishSpot : st.dishSpot);
+      if (ds && k > 0) dishes.add(d.model, ds[0], ds[1], ds[2], 0, d.s * clamp(easeOutBack(k, 2), 0, 1.2));
     } else if (carrying || c.state === 'serving') {
       carryPos(v, _v);
       const cust = custEntity.get(order.customer);

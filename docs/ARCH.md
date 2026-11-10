@@ -59,7 +59,9 @@ characters ~2.4 tall). x right, z toward the camera (bottom of the screen), y up
 `LAYOUTS[id]` / `getLayout(id)`:
 `{ id, bounds, door { pos, node: 'door', outside: 'out' }, queue, tables [{ id: 't1'..'t6', pos,
 front: 't<n>f', seats [{ id: 't<n>a|b' (= graph node), pos, facing, plate [x,y,z], chair }] }],
-stations [{ id, pos, facing, cookSpot, node: 'st_<id>', dishSpot }], cookHomes ['h1'..'h4'],
+stations [{ id, pos, facing, cookSpot, node: 'st_<id>', dishSpot, helperSpot, helperNode: 'sh_<id>',
+helperDishSpot }] (helper* = a second cook working at the station, 1 unit to its left),
+cookHomes ['h1'..'h4'],
 kitchen, graph { nodes, edges }, speeds { customer, cook }, path(from, to), pathLength(from, to),
 pointAt(from, to, s, out) }`. Station order = config order = unlock order.
 
@@ -83,14 +85,16 @@ state.customers  [{ id: 'g12', look: { char: 'Knight'|'Mage'|'Rogue_Hooded', tin
    'eating'  2.6 s     'paying' 1.1 s ('pay' at its start)     'leaving' seat -> out (walk)
    Removed when the leaving walk ends. <= 12 seated, a few more leaving (<= ~16 on screen).
    A fresh place opens with one guest already 'waiting' at t1a.
-state.cooks      [{ id: 'c1'..'c4', state, station, order: { id, customer, station, dish } | null,
+state.cooks      [{ id: 'c1'..'c4', state, station, slot 0|1, order: { id, customer, station, dish } | null,
                     from, to, t, dur, home }]
-   'idle' (home) -> 'toStation' (walk to st_<id>) -> 'cooking' (dur = cook time, t runs x2 while
+   'idle' (home) -> 'toStation' (walk to st_<id>, or sh_<id> for slot 1) -> 'cooking' (dur = cook time, t runs x2 while
    the station's boostT > 0) -> 'toTable' (walk to the table front, carrying order.dish) ->
    'serving' (0.45 s; the guest starts eating) -> next order ('toStation') or 'return' (walk home).
-   One cook per station at a time (from assignment until the dish is cooked).
+   Up to two cooks per station at a time (RULES.stationSlots): slot 0 at the main spot st_<id>,
+   slot 1 at the helper spot sh_<id>; `station` and `slot` are set from assignment until the dish
+   is cooked (null / 0 afterwards). The scene shows the helper's dish on helperDishSpot.
 state.orders     [{ id, customer, station, dish }]  waiting for a cook (FIFO; each takes the
-                 nearest free cook whose station is free)
+                 nearest free cook if its station has a free spot)
 state.goals [{ id, done, claimed }], settings { lang, sound, quality, fps },
 tutorial 0|1|2|'done', lastSeen, offline null|{ seconds, amount }, rng, seq, spawnT
 ```
@@ -149,21 +153,29 @@ new game (default: phone language, English otherwise).
 - Price per dish: `basePrice * (1 + 0.35 (L-1)) * 1.02^(L-1)`; upgrade cost `baseCost * 1.15^(L-1)`.
 - Cook time halves at levels 10, 25, 50, 100 (milestone = speed x2 + a station visual upgrade).
   Tap boost: x2 cooking speed at that station, +1.5 s per tap, max 5 s.
-- Orders: the newest open station weighs 3, the others 1. Customers arrive after
+- Orders: the newest open station weighs 3, the others 1, and every guest already waiting for a
+  station divides its weight by (1 + 0.7 per waiting guest) (`RULES.queuePenalty`), so orders
+  spread over the kitchen instead of piling up at the newest station (varied order bubbles, no
+  idle cooks next to a queue). Two cooks can work at one station. Customers arrive after
   `max(0.7, 2.4 / free seats)` s; no failure states.
 - Village Inn: juice (price 7, cook 2 s, open free), grill (30, 3 s, open 100), stew (300, 4 s,
-  open 1.4K), oven (3K, 5 s, open 16K); tables 3-6 cost 80 / 300 / 1.5K / 6K; cooks 2-4 cost
+  open 1.4K), oven (3K, 5 s, open 20K); tables 3-6 cost 80 / 300 / 1.5K / 6K; cooks 2-4 cost
   30 / 500 / 6K; cook speed (+15 % per level, 10 levels) 200 x 2.4^(L-1). 18 goals (stars =
-  thirds). Harbor Tavern = everything x10 with its own dishes (cocoa, veggie burger, soup, roast).
-- Income estimate (HUD, offline, hints) = soft minimum of the cook-, station- and seat-limited
-  order rates x average price; within ~10 % of the simulation (tests/logic/estimate.test.mjs).
+  thirds), ordered so the 3 visible goals never name the same station twice; the last stretch:
+  serve 100, open the Oven, 4 cooks, Stew Pot level 28, Oven level 10. Harbor Tavern =
+  everything x10 with its own dishes (cocoa, veggie burger, soup, roast).
+- Income estimate (HUD, offline, hints) = soft minimum of the cook-, station- (x2 spots) and
+  seat-limited order rates x average price; the order mix is solved with a few fixed-point
+  steps (waiting guests per station from Little's law, then the queue penalty); within ~10 % of
+  the simulation (tests/logic/estimate.test.mjs).
 - Offline: estimate x min(away, 2 h), only if away >= 60 s, collected on return.
 - Measured by `node tests/logic/bot.mjs` (attentive player, seeds 3/7/11/19): first upgrade 0 s,
-  first coins 9 s, 2nd cook ~0:30, Grill 0:50, Stew 3:07-3:28, Oven 5:43-5:59, Village Inn
-  complete 10:30-10:53, 90 % of gaps between reward moments <= 13 s, longest 21-27 s (while
-  saving for the Oven); guests wait ~9-10 s for food (max ~36 s just after the Oven opens).
-  Careless bot (cheapest buys, late goals, no boosts): complete in ~30 min (no softlock).
-  Harbor Tavern: ~11 min.
+  first coins 9 s, 2nd cook ~0:30, Grill 0:50, Stew 2:55-3:11, Oven 5:49-6:08, Village Inn
+  complete 11:20-11:37, longest gap between reward moments 21-26 s; guests wait ~10 s for
+  food (p90 ~11 s, max ~30 s). Waiting guests all showing the same dish (3 or more waiting):
+  ~6 % of the time after minute 2 (was 26 %); a cook idle while an order waits: ~1 % (was 21 %).
+  Careless bot (cheapest buys, late goals, no boosts): complete in ~19 min (no softlock).
+  Harbor Tavern: ~12 min.
 - Tutorial: 0 "Tap the Juice Bar" (the UI moves to 1 when its card opens), 1 "Upgrade" (an
   upgrade moves to 2), 2 "Open the Grill" (shown once affordable; opening ends it).
 
@@ -185,11 +197,14 @@ detection; the only per-frame layout writes are transforms at scene anchors.
   income per second under it, gear; optional FPS meter (`scene.stats()`).
 - Station marks at `anchor('station', id)`: small level pill (level + thin bar to the next speed
   milestone + an orange arrow when an upgrade is worth buying, bouncing for the best one); next
-  station: a price chip that becomes an orange "Open" sign when affordable (tap: station card);
-  later plots: a tiny lock.
-- Order bubbles at `anchor('customer', id)` for waiting guests: dish icon, progress ring while a
-  cook prepares it, a little bounce while it is carried; "+coins" float + a coin flight to the
-  HUD on `pay` (hidden while a panel/modal is open).
+  station: a price chip that becomes a compact orange "+ coin price" button when affordable
+  (tap: station card; the word Open is on the card); later plots: a tiny lock.
+- Next table (`.tmark` at `anchor('table', next)`): the same orange "+ coin price" chip, only
+  while it is affordable and no card / sheet is open; tap = buy.
+- Order bubbles at `anchor('customer', id)` for waiting guests: 32 px dish icon, progress ring
+  while a cook prepares it (the bubble shrinks a little once a cook has the order), a little
+  bounce while it is carried; "+coins" float (gold on a small brown pill, a bit bigger for the
+  newest dish) + a coin flight to the HUD on `pay` (hidden while a panel/modal is open).
 - Station card (bottom sheet): dish tile, name, level, "Price per dish 7 -> 10", cooking time,
   milestone bar, one big Upgrade button (hold to repeat, speeds up) or Open (new dish).
   Tapping a station also boosts it. The bottom bar slides away while the card is open.
@@ -201,10 +216,13 @@ detection; the only per-frame layout writes are transforms at scene anchors.
   Village Inn, Harbor Tavern, 2 x coming soon; "Go" when the current place is complete.
 - Modals: Restaurant complete (stars, guests served, Next place / Keep playing), Welcome back
   (offline earnings, Collect), Settings (language, sound, graphics, FPS, credits).
-- Tutorial: pointing hand + ring + short bubble; bubbles for card buttons sit above the card.
-- Toasts (opened, new cook, new table, milestone, goal done) sit just above the bottom UI (or
-  under the HUD while a sheet is open; they follow when a card or sheet opens or closes), so
-  they never cover the stations or a sheet row.
+- Tutorial: pointing hand + ring + short bubble (text-wrap: balance); for an open station the
+  ring pulses on the appliance, the hand points up at it from the counter front and the bubble
+  waits below the pass; bubbles for card buttons sit above the card.
+- Toasts (opened, new cook, new table, milestone, goal done) sit just above the bottom UI, under
+  the HUD while a tutorial bubble is shown, and as a slim banner at the very top while a menu
+  sheet is open (they follow when a card or sheet opens or closes), so they never cover the
+  stations, a tutorial bubble or a sheet row.
 - Canvas taps: `scene.pick()` -> station (boost + card), table (info; an unowned table is bought
   at once when it is the next one and affordable, otherwise Upgrades opens), customer (his
   order), cook (info), nothing (closes the card).

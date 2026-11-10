@@ -15,6 +15,7 @@ export function createTutorial(ctx) {
   ctx.layers.overlays.appendChild(root);
 
   let hint = null;     // { point: () => {x, y, ring}, t }
+  let shown = false;   // a tutorial bubble with text is on screen
   let hushT = 0;
   let rectT = 0;
   let btnRect = null;
@@ -24,10 +25,12 @@ export function createTutorial(ctx) {
     setStyle(ring, 'transform', `translate(${Math.round(p.rx)}px, ${Math.round(p.ry)}px)`);
     setStyle(hand, 'transform', `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`);
     toggle(bubble, 'is-hidden', !text);
+    shown = !!text;
     if (text) {
       setText(bubble, text);
       const bx = Math.max(130, Math.min(window.innerWidth - 130, p.x));
-      const by = bubbleAbove ? p.by - 10 : p.y + 62;
+      // below the hand (p.by: a lower spot for station hints, clear of the counter and cook)
+      const by = bubbleAbove ? p.by - 10 : (p.by || p.y + 62);
       toggle(bubble, 'above', bubbleAbove);
       setStyle(bubble, 'left', Math.round(bx) + 'px');
       setStyle(bubble, 'top', Math.round(by) + 'px');
@@ -41,7 +44,10 @@ export function createTutorial(ctx) {
     const s = game.state.stations.find((x) => x.id === id);
     // the Open sign (38 px tall) stands on the anchor of its plot
     if (s && !s.open) return { x: a.x, y: a.y - 6, rx: a.x, ry: a.y - 19 };
-    return { x: a.x, y: a.y + 4, rx: a.x, ry: a.y - 12 };
+    // open station: the ring pulses on the appliance itself, the hand points up at it from the
+    // counter front, and the bubble waits below the pass so the station stays in view
+    const k = ctx.scale ? ctx.scale() : 1;
+    return { x: a.x + 8, y: a.y + 44 * k, rx: a.x, ry: a.y + 26 * k, by: a.y + 128 * k };
   }
 
   // resting position of a button (offsets ignore the card's slide-in transform)
@@ -66,7 +72,7 @@ export function createTutorial(ctx) {
     const step = game.state.tutorial;
     if (ctx.modalOpen() || hushT > 0) { toggle(root, 'hush', true); }
     else toggle(root, 'hush', false);
-    if (ctx.modalOpen()) { toggle(root, 'is-hidden', true); return; }
+    if (ctx.modalOpen()) { shown = false; toggle(root, 'is-hidden', true); return; }
 
     if (hint) {
       hint.t -= dt;
@@ -74,7 +80,7 @@ export function createTutorial(ctx) {
       if (p) { place(p, '', false); return; }
       hint = null;
     }
-    if (step === 'done' || game.state.locationIndex > 0) { toggle(root, 'is-hidden', true); return; }
+    if (step === 'done' || game.state.locationIndex > 0) { shown = false; toggle(root, 'is-hidden', true); return; }
     const first = game.state.stations[0].id;
     const second = game.state.stations[1];
     const cardFor = ctx.cardStation();
@@ -106,7 +112,7 @@ export function createTutorial(ctx) {
         }
       }
     }
-    if (!p) { toggle(root, 'is-hidden', true); return; }
+    if (!p) { shown = false; toggle(root, 'is-hidden', true); return; }
     place(p, text, above);
   }
 
@@ -118,5 +124,6 @@ export function createTutorial(ctx) {
     hush(sec) { hushT = sec; },
     stationPoint,
     bubbleRect() { return root.classList.contains('is-hidden') ? null : bubble.getBoundingClientRect(); },
+    bubbleShown: () => shown,
   };
 }

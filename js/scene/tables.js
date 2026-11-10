@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { clamp, easeOutBack } from './kit.js';
 
 export function createTables(kit, layout, mats = {}) {
-  const base = mats.base || kit.materials.base;
+  const base = mats.furniture || mats.base || kit.materials.base;
   const group = new THREE.Group();
   group.name = 'tables';
   const harbor = layout.id === 'harbor';
