@@ -1,0 +1,170 @@
+// Static part of a location: outside ground, floors, walls, kitchen back row (fridge, sink,
+// cabinets), pass counters and decor, all KayKit pieces merged by material (kit.batch).
+// Stations and tables are dynamic and live in stations.js / tables.js.
+import * as THREE from 'three';
+import { CELL } from './kit.js';
+
+const H = Math.PI / 2;
+
+// Themes: colours of the repainted atlas swatches + background / outside ground.
+export const THEMES = {
+  inn: {
+    background: '#9fc98f',
+    ground: '#8fbf7e',
+    path: '#d9c39a',
+    // lower wainscot ([2,1]) warm wood, upper wall ([4,1]) cream plaster
+    wall: [{ cell: CELL.wall, top: '#b77649', bottom: '#8f5434' }, { cell: CELL.trim, top: '#fbf0dc', bottom: '#efdcbc' }],
+    dining: [{ cell: CELL.tileDark, top: '#d29d68', bottom: '#c99460' }, { cell: CELL.tileLight, top: '#e7c08e', bottom: '#dfb684' }],
+    kitchen: [{ cell: CELL.tileDark, top: '#c5ccd1', bottom: '#bcc4ca' }, { cell: CELL.tileLight, top: '#f6f3ec', bottom: '#efebe2' }],
+    windowLight: '#fff1c9',
+  },
+  harbor: {
+    background: '#7fc4dd',
+    ground: '#e8d2a2',
+    path: '#c8a873',
+    wall: [{ cell: CELL.wall, top: '#4f8fb0', bottom: '#3f7896' }, { cell: CELL.trim, top: '#eef7fa', bottom: '#d8eaf1' }],
+    dining: [{ cell: CELL.tileDark, top: '#5e9dbb', bottom: '#548fab' }, { cell: CELL.tileLight, top: '#eef4f2', bottom: '#e2ebe9' }],
+    kitchen: [{ cell: CELL.tileDark, top: '#c97d5d', bottom: '#b86e50' }, { cell: CELL.tileLight, top: '#f3e6d3', bottom: '#e9dac4' }],
+    windowLight: '#eaf8ff',
+  },
+};
+
+export function themeFor(id) { return THEMES[id] || THEMES.inn; }
+
+/**
+ * Build the static room for a layout. quality: 'high' adds the small decor.
+ * Returns { group, tris, focus: Vector3[] (points the camera must frame) }.
+ */
+export function buildRoom(kit, layout, quality = 'high') {
+  const theme = themeFor(layout.id);
+  const mats = {
+    base: kit.materials.base,
+    wall: kit.themed(layout.id + ':wall', theme.wall),
+    dining: kit.themed(layout.id + ':dining', theme.dining),
+    kitchen: kit.themed(layout.id + ':kitchen', theme.kitchen),
+  };
+  const b = kit.batch();
+  const { minX, maxX, minZ, maxZ } = layout.bounds;
+  const decor = quality !== 'low';
+  const harbor = layout.id === 'harbor';
+
+  // ---- floors (floor_kitchen: 4 x 4 tile, 0.5 thick)
+  const kz = layout.kitchen.maxZ; // kitchen tiles reach under the pass
+  for (let x = minX + 2; x < maxX; x += 4) {
+    for (let z = minZ + 2; z < maxZ; z += 4) {
+      const kitchen = z < kz;
+      b.add('floor_kitchen', x, -0.5, z, 0, 1, kitchen ? mats.kitchen : mats.dining);
+    }
+  }
+
+  // ---- back wall (z = minZ): plain, plain with cabinets / hood, window
+  const bw = minZ - 0.25;
+  const backPieces = harbor ? ['wall_window_open', 'wall', 'wall_window_open'] : ['wall', 'wall', 'wall_window_open'];
+  backPieces.forEach((p, i) => b.add(p, minX + 2 + i * 4, 0, bw, 0, 1, mats.wall));
+  // side walls (edge-on from the camera, they frame the room)
+  for (let z = minZ + 2; z < maxZ; z += 4) {
+    b.add(z < 2 && z > -6 ? 'wall_window_open' : 'wall', minX - 0.25, 0, z, H, 1, mats.wall);
+    b.add(z < 2 && z > -6 ? 'wall_window_open' : 'wall', maxX + 0.25, 0, z, -H, 1, mats.wall);
+  }
+  // front wall: low (a dollhouse cut), open at the door
+  const dx = layout.door.pos[0];
+  const fw = maxZ + 0.25;
+  const lowS = [1, 0.28, 1];
+  for (let x0 = minX; x0 < maxX - 0.01; x0 += 2) {
+    const cx = x0 + 1;
+    if (Math.abs(cx - dx) < 1.9) continue; // doorway 4 wide
+    b.add('wall_half', x0, 0, fw, 0, lowS, mats.wall);
+  }
+  // corner posts + door posts
+  for (const [x, z] of [[minX - 0.25, minZ - 0.25], [maxX + 0.25, minZ - 0.25]]) b.add('pillar_A', x, 0, z, 0, [1, 0.98, 1], mats.wall);
+  for (const x of [minX - 0.25, maxX + 0.25, dx - 2, dx + 2]) b.add('pillar_A', x, 0, fw, 0, [0.9, 0.3, 0.9], mats.wall);
+
+  // ---- kitchen back row (fridge left, sink right, cabinets above)
+  const sz = layout.stations[0].pos[1];
+  b.add(harbor ? 'fridge_B' : 'fridge_A', minX + 1, 0, sz);
+  b.add('kitchencounter_sink_backsplash', maxX - 1, 0, sz);
+  if (!harbor) {
+    b.add('kitchencabinet', minX + 3, 0, minZ);
+    b.add('kitchencabinet', minX + 5, 0, minZ);
+    b.add('shelf_papertowel_decorated', 1, 2.75, minZ);
+  } else {
+    b.add('kitchencabinet', minX + 7, 0, minZ);
+    b.add('kitchencabinet', minX + 9, 0, minZ);
+    b.add('shelf_papertowel_decorated', minX + 5, 2.75, minZ);
+  }
+  if (decor) {
+    b.add('dishrack_plates', maxX - 1.45, 1.0, sz + 0.05, 0, 0.7);
+    b.add('papertowel', maxX - 0.35, 1.0, sz - 0.5, 0, 0.8);
+  }
+
+  // ---- pass counters with a few things on top
+  for (const seg of layout.kitchen.pass) {
+    for (let x = seg.x0 + 1; x < seg.x1 - 0.01; x += 2) b.add('kitchencounter_straight_B', x, 0, seg.z);
+  }
+  if (decor) {
+    const P = layout.kitchen.pass;
+    const left = P[0], right = P[P.length - 1];
+    const lz = left.z;
+    // left pass: plates, mugs, jars
+    b.add('plate_small', left.x1 - 0.7, 1.0, lz - 0.2, 0, 0.8);
+    b.add('plate_small', left.x1 - 0.7, 1.08, lz - 0.2, 0, 0.8);
+    b.add('plate_small', left.x1 - 0.7, 1.16, lz - 0.2, 0, 0.8);
+    b.add('jar_C_large', left.x0 + 0.6, 1.0, lz - 0.4, 0, 0.9);
+    b.add('jar_D_medium', left.x0 + 1.15, 1.0, lz - 0.45, 0, 0.9);
+    b.add('menu', left.x1 - 1.8, 1.0, lz + 0.1, 0.3, 1.1);
+    // right pass: ketchup / mustard, bowls, a crate of buns
+    b.add('ketchup', right.x0 + 0.55, 1.0, lz + 0.05);
+    b.add('mustard', right.x0 + 0.9, 1.0, lz + 0.1);
+    b.add('bowl_small', right.x0 + 1.7, 1.0, lz - 0.2, 0, 0.75);
+    b.add('bowl_small', right.x0 + 1.7, 1.18, lz - 0.2, 0, 0.75);
+    b.add('crate_buns', right.x1 - 0.85, 1.0, lz - 0.15, 0.1, 0.38);
+  }
+
+  // ---- dining decor: crates by the door, pillars
+  if (decor) {
+    const cz = maxZ - 1.0;
+    const sideL = minX + 0.75, sideR = maxX - 0.75;
+    const crateL = harbor ? 'crate_potatoes' : 'crate_carrots';
+    const crateR = harbor ? 'crate_onions' : 'crate_tomatoes';
+    if (Math.abs(sideL - dx) > 3) {
+      b.add('crate', sideL, 0, cz, 0.08, 0.5);
+      b.add(crateL, sideL, 0.4, cz, -0.1, 0.42);
+      b.add('crate_lettuce', sideL + 1.05, 0, cz + 0.1, 0.25, 0.42);
+    }
+    if (Math.abs(sideR - dx) > 3) {
+      b.add('crate', sideR, 0, cz, -0.06, 0.5);
+      b.add(crateR, sideR, 0.4, cz, 0.12, 0.42);
+      b.add('crate_cheese', sideR - 1.05, 0, cz + 0.1, -0.2, 0.42);
+    }
+    // jars on the cabinet line / sink
+    b.add('jar_A_large', maxX - 0.4, 1.0, sz + 0.55, 0, 0.8);
+  }
+
+  const group = b.build('room:' + layout.id);
+
+  // ---- outside ground (plain colour) + a path to the door
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200).rotateX(-H),
+    new THREE.MeshLambertMaterial({ color: theme.ground }),
+  );
+  ground.position.y = -0.52;
+  ground.matrixAutoUpdate = false;
+  ground.updateMatrix();
+  ground.name = 'ground';
+  group.add(ground);
+  const pathMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.6, 14).rotateX(-H),
+    new THREE.MeshLambertMaterial({ color: theme.path }),
+  );
+  pathMesh.position.set(dx, -0.5, maxZ + 7);
+  pathMesh.matrixAutoUpdate = false;
+  pathMesh.updateMatrix();
+  group.add(pathMesh);
+
+  // points the camera keeps in view: the floor corners, the station tops, the door
+  const focus = [
+    new THREE.Vector3(minX - 0.5, 0, maxZ + 0.6), new THREE.Vector3(maxX + 0.5, 0, maxZ + 0.6),
+    new THREE.Vector3(minX - 0.5, 2.4, minZ + 0.6), new THREE.Vector3(maxX + 0.5, 2.4, minZ + 0.6),
+  ];
+  return { group, tris: b.tris, focus, theme, mats };
+}

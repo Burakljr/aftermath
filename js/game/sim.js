@@ -1,4 +1,5 @@
-// Economy maths and the production line step. Pure functions over state + config.
+// Economy maths: prices, costs, cooking times, milestones, walking speed and the
+// steady income estimate. Pure functions over (location config, state).
 import { RULES } from './config.js';
 
 const MS = RULES.milestones;
@@ -26,114 +27,146 @@ export function milestoneInfo(level) {
 }
 
 export function speedMult(level) {
-  return (1 + RULES.speedPerLevel * (level - 1)) * Math.pow(2, milestonesReached(level));
+  return Math.pow(2, milestonesReached(level));
 }
 
-export function cycleTime(sc, level) {
-  return sc.baseTime / speedMult(level);
+export function cookTime(sc, level) {
+  return sc.cookTime / speedMult(level);
 }
 
-export function stationValue(sc, level) {
-  const g = RULES.valueGrowth || 1;
-  return Math.round(sc.baseValue * level * Math.pow(g, level - 1));
+// Smooth price per dish (unrounded) and the rounded coins a customer pays.
+export function priceRaw(sc, level) {
+  return sc.basePrice * (1 + RULES.priceStep * (level - 1)) * Math.pow(RULES.priceGrowth, level - 1);
 }
-
-/** Smooth (unrounded) value gain of the next level, for display: it never drops from one
- * level to the next, while the rounded per-level gain can jitter (+2, +1, +2). */
-export function stationGain(sc, level) {
-  const g = RULES.valueGrowth || 1;
-  return sc.baseValue * ((level + 1) * Math.pow(g, level) - level * Math.pow(g, level - 1));
+export function price(sc, level) {
+  return Math.round(priceRaw(sc, level));
 }
 
 export function upgradeCost(sc, level) {
   return Math.round(sc.baseCost * Math.pow(RULES.costGrowth, level - 1));
 }
 
-export function toyValue(cfg, factory) {
-  let v = 0;
-  const st = factory.stations;
-  for (let i = 0; i < st.length; i++) if (st[i].open) v += stationValue(cfg.stations[i], st[i].level);
-  return v;
+export function tableCost(cfg, owned) {
+  const c = cfg.tables.costs;
+  return owned < c.length ? c[owned] : Infinity;
 }
 
-export function lastOpenIndex(factory) {
+export function cookCost(cfg, count) {
+  const c = cfg.cooks.costs;
+  return count < cfg.cooks.max && count < c.length ? c[count] : Infinity;
+}
+
+export function cookSpeedCost(cfg, level) {
+  if (level >= RULES.cookSpeedMax) return Infinity;
+  return Math.round(cfg.cookSpeed.baseCost * Math.pow(cfg.cookSpeed.growth, level - 1));
+}
+
+export function cookSpeedMult(level) {
+  return 1 + RULES.cookSpeedStep * (level - 1);
+}
+
+export function cookWalkSpeed(layout, level) {
+  return layout.speeds.cook * cookSpeedMult(level);
+}
+
+export function ownedTables(state) {
+  let n = 0;
+  for (let i = 0; i < state.tables.length; i++) if (state.tables[i].owned) n++;
+  return n;
+}
+
+export function newestOpenIndex(state) {
   let last = -1;
-  const st = factory.stations;
-  for (let i = 0; i < st.length; i++) if (st[i].open) last = i;
+  for (let i = 0; i < state.stations.length; i++) if (state.stations[i].open) last = i;
   return last;
 }
 
-// Index of the slowest open station (ignores boosts).
-export function bottleneckIndex(cfg, factory) {
-  let worst = -1;
-  let worstT = -1;
-  const st = factory.stations;
+// Order weight of station i (0 when closed): the newest open station is ordered more often.
+export function orderWeight(state, i) {
+  const s = state.stations[i];
+  if (!s || !s.open) return 0;
+  return i === newestOpenIndex(state) && i > 0 ? RULES.newestWeight : 1;
+}
+
+// Average coins per order with the current mix.
+export function avgPrice(cfg, state) {
+  let w = 0;
+  let v = 0;
+  for (let i = 0; i < state.stations.length; i++) {
+    const k = orderWeight(state, i);
+    if (!k) continue;
+    w += k;
+    v += k * price(cfg.stations[i], state.stations[i].level);
+  }
+  return w ? v / w : 0;
+}
+
+// Steady income estimate (coins per second, no boosts): the smallest of the cook-, station-
+// and seat-limited order rates times the average price. Used for the HUD income, offline
+// earnings and the upgrade hints. Calibrated against the simulation (tests/logic).
+export function incomeEstimate(cfg, layout, state) {
+  const st = state.stations;
+  const tables = layout.tables;
+  const v = cookWalkSpeed(layout, state.cookSpeed);
+  const vc = layout.speeds.customer;
+  let nt = 0;
+  for (let i = 0; i < tables.length && i < state.tables.length; i++) if (state.tables[i].owned) nt++;
+  if (!nt) return 0;
+  let wSum = 0;
+  let pSum = 0;
+  let cookBusy = 0;     // expected cook seconds per order
+  let lead = 0;         // expected order lead time (station walk + cook + carry)
   for (let i = 0; i < st.length; i++) {
-    if (!st[i].open) continue;
-    const t = cycleTime(cfg.stations[i], st[i].level);
-    if (t > worstT + 1e-9) { worstT = t; worst = i; }
-  }
-  return worst;
-}
-
-// Steady income per second without boosts: bottleneck rate x toy value.
-export function incomePerSec(cfg, factory) {
-  const b = bottleneckIndex(cfg, factory);
-  if (b < 0) return 0;
-  return toyValue(cfg, factory) / cycleTime(cfg.stations[b], factory.stations[b].level);
-}
-
-// Advance the line by dt seconds (dt should be small; see RULES.maxStep).
-// emit(name, payload) is called for cycle/pass/sold. Returns coins earned.
-export function stepLine(cfg, factory, dt, emit) {
-  const st = factory.stations;
-  const last = lastOpenIndex(factory);
-  let earned = 0;
-  for (let i = last; i >= 0; i--) {
-    const s = st[i];
-    if (!s.open) continue;
-    const sc = cfg.stations[i];
-    const boosted = s.boostT > 0;
-    if (boosted) s.boostT = Math.max(0, s.boostT - dt);
-    const ct = cycleTime(sc, s.level) / (boosted ? RULES.boostMult : 1);
-    let t = dt;
-    let guard = 0;
-    while (guard++ < 64) {
-      if (s.progress >= 1) {
-        // finished item: hand it on
-        if (i === last) {
-          const value = toyValue(cfg, factory);
-          earned += value;
-          factory.sold++;
-          s.progress = 0;
-          emit('sold', { value });
-        } else {
-          const n = st[i + 1];
-          if (n.tray < RULES.trayMax) {
-            n.tray++;
-            s.progress = 0;
-            emit('pass', { from: s.id, to: n.id });
-          } else break; // blocked
-        }
-      }
-      if (t <= 0) break;
-      if (s.progress === 0) {
-        if (i > 0) {
-          if (s.tray > 0) s.tray--;
-          else break; // idle, waiting for input
-        }
-      }
-      const need = (1 - s.progress) * ct;
-      if (t >= need) {
-        t -= need;
-        s.progress = 1;
-        emit('cycle', { station: s.id });
-      } else {
-        s.progress += t / ct;
-        if (s.progress <= 0) s.progress = 1e-6;
-        t = 0;
-      }
+    const w = orderWeight(state, i);
+    if (!w) continue;
+    const ls = layout.stations[i];
+    let d = 0;
+    for (let k = 0; k < tables.length; k++) {
+      if (!state.tables[k] || !state.tables[k].owned) continue;
+      d += layout.pathLength(ls.node, tables[k].front);
     }
+    d /= nt;
+    const ct = cookTime(cfg.stations[i], st[i].level);
+    wSum += w;
+    pSum += w * price(cfg.stations[i], st[i].level);
+    cookBusy += w * (2 * d / v + ct + RULES.serveTime);
+    lead += w * (d / v + ct + d / v + RULES.serveTime);
   }
-  return earned;
+  if (!wSum) return 0;
+  cookBusy /= wSum;
+  lead /= wSum;
+  // per-station cap: station i only gets a share w_i / wSum of the orders
+  let stationRate = Infinity;
+  for (let i = 0; i < st.length; i++) {
+    const w = orderWeight(state, i);
+    if (!w) continue;
+    const ls = layout.stations[i];
+    let d = 0;
+    for (let k = 0; k < tables.length; k++) {
+      if (!state.tables[k] || !state.tables[k].owned) continue;
+      d += layout.pathLength(ls.node, tables[k].front);
+    }
+    d /= nt;
+    const busy = 0.5 * d / v + cookTime(cfg.stations[i], st[i].level);
+    stationRate = Math.min(stationRate, wSum / (w * busy));
+  }
+  const cooks = state.cooks.length;
+  const cookRate = cooks / cookBusy;
+  // seats: walk in + wait (at least one lead time) + eat + pay
+  let walkIn = 0;
+  for (let k = 0; k < tables.length; k++) {
+    if (!state.tables[k] || !state.tables[k].owned) continue;
+    walkIn += layout.pathLength(layout.door.outside, tables[k].seats[0].id);
+  }
+  walkIn = walkIn / nt / vc;
+  const seats = nt * 2;
+  const seatRate = seats / (walkIn + lead + RULES.eatTime + RULES.payTime + RULES.arriveBase / 2);
+  // soft minimum: the tightest limit dominates, but easing the others still helps a bit
+  // (more seats keep more orders queued, so cooks wait less), like in the simulation
+  const P = 6;
+  const rate = Math.pow(Math.pow(cookRate, -P) + Math.pow(stationRate, -P) + Math.pow(seatRate, -P), -1 / P);
+  return rate * (pSum / wSum) * EST_FACTOR;
 }
+
+// The simulation loses a little to queueing (measured in tests/logic/estimate.test.mjs).
+export const EST_FACTOR = 1;

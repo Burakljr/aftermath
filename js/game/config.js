@@ -1,99 +1,126 @@
-// Static game data: factories, stations, goals and economy rules.
+// Static game data: locations, stations, dishes, goals and economy rules.
 // Pure data, no DOM. Tuned with tests/logic/bot.mjs (see docs/ARCH.md).
 
 export const RULES = {
-  costGrowth: 1.15,            // upgrade cost multiplier per level
-  trayMax: 3,                  // items that can wait in a station's input tray
-  milestones: [10, 25, 50, 100], // each one doubles the station's speed
-  speedPerLevel: 0,            // extra speed per level (0: only milestones change speed)
-  valueGrowth: 1.04,           // value per toy = baseValue * level * valueGrowth^(level-1)
-  boostMult: 2,                // speed multiplier while a tap boost runs
-  boostPerTap: 1.5,            // seconds of boost added per tap
-  boostMax: 5,                 // boost time cap in seconds
-  offlineCap: 2 * 60 * 60,     // seconds of offline earnings at most (v0: 2 h)
-  offlineMin: 60,              // shorter absences give nothing
-  offlineRate: 1,              // share of the live income earned while away
-  maxStep: 0.05,               // tick() sub-step size in seconds
+  costGrowth: 1.15,              // station upgrade cost multiplier per level
+  priceStep: 0.35,               // price per dish = basePrice * (1 + priceStep * (level-1))
+  priceGrowth: 1.02,             //                  * priceGrowth^(level-1)
+  milestones: [10, 25, 50, 100], // each one doubles the station's cooking speed
+  maxLevel: 150,
+  boostMult: 2,                  // cooking speed multiplier while a tap boost runs
+  boostPerTap: 1.5,              // seconds of boost added per tap on a station
+  boostMax: 5,                   // boost time cap in seconds
+  eatTime: 2.6,                  // seconds a customer eats
+  payTime: 1.1,                  // seconds of paying + cheering
+  serveTime: 0.45,               // seconds a cook needs to put the dish down
+  arriveBase: 2.4,               // next customer after arriveBase / free seats seconds ...
+  arriveMin: 0.7,                // ... but never faster than this
+  firstArrive: 0.4,              // first customer of a fresh location
+  newestWeight: 3,               // order weight of the newest open station (others 1)
+  cookSpeedStep: 0.15,           // +15 % walking speed per Cook speed level
+  cookSpeedMax: 10,              // Cook speed levels
+  offlineCap: 2 * 60 * 60,       // seconds of offline earnings at most (v0: 2 h)
+  offlineMin: 60,                // shorter absences give nothing
+  offlineRate: 1,                // share of the average income earned while away
+  maxStep: 0.05,                 // tick() sub-step size in seconds
 };
 
-// Goal types (see goals.js): open, level, sold, income, allLevel.
+// Customers: KayKit adventurers (file names) and tint variants the scene can recolour.
+export const CUSTOMER_CHARS = ['Knight', 'Mage', 'Rogue_Hooded'];
+export const CUSTOMER_TINTS = 4;
+
+// Dishes (the scene maps them to KayKit food models, the UI to its SVG icons).
+export const DISHES = {
+  juice: { nameKey: 'dish.juice' },
+  burger: { nameKey: 'dish.burger' },
+  stew: { nameKey: 'dish.stew' },
+  dinner: { nameKey: 'dish.dinner' },
+  cocoa: { nameKey: 'dish.cocoa' },
+  veggieburger: { nameKey: 'dish.veggieburger' },
+  soup: { nameKey: 'dish.soup' },
+};
+
+// Goal types (see goals.js): open, level, served, tables, cooks, cookSpeed.
 // reward: coins paid when the goal is collected.
+// kind (stations): which machine the scene builds: 'drinks' | 'grill' | 'pot' | 'oven'.
 
-export const FACTORIES = [
-  {
-    id: 'wood',
-    nameKey: 'factory.wood',
-    toyKey: 'toy.wood',
-    startMoney: 30,             // enough for the first upgrades straight away
-    completeReward: 500,        // starting bonus for the next factory
-    palette: {
-      floor: 0xffe6b8, wall: 0x8fd6ff, trim: 0xffffff, belt: 0x4b587c,
-      accent: 0xff6b6b, accent2: 0xffc23c, accent3: 0x4fd18b, accent4: 0x6c8cff,
-      wood: 0xe0a463, toy: [0xff5a5f, 0x3fa9f5, 0xffcc29, 0x4fd18b],
-      ribbon: 0xff4f9a, box: 0x6c8cff,
-    },
-    stations: [
-      { id: 'saw',      nameKey: 'station.saw',      baseTime: 1.0, baseValue: 1,    openCost: 0,     baseCost: 20 },
-      { id: 'assembly', nameKey: 'station.assembly', baseTime: 1.5, baseValue: 3,    openCost: 0,     baseCost: 60 },
-      { id: 'paint',    nameKey: 'station.paint',    baseTime: 1.2, baseValue: 30,   openCost: 700,   baseCost: 600 },
-      { id: 'wrap',     nameKey: 'station.wrap',     baseTime: 0.9, baseValue: 3000, openCost: 60000, baseCost: 350000 },
-    ],
-    goals: [
-      { id: 'w1', type: 'level', station: 'saw', target: 5, reward: 20 },
-      { id: 'w2', type: 'sold', target: 25, reward: 25 },
-      { id: 'w3', type: 'open', station: 'paint', reward: 60 },
-      { id: 'w4', type: 'level', station: 'assembly', target: 10, reward: 100 },
-      { id: 'w5', type: 'income', target: 20, reward: 150 },
-      { id: 'w6', type: 'level', station: 'paint', target: 5, reward: 300 },
-      { id: 'w7', type: 'level', station: 'paint', target: 10, reward: 600 },
-      { id: 'w8', type: 'open', station: 'wrap', reward: 350000 },
-      { id: 'w9', type: 'sold', target: 500, reward: 100000 },
-      { id: 'w10', type: 'level', station: 'wrap', target: 5, reward: 600000 },
-      { id: 'w11', type: 'income', target: 50000, reward: 1000000 },
-      { id: 'w12', type: 'level', station: 'wrap', target: 10, reward: 3000000 },
-      { id: 'w13', type: 'level', station: 'paint', target: 50, reward: 3000000 },
-      { id: 'w14', type: 'income', target: 300000, reward: 5000000 },
-      { id: 'w15', type: 'allLevel', target: 25, reward: 10000000 },
-    ],
-  },
-  {
-    id: 'teddy',
-    nameKey: 'factory.teddy',
-    toyKey: 'toy.teddy',
-    startMoney: 300,
-    completeReward: 5000,
-    palette: {
-      floor: 0xffd9e8, wall: 0xb7a6ff, trim: 0xffffff, belt: 0x5a4b7c,
-      accent: 0xff7eb6, accent2: 0xffd166, accent3: 0x66d9c2, accent4: 0x8f7bff,
-      fabric: 0xc8945f, toy: [0xc8945f, 0xf2c38f, 0xffffff, 0x8a5a3b],
-      ribbon: 0xff4f6d, box: 0x66d9c2,
-    },
-    stations: [
-      { id: 'cutter', nameKey: 'station.cutter', baseTime: 1.0, baseValue: 10, openCost: 0, baseCost: 200 },
-      { id: 'stuffing', nameKey: 'station.stuffing', baseTime: 1.5, baseValue: 30, openCost: 0, baseCost: 600 },
-      { id: 'stitching', nameKey: 'station.stitching', baseTime: 1.2, baseValue: 300, openCost: 7000, baseCost: 6000 },
-      { id: 'ribbon', nameKey: 'station.ribbon', baseTime: 0.9, baseValue: 30000, openCost: 600000, baseCost: 3500000 },
-    ],
-    goals: [
-      { id: 't1', type: 'level', station: 'cutter', target: 5, reward: 200 },
-      { id: 't2', type: 'sold', target: 25, reward: 250 },
-      { id: 't3', type: 'open', station: 'stitching', reward: 600 },
-      { id: 't4', type: 'level', station: 'stuffing', target: 10, reward: 1000 },
-      { id: 't5', type: 'income', target: 200, reward: 1500 },
-      { id: 't6', type: 'level', station: 'stitching', target: 5, reward: 3000 },
-      { id: 't7', type: 'level', station: 'stitching', target: 10, reward: 6000 },
-      { id: 't8', type: 'open', station: 'ribbon', reward: 3500000 },
-      { id: 't9', type: 'sold', target: 500, reward: 1000000 },
-      { id: 't10', type: 'level', station: 'ribbon', target: 5, reward: 6000000 },
-      { id: 't11', type: 'income', target: 500000, reward: 10000000 },
-      { id: 't12', type: 'level', station: 'ribbon', target: 10, reward: 30000000 },
-      { id: 't13', type: 'level', station: 'stitching', target: 50, reward: 30000000 },
-      { id: 't14', type: 'income', target: 3000000, reward: 50000000 },
-      { id: 't15', type: 'allLevel', target: 25, reward: 100000000 },
-    ],
-  },
-];
+const INN = {
+  id: 'inn',
+  nameKey: 'loc.inn',
+  startMoney: 25,               // the first upgrades are affordable straight away
+  completeReward: 0,            // the next location starts with its own money
+  palette: { floor: 0xe9c79b, wall: 0xf3e3c3, trim: 0x9a6a43, accent: 0xd9643a },
+  stations: [
+    { id: 'juice', kind: 'drinks', dish: 'juice', nameKey: 'station.juice', cookTime: 2.0, basePrice: 7, baseCost: 8, openCost: 0 },
+    { id: 'grill', kind: 'grill', dish: 'burger', nameKey: 'station.grill', cookTime: 3.0, basePrice: 30, baseCost: 60, openCost: 100 },
+    { id: 'stew', kind: 'pot', dish: 'stew', nameKey: 'station.stew', cookTime: 4.0, basePrice: 300, baseCost: 700, openCost: 1400 },
+    { id: 'oven', kind: 'oven', dish: 'dinner', nameKey: 'station.oven', cookTime: 5.0, basePrice: 3000, baseCost: 10000, openCost: 16000 },
+  ],
+  tables: { start: 2, costs: [0, 0, 80, 300, 1500, 6000] },   // cost of table n (index n-1)
+  cooks: { start: 1, max: 4, costs: [0, 30, 500, 6000] },     // cost of cook n (index n-1)
+  cookSpeed: { baseCost: 200, growth: 2.4 },                   // cost of the next level
+  goals: [
+    { id: 'i1', type: 'level', station: 'juice', target: 5, reward: 15 },
+    { id: 'i2', type: 'served', target: 5, reward: 20 },
+    { id: 'i3', type: 'cooks', target: 2, reward: 30 },
+    { id: 'i4', type: 'open', station: 'grill', reward: 60 },
+    { id: 'i5', type: 'tables', target: 3, reward: 80 },
+    { id: 'i6', type: 'level', station: 'juice', target: 10, reward: 100 },
+    { id: 'i7', type: 'level', station: 'grill', target: 10, reward: 150 },
+    { id: 'i8', type: 'served', target: 50, reward: 300 },
+    { id: 'i9', type: 'open', station: 'stew', reward: 600 },
+    { id: 'i10', type: 'cooks', target: 3, reward: 1000 },
+    { id: 'i11', type: 'level', station: 'stew', target: 10, reward: 2000 },
+    { id: 'i12', type: 'tables', target: 4, reward: 2500 },
+    { id: 'i13', type: 'cookSpeed', target: 3, reward: 3000 },
+    { id: 'i14', type: 'served', target: 150, reward: 4000 },
+    { id: 'i15', type: 'open', station: 'oven', reward: 6000 },
+    { id: 'i16', type: 'level', station: 'oven', target: 10, reward: 10000 },
+    { id: 'i17', type: 'cooks', target: 4, reward: 15000 },
+    { id: 'i18', type: 'level', station: 'oven', target: 25, reward: 30000 },
+  ],
+};
 
-export function factoryByIndex(i) {
-  return FACTORIES[Math.max(0, Math.min(FACTORIES.length - 1, i | 0))];
+// Location 2: the same structure with every value x10 and its own dishes / decor.
+function scaled(base, over) {
+  const k = 10;
+  return Object.assign({}, base, over, {
+    startMoney: base.startMoney * k,
+    stations: base.stations.map((s, i) => Object.assign({}, s, over.stations[i], {
+      basePrice: s.basePrice * k, baseCost: s.baseCost * k, openCost: s.openCost * k,
+    })),
+    tables: { start: base.tables.start, costs: base.tables.costs.map((c) => c * k) },
+    cooks: { start: base.cooks.start, max: base.cooks.max, costs: base.cooks.costs.map((c) => c * k) },
+    cookSpeed: { baseCost: base.cookSpeed.baseCost * k, growth: base.cookSpeed.growth },
+    goals: base.goals.map((g, i) => Object.assign({}, g, over.goals[i], { reward: g.reward * k })),
+  });
+}
+
+const STATION_MAP = { juice: 'cocoa', grill: 'veggie', stew: 'soup', oven: 'roast' };
+const INN_GOALS_MAP = INN.goals.map((g) => {
+  const o = { id: 'h' + g.id.slice(1) };
+  if (g.station) o.station = STATION_MAP[g.station];
+  return o;
+});
+
+const HARBOR = scaled(INN, {
+  id: 'harbor',
+  nameKey: 'loc.harbor',
+  palette: { floor: 0xb9d3dc, wall: 0xe8f1f2, trim: 0x3f6f8a, accent: 0x2f8fb0 },
+  stations: [
+    { id: 'cocoa', dish: 'cocoa', nameKey: 'station.cocoa' },
+    { id: 'veggie', dish: 'veggieburger', nameKey: 'station.veggie' },
+    { id: 'soup', dish: 'soup', nameKey: 'station.soup' },
+    { id: 'roast', dish: 'dinner', nameKey: 'station.roast' },
+  ],
+  // same goals with this location's stations (ids h1..h18)
+  goals: INN_GOALS_MAP,
+});
+
+export const LOCATIONS = [INN, HARBOR];
+// Shown as "coming soon" in the Locations panel (names only, not playable in v0).
+export const COMING_SOON = ['loc.forest', 'loc.castle'];
+
+export function locationByIndex(i) {
+  return LOCATIONS[Math.max(0, Math.min(LOCATIONS.length - 1, i | 0))];
 }

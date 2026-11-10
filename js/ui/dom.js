@@ -1,7 +1,5 @@
-// Small DOM helpers and the inline SVG icon set (all drawn for this game:
-// chunky flat shapes with a dark ink outline).
-
-export const INK = '#2A1E3B';
+// Small DOM helpers and the inline SVG icon set (our own simple drawings: flat shapes,
+// soft shading, no heavy outlines, so they sit well next to the KayKit models).
 
 export function el(tag, cls, attrs, children) {
   const e = document.createElement(tag);
@@ -62,18 +60,20 @@ export function onTap(e, fn) {
 
 // Hold-to-repeat for buy buttons. press(first) returns true while repeating makes sense.
 // Timing runs on the UI's dt (call update(dt) every frame), so tests can drive it.
-export function makeHold(btn, press, { delay = 380, every = 110 } = {}) {
+// The repeat speeds up the longer the button is held.
+export function makeHold(btn, press, { delay = 380, every = 140, fastest = 60 } = {}) {
   let holding = false;
   let wait = 0;
   let next = 0;
+  let gap = every;
   btn.addEventListener('pointerdown', (ev) => {
     if (ev.button !== undefined && ev.button > 0) return;
     ev.preventDefault();
     ev.stopPropagation();
-    if (btn.classList.contains('is-gone')) return;
     holding = !!press(true);
     wait = delay;
     next = 0;
+    gap = every;
   });
   const stop = () => { holding = false; };
   btn.addEventListener('pointerup', stop);
@@ -87,7 +87,8 @@ export function makeHold(btn, press, { delay = 380, every = 110 } = {}) {
       if (wait > 0) return;
       next -= dt * 1000;
       if (next <= 0) {
-        next = every;
+        next = gap;
+        gap = Math.max(fastest, gap * 0.9);
         if (!press(false)) holding = false;
       }
     },
@@ -96,140 +97,100 @@ export function makeHold(btn, press, { delay = 380, every = 110 } = {}) {
   };
 }
 
-// ---------------------------------------------------------------- icons
-// outlined(): every part is drawn twice, first as a fat ink silhouette, then filled,
-// so overlapping parts share one clean outline.
-function outlined(vb, parts, details = '', sw = 3.4) {
-  const shapes = parts.map((p) => p[1]).join('');
-  const fills = parts.map(([f, s]) => `<g fill="${f}">${s}</g>`).join('');
-  return `<svg viewBox="0 0 ${vb} ${vb}" aria-hidden="true"><g fill="${INK}" stroke="${INK}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round">${shapes}</g>${fills}${details}</svg>`;
+export function icon(name, cls = '') {
+  return el('span', 'ico ' + (cls || ''), { html: ICONS[name] || '' });
 }
-const STAR_PATH = (cx, cy, r) => {
+
+// ---------------------------------------------------------------- icons
+const svg = (vb, body) => `<svg viewBox="0 0 ${vb} ${vb}" aria-hidden="true">${body}</svg>`;
+const STAR = (cx, cy, r) => {
   let d = '';
   for (let i = 0; i < 10; i++) {
     const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const rr = i % 2 ? r * 0.5 : r;
+    const rr = i % 2 ? r * 0.52 : r;
     d += (i ? 'L' : 'M') + (cx + Math.cos(a) * rr).toFixed(2) + ' ' + (cy + Math.sin(a) * rr).toFixed(2);
   }
   return d + 'Z';
 };
-export const STAR_D = STAR_PATH;
 const gearTeeth = Array.from({ length: 8 }, (_, k) =>
-  `<rect x="13.6" y="1.6" width="4.8" height="7.4" rx="1.6" transform="rotate(${k * 45} 16 16)"/>`).join('');
-// hand saw: a blade with teeth along its lower edge and a chunky handle
-const handSawBlade = (() => {
-  let d = 'M2.2 9.6L15.8 6.4V16.6';
-  const n = 6;
-  for (let i = 0; i < n; i++) {
-    const t0 = i / n, t1 = (i + 0.5) / n;
-    const x0 = 15.8 - t0 * 13.6, y0 = 16.6 - t0 * 2.2;
-    const x1 = 15.8 - t1 * 13.6, y1 = 16.6 - t1 * 2.2;
-    d += `L${x0.toFixed(2)} ${y0.toFixed(2)}L${(x1 - 0.2).toFixed(2)} ${(y1 + 1.9).toFixed(2)}`;
-  }
-  return d + 'L2.2 14.4z';
-})();
-const CAR_BODY = '<path d="M2.6 16.4V12.6l2.6-5h9.2l3.6 4h2.4a1.6 1.6 0 0 1 1.6 1.6v3.2z"/>';
-const CAR_WHEELS = '<circle cx="7.4" cy="17" r="2.9"/><circle cx="16.8" cy="17" r="2.9"/>';
-const CAR_DETAIL = (glass) => `<path d="M7 11.4l1.3-2.3h3.6v2.3z" fill="${glass}"/><circle cx="7.4" cy="17" r="1.1" fill="#DDE2EE"/><circle cx="16.8" cy="17" r="1.1" fill="#DDE2EE"/>`;
+  `<rect x="10.4" y="1.4" width="3.2" height="5" rx="1.2" transform="rotate(${k * 45} 12 12)"/>`).join('');
+
+// a mug (juice / cocoa): body colour, drink colour
+const mug = (body, rim, drink, extra = '') => svg(32,
+  `<ellipse cx="16" cy="28.4" rx="10" ry="2" fill="#000" opacity=".12"/>` +
+  `<path d="M22.6 11.6h2.2a4.4 4.4 0 0 1 0 8.8h-2.2" fill="none" stroke="${rim}" stroke-width="2.8"/>` +
+  `<path d="M7 9.4h16v14.8a3.8 3.8 0 0 1-3.8 3.8h-8.4A3.8 3.8 0 0 1 7 24.2z" fill="${body}"/>` +
+  `<path d="M7 9.4h3.2v18.4A3.8 3.8 0 0 1 7 24.2z" fill="#fff" opacity=".28"/>` +
+  `<rect x="6.2" y="7.6" width="17.6" height="3.6" rx="1.8" fill="${rim}"/>` +
+  `<ellipse cx="15" cy="9.4" rx="7.2" ry="1.4" fill="${drink}"/>` + extra);
+// a bowl: bowl colour, food colour, toppings
+const bowl = (body, food, top) => svg(32,
+  `<ellipse cx="16" cy="28.2" rx="11" ry="2" fill="#000" opacity=".12"/>` +
+  `<ellipse cx="16" cy="14.6" rx="12.6" ry="3.8" fill="${food}"/>` + top +
+  `<path d="M3.4 14.6h25.2c0 7-5.6 12.4-12.6 12.4S3.4 21.6 3.4 14.6z" fill="${body}"/>` +
+  `<path d="M6.6 17.4c1.2 3.6 4 6 7.4 6.8" stroke="#fff" stroke-opacity=".35" stroke-width="2" stroke-linecap="round" fill="none"/>`);
+// a burger: patty colour
+const burger = (patty, leaf) => svg(32,
+  `<ellipse cx="16" cy="28.4" rx="11.4" ry="2" fill="#000" opacity=".12"/>` +
+  `<path d="M4.6 22.6h22.8v1.6a3.4 3.4 0 0 1-3.4 3.4H8a3.4 3.4 0 0 1-3.4-3.4z" fill="#E4A04E"/>` +
+  `<rect x="4" y="18.4" width="24" height="4.6" rx="2.3" fill="${patty}"/>` +
+  `<path d="M3.6 17.2c2-.2 2.6 1.6 4.4 1.6s2.4-1.6 4.2-1.6 2.4 1.6 4.2 1.6 2.4-1.6 4.2-1.6 2.4 1.6 4.2 1.6 2.2-1.4 3.6-1.6v-1.4H3.6z" fill="${leaf}"/>` +
+  `<path d="M4.4 15.6C4.4 9 9.6 4.8 16 4.8S27.6 9 27.6 15.6z" fill="#F0AE55"/>` +
+  `<path d="M7.6 12.4c.8-2.8 3.2-4.8 6.2-5.4" stroke="#FFD89A" stroke-width="2" stroke-linecap="round" fill="none"/>` +
+  `<g fill="#FFF3D6"><ellipse cx="12" cy="10.4" rx="1" ry=".6"/><ellipse cx="17.6" cy="8.8" rx="1" ry=".6"/><ellipse cx="21.4" cy="11.6" rx="1" ry=".6"/><ellipse cx="15.6" cy="12.6" rx="1" ry=".6"/></g>`);
 
 export const ICONS = {
-  coin: `<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="17.6" r="13" fill="#E58E00" stroke="${INK}" stroke-width="2.8"/><circle cx="16" cy="15" r="13" fill="#FFB800" stroke="${INK}" stroke-width="2.8"/><circle cx="16" cy="15" r="9.2" fill="#FFC82E" stroke="#E08A00" stroke-width="1.8"/><path d="${STAR_PATH(16, 15.4, 5.6)}" fill="#FFE27A" stroke="#E08A00" stroke-width="1.2" stroke-linejoin="round"/><path d="M7.4 11.6a9.4 9.4 0 0 1 4.6-5.2" stroke="#FFF3BF" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>`,
-  star: outlined(24, [['currentColor', `<path d="${STAR_PATH(12, 12.8, 10.4)}"/>`]], '<path d="M8.4 9.8l1.8-.4" stroke="#fff" stroke-opacity=".75" stroke-width="2" stroke-linecap="round"/>', 2.8),
-  // an empty star slot ("to earn"): dark plum star with a cream inner line
-  starSlot: outlined(24, [['#4A3966', `<path d="${STAR_PATH(12, 12.8, 10.4)}"/>`]], `<path d="${STAR_PATH(12, 13.2, 5.6)}" fill="none" stroke="#F6DFAF" stroke-opacity=".8" stroke-width="1.6" stroke-linejoin="round"/>`, 2.8),
-  up: outlined(24, [['currentColor', '<path d="M12 2.6l8.6 9.2h-4.9v8.8H8.3v-8.8H3.4z"/>']], '<path d="M10.2 13.6v4.6" stroke="#fff" stroke-opacity=".55" stroke-width="1.8" stroke-linecap="round"/>', 3),
-  lock: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.6 11V8.4a4.4 4.4 0 0 1 8.8 0V11" fill="none" stroke="${INK}" stroke-width="5.6" stroke-linecap="round"/><path d="M7.6 11V8.4a4.4 4.4 0 0 1 8.8 0V11" fill="none" stroke="#DDE2EE" stroke-width="2.2" stroke-linecap="round"/><rect x="4" y="10" width="16" height="12" rx="3.4" fill="currentColor" stroke="${INK}" stroke-width="2.6"/><path d="M12 14.2v3.4" stroke="${INK}" stroke-width="2.8" stroke-linecap="round"/><path d="M6.6 12.6h3" stroke="#fff" stroke-opacity=".6" stroke-width="1.6" stroke-linecap="round"/></svg>`,
-  gear: outlined(32, [['currentColor', `${gearTeeth}<circle cx="16" cy="16" r="10.2"/>`]], `<circle cx="16" cy="16" r="4.4" fill="#FFF4DC" stroke="${INK}" stroke-width="2.6"/><path d="M9.6 12.6a7 7 0 0 1 3-3.4" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-linecap="round" fill="none"/>`, 3.6),
-  close: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="${INK}" stroke-width="7.4" stroke-linecap="round"/><path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/></svg>`,
-  bolt: outlined(24, [['currentColor', '<path d="M13.8 1.8L4.6 13.6h6.2L9.6 22.2l9.6-12.6h-6.2z"/>']], '', 2.8),
-  clock: outlined(24, [['currentColor', '<circle cx="12" cy="12.4" r="10"/>'], ['#FFF4DC', '<circle cx="12" cy="12.4" r="6.8"/>']], `<path d="M12 8.4v4.2l2.8 1.8" stroke="${INK}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`, 2.6),
-  moon: outlined(24, [['#FFE27A', '<path d="M14.6 2.6a9.4 9.4 0 1 0 6.8 14.2A7.8 7.8 0 0 1 14.6 2.6z"/>']], `<path d="${STAR_PATH(19.4, 5.4, 2.6)}" fill="#fff"/><circle cx="8.6" cy="11" r="1.3" fill="#F2C94C"/><circle cx="11.4" cy="16.4" r="1.7" fill="#F2C94C"/>`, 2.8),
-  trophy: outlined(48, [
-    ['#FFB800', '<path d="M12.6 10.6H6.4c-.4 7 3.4 11.6 9.6 12.4M35.4 10.6h6.2c.4 7-3.4 11.6-9.6 12.4" fill="none" stroke-width="4.4"/>'],
-    ['#FFC82E', '<path d="M13 5h22v14a11 11 0 0 1-22 0z"/>'],
-    ['#E89A00', '<rect x="20.4" y="29" width="7.2" height="6"/>'],
-    ['#8A5CF6', '<rect x="12.6" y="34" width="22.8" height="9.4" rx="3"/>'],
-  ], `<path d="M12.6 10.6H6.4c-.4 7 3.4 11.6 9.6 12.4M35.4 10.6h6.2c.4 7-3.4 11.6-9.6 12.4" fill="none" stroke="#FFB800" stroke-width="2.6" stroke-linecap="round"/><path d="${STAR_PATH(24, 15.4, 6)}" fill="#FFF3BF"/><path d="M17 8.4v8" stroke="#FFF3BF" stroke-width="2.4" stroke-linecap="round"/><rect x="16" y="37" width="16" height="3" rx="1.5" fill="#B596FF"/>`, 4),
-  box: outlined(24, [['#FFB24D', '<path d="M3 8.2L12 4l9 4.2v9.6L12 22l-9-4.2z"/>']], `<path d="M12 12.4L21 8.2v9.6L12 22z" fill="#E58A1F" fill-opacity=".55"/><path d="M3 8.2L12 12.4l9-4.2M12 12.4V22" stroke="${INK}" stroke-width="1.8" fill="none" stroke-linejoin="round"/>`, 2.8),
-  rate: outlined(24, [['#FFB800', '<circle cx="9.6" cy="14.4" r="7.2"/>'], ['#36C657', '<path d="M17.6 2.2l5.2 5.6h-3v6.4h-4.4V7.8h-3z"/>']], `<path d="${STAR_PATH(9.6, 14.6, 3.6)}" fill="#FFE27A"/>`, 2.8),
-  stars: outlined(24, [['#FFC82E', `<path d="${STAR_PATH(6.6, 14, 5.6)}"/><path d="${STAR_PATH(17.4, 14, 5.6)}"/>`], ['#FFE27A', `<path d="${STAR_PATH(12, 8.6, 6.6)}"/>`]], '', 2.6),
-  key: outlined(24, [['#FFC82E', '<circle cx="7.6" cy="12" r="5.4"/><path d="M12 10.2h10v3.6h-2v3.4h-3.2v-3.4H12z"/>']], `<circle cx="7.6" cy="12" r="2" fill="${INK}"/>`, 2.8),
-  check: outlined(24, [['currentColor', '<path d="M3.6 12.6l3.2-3.2 3.6 3.6 7-7 3.2 3.2L10.4 19.4z"/>']], '', 2.8),
-  sparkle: outlined(24, [['currentColor', '<path d="M12 1.6c.9 5.2 3.6 8 9 9.6-5.4 1.6-8.1 4.4-9 9.6-.9-5.2-3.6-8-9-9.6 5.4-1.6 8.1-4.4 9-9.6z"/>']], '', 2.6),
-  hand: `<svg viewBox="0 0 64 76" aria-hidden="true"><g opacity=".3" fill="${INK}" stroke="${INK}" stroke-width="4" stroke-linejoin="round" transform="translate(2 4)"><rect x="21" y="2" width="13" height="40" rx="6.5"/><rect x="32" y="25" width="12" height="20" rx="6"/><rect x="42" y="29" width="11" height="18" rx="5.5"/><path d="M15 36c0-5 3-8 7-8h26c5 0 8 3 8 8v12c0 14-9 24-22 24h-4c-10 0-15-7-17-15z"/></g><g fill="#fff" stroke="${INK}" stroke-width="4" stroke-linejoin="round"><rect x="21" y="2" width="13" height="40" rx="6.5"/><rect x="32" y="25" width="12" height="20" rx="6"/><rect x="42" y="29" width="11" height="18" rx="5.5"/><path d="M15 36c0-5 3-8 7-8h26c5 0 8 3 8 8v12c0 14-9 24-22 24h-4c-10 0-15-7-17-15z"/><rect x="5" y="36" width="13" height="23" rx="6.5" transform="rotate(-28 11.5 47.5)"/></g><path d="M25 8v8" stroke="#FFD2DD" stroke-width="3.2" stroke-linecap="round"/><path d="M22 60c3 4 7 6 12 6" stroke="#E9DCC4" stroke-width="3" stroke-linecap="round" fill="none"/></svg>`,
-  // menu icons
-  wrench: outlined(32, [
-    ['#B7CDEB', '<g transform="rotate(45 16 16)"><path d="M18.6 2.6a7.2 7.2 0 1 1-5.2 0v6.2h5.2z"/><rect x="13.4" y="12" width="5.2" height="18" rx="2.6"/></g>'],
-    ['#36C657', '<path d="M24 14.4l6.6 7h-3.8v7.2h-5.6v-7.2h-3.8z"/>'],
-  ], '<path d="M8.6 7.2l2.6 2.6" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/><path d="M22.6 22.6v3.6" stroke="#fff" stroke-opacity=".6" stroke-width="1.8" stroke-linecap="round"/>', 3.6),
-  target: outlined(32, [
-    ['#FF4F7E', '<circle cx="14.6" cy="17.4" r="12.4"/>'],
-    ['#fff', '<circle cx="14.6" cy="17.4" r="8.4"/>'],
-    ['#FF4F7E', '<circle cx="14.6" cy="17.4" r="4.4"/>'],
-  ], `<path d="M14.8 17.2L27 5" stroke="${INK}" stroke-width="3.4" stroke-linecap="round"/><path d="M25 3.2l1 4 4 1-3.4 3.2-4-1-1-4z" fill="#FFC82E" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/><path d="M6.4 12.6a9.6 9.6 0 0 1 4-4.2" stroke="#fff" stroke-opacity=".7" stroke-width="2" stroke-linecap="round" fill="none"/>`, 3.4),
-  factory: outlined(32, [
-    ['#FFF4DC', '<path d="M3 29V15l7-4.6V15l7-4.6V15l7-4.6V29z"/>'],
-    ['#FF8B1F', '<rect x="22.4" y="4" width="5.6" height="25" rx="1"/>'],
-    ['#34A3FF', '<rect x="6.4" y="18.6" width="4.4" height="4.4" rx="1"/><rect x="13.6" y="18.6" width="4.4" height="4.4" rx="1"/>'],
-    ['#FF4F7E', '<rect x="4" y="25.4" width="24" height="3.6" rx="1"/>'],
-  ], '<path d="M23.8 7h2.8" stroke="#fff" stroke-opacity=".7" stroke-width="1.6" stroke-linecap="round"/>', 3.4),
-  // station glyphs (white shapes with ink outlines, shown on coloured tiles)
-  saw: outlined(24, [['#fff', `<path d="${handSawBlade}"/>`], ['#FFC82E', '<path d="M14.6 4.4h5.2a3.4 3.4 0 0 1 3.4 3.4v8.6a3.4 3.4 0 0 1-3.4 3.4h-5.2z"/>']], `<rect x="17.2" y="8" width="3.2" height="7.6" rx="1.6" fill="${INK}"/><path d="M4.6 10.6l8.4-1.9" stroke="#C9D3E6" stroke-width="1.6" stroke-linecap="round"/><circle cx="15.8" cy="8.2" r="0.9" fill="${INK}"/><circle cx="15.8" cy="15.2" r="0.9" fill="${INK}"/>`, 2.6),
-  assembly: outlined(24, [['#fff', CAR_BODY], [INK, CAR_WHEELS]], CAR_DETAIL('#7CCBFF'), 2.6),
-  paint: outlined(24, [['#fff', '<path d="M12 2.4c3.6 4.6 6.8 8.4 6.8 12.2a6.8 6.8 0 0 1-13.6 0c0-3.8 3.2-7.6 6.8-12.2z"/>']], '<path d="M9.2 15.4a3 3 0 0 0 2.4 3" stroke="#FF4F7E" stroke-width="2.2" stroke-linecap="round" fill="none"/>', 2.6),
-  wrap: outlined(24, [['#fff', '<rect x="3.6" y="10" width="16.8" height="11" rx="1.6"/><rect x="2.4" y="7.2" width="19.2" height="4.6" rx="1.4"/><path d="M12 7.4C9 2.6 5.2 4.6 7.4 7.4zM12 7.4c3-4.8 6.8-2.8 4.6 0z"/>']], '<path d="M12 7.6v13.2" stroke="#FF4F7E" stroke-width="3"/>', 2.6),
-  cutter: `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="${INK}" stroke-width="5.4" stroke-linecap="round"><circle cx="6.6" cy="17.6" r="3.1"/><circle cx="17.4" cy="17.6" r="3.1"/><path d="M8.6 15L18 3.6M15.4 15L6 3.6"/></g><g fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="6.6" cy="17.6" r="3.1"/><circle cx="17.4" cy="17.6" r="3.1"/><path d="M8.6 15L18 3.6M15.4 15L6 3.6"/></g><circle cx="12" cy="10.4" r="1.4" fill="${INK}"/></svg>`,
-  stuffing: outlined(24, [['#fff', '<path d="M6.4 19.2a4.6 4.6 0 0 1-.6-9.2 6.2 6.2 0 0 1 11.8-1.4 5.3 5.3 0 0 1 0 10.6z"/>']], '<path d="M7.6 13.4a2.4 2.4 0 0 1 2-2" stroke="#BFE4FF" stroke-width="1.8" stroke-linecap="round" fill="none"/>', 2.6),
-  stitching: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L19 5" stroke="${INK}" stroke-width="5" stroke-linecap="round"/><path d="M4 20L19 5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="19.4" cy="4.6" rx="1.6" ry="2.6" transform="rotate(45 19.4 4.6)" fill="none" stroke="${INK}" stroke-width="1.6"/><path d="M19 5c-4 1-2 6-6 7s-3 6-8 6" stroke="#FF4F7E" stroke-width="2.2" fill="none" stroke-dasharray="2.6 2" stroke-linecap="round"/></svg>`,
-  ribbon: outlined(24, [['#fff', '<path d="M12 11C8 5 2.4 6 3.4 10.6S10 13.2 12 11zM12 11c4-6 9.6-5 8.6-.4S14 13.2 12 11zM11 11.6l-4 9 2.6-.8 1.6 2.4L12 13zM13 11.6l4 9-2.6-.8-1.6 2.4L12 13z"/>'], ['#FF4F7E', '<circle cx="12" cy="11.2" r="2.4"/>']], '', 2.6),
-  // factory medallions
-  car: outlined(24, [['#FF4F7E', CAR_BODY], [INK, CAR_WHEELS]], CAR_DETAIL('#BFE4FF') + '<path d="M5 12.6h1.6" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/>', 2.6),
-  bear: outlined(24, [['#C98B52', '<circle cx="5.6" cy="6.6" r="3.4"/><circle cx="18.4" cy="6.6" r="3.4"/><circle cx="12" cy="13.2" r="9"/>'], ['#FFE2BD', '<ellipse cx="12" cy="16.2" rx="4.4" ry="3.4"/>']], `<circle cx="8.6" cy="11.6" r="1.4" fill="${INK}"/><circle cx="15.4" cy="11.6" r="1.4" fill="${INK}"/><ellipse cx="12" cy="14.8" rx="1.8" ry="1.3" fill="${INK}"/><path d="M10.4 17.4q1.6 1.2 3.2 0" stroke="${INK}" stroke-width="1.2" fill="none" stroke-linecap="round"/><circle cx="5.6" cy="6.6" r="1.4" fill="#FFB3C7"/><circle cx="18.4" cy="6.6" r="1.4" fill="#FFB3C7"/>`, 2.6),
-  globe: outlined(24, [['#34A3FF', '<circle cx="12" cy="12" r="9.8"/>']], `<path d="M2.6 12h18.8M12 2.4c-3.6 4.4-3.6 14.8 0 19.2M12 2.4c3.6 4.4 3.6 14.8 0 19.2M4.4 6.8h15.2M4.4 17.2h15.2" stroke="${INK}" stroke-width="1.7" fill="none"/><path d="M6 8.4a7 7 0 0 1 2.6-3" stroke="#fff" stroke-opacity=".7" stroke-width="1.6" stroke-linecap="round" fill="none"/>`, 2.6),
-  speaker: outlined(24, [['#FF8B1F', '<path d="M3 9h4.4L13 4.2v15.6L7.4 15H3z"/>']], `<path d="M16 8.4a5 5 0 0 1 0 7.2M18.8 5.6a9 9 0 0 1 0 12.8" stroke="${INK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`, 2.6),
-  question: outlined(24, [['currentColor', '<circle cx="12" cy="12" r="9.6"/>']], `<path d="M9 9.4a3 3 0 1 1 4.4 2.7c-1 .5-1.4 1.1-1.4 2.1" stroke="${INK}" stroke-width="2.6" fill="none" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.6" fill="${INK}"/>`, 2.6),
+  // ---------- dishes (32 px drawings)
+  juice: mug('#E9B98A', '#C98950', '#FF9A1F', '<circle cx="19.6" cy="8.6" r="2.2" fill="#FFC23A"/><path d="M19.6 6.4v4.4" stroke="#F08A00" stroke-width=".8"/>'),
+  cocoa: mug('#7FB3D9', '#4E86B4', '#7A4A2B', '<rect x="10" y="6.6" width="4" height="3.2" rx="1" fill="#fff"/><rect x="14.6" y="7" width="3.4" height="2.8" rx="1" fill="#FCEFE6"/>'),
+  burger: burger('#8A4B2A', '#79C150'),
+  veggieburger: burger('#7FAE45', '#A8D86A'),
+  stew: bowl('#C9773F', '#9C5A2E', '<circle cx="11.6" cy="13.6" r="1.6" fill="#F28C28"/><circle cx="18.6" cy="14.4" r="1.6" fill="#F28C28"/><circle cx="15" cy="12.6" r="1.3" fill="#E8C27A"/><path d="M20.6 12.4l1.8-1.2" stroke="#6DBB4A" stroke-width="1.6" stroke-linecap="round"/>'),
+  soup: bowl('#E7E2D6', '#F08442', '<circle cx="12" cy="13.8" r="1.3" fill="#FFF1C9"/><circle cx="19" cy="14" r="1.1" fill="#FFF1C9"/><path d="M14.6 12.8l2.2-.8" stroke="#6DBB4A" stroke-width="1.6" stroke-linecap="round"/>'),
+  dinner: svg(32,
+    '<ellipse cx="16" cy="27.6" rx="13" ry="2.2" fill="#000" opacity=".12"/>' +
+    '<ellipse cx="16" cy="21.2" rx="14" ry="6" fill="#F3EEE6"/><ellipse cx="16" cy="20.6" rx="10.6" ry="4.2" fill="#E3DBCF"/>' +
+    '<path d="M9.4 19.6c0-5.4 3.6-9.4 8-9.4 3.8 0 6.4 2.8 6.4 6.6 0 2.6-1.4 4.4-3.6 4.4H11.6c-1.4 0-2.2-.6-2.2-1.6z" fill="#C8743A"/>' +
+    '<path d="M13 15.4c.8-2 2.4-3.4 4.4-3.8" stroke="#E6A066" stroke-width="2" stroke-linecap="round" fill="none"/>' +
+    '<circle cx="23.6" cy="21.6" r="1.6" fill="#7DC352"/><circle cx="21.2" cy="22.6" r="1.4" fill="#7DC352"/><path d="M7.6 21.6l3.4-.6" stroke="#F28C28" stroke-width="2.2" stroke-linecap="round"/>'),
+
+  // ---------- UI (24 px)
+  coin: svg(24,
+    '<circle cx="12" cy="12.8" r="10" fill="#E39410"/><circle cx="12" cy="11.6" r="10" fill="#FFC23A"/>' +
+    '<circle cx="12" cy="11.6" r="6.8" fill="#FFD25E"/>' +
+    `<path d="${STAR(12, 11.8, 3.8)}" fill="#F2A516"/>` +
+    '<path d="M5.4 8.6a7.4 7.4 0 0 1 3.4-3.6" stroke="#FFF1C2" stroke-width="1.8" stroke-linecap="round" fill="none"/>'),
+  star: svg(24, `<path d="${STAR(12, 12.8, 10.4)}" fill="#FFC23A"/><path d="${STAR(12, 12.8, 10.4)}" fill="none" stroke="#F0A419" stroke-width="1.4" stroke-linejoin="round"/><path d="M8.6 9.6l1.6-.4" stroke="#FFF1C2" stroke-width="1.6" stroke-linecap="round"/>`),
+  starEmpty: svg(24, `<path d="${STAR(12, 12.8, 10.4)}" fill="#E6D7C1"/>`),
+  gear: svg(24, `<g fill="currentColor">${gearTeeth}<circle cx="12" cy="12" r="7.4"/></g><circle cx="12" cy="12" r="3.1" fill="#fff"/>`),
+  close: svg(24, '<path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>'),
+  up: svg(24, '<path d="M12 4.4l7 7.4h-4.2v7.8H9.2v-7.8H5z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'),
+  lock: svg(24, '<path d="M8 10.6V8.2a4 4 0 0 1 8 0v2.4" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="5" y="10" width="14" height="11" rx="3" fill="currentColor"/><circle cx="12" cy="15.4" r="1.6" fill="#fff"/>'),
+  check: svg(24, '<path d="M5 12.6l4.4 4.4L19 7.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'),
+  clock: svg(24, '<circle cx="12" cy="12" r="9" fill="currentColor"/><circle cx="12" cy="12" r="6.6" fill="#fff"/><path d="M12 8v4.2l2.8 1.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>'),
+  bolt: svg(24, '<path d="M13.6 2.6L5.4 13.4h5.4l-1.2 8 8.2-10.8h-5.4z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>'),
+  sound: svg(24, '<path d="M4 9.4h3.6L12.4 5v14l-4.8-4.4H4z" fill="currentColor"/><path d="M15.4 8.6a4.8 4.8 0 0 1 0 6.8M17.8 6.2a8.2 8.2 0 0 1 0 11.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>'),
+  globe: svg(24, '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" stroke="currentColor" stroke-width="1.6" fill="none"/>'),
+  monitor: svg(24, '<rect x="3" y="4.6" width="18" height="12" rx="2.4" fill="currentColor"/><rect x="5" y="6.6" width="14" height="8" rx="1.2" fill="#fff" opacity=".9"/><path d="M9 20h6M12 16.6V20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'),
+  gauge: svg(24, '<path d="M3.6 16.6a8.4 8.4 0 1 1 16.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M12 16.6l4.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="16.6" r="1.8" fill="currentColor"/>'),
+  // menu
+  upgrades: svg(24, '<rect x="2.6" y="2.6" width="18.8" height="18.8" rx="5.4" fill="#FFB347"/><path d="M12 6.4l5.4 5.8h-3.2v5.4H9.8v-5.4H6.6z" fill="#fff"/>'),
+  goals: svg(24, '<rect x="4" y="3" width="16" height="19" rx="3.4" fill="#7CC4E8"/><rect x="8.4" y="1.6" width="7.2" height="3.6" rx="1.6" fill="#4F9DC6"/><path d="M7.6 11.4l2.2 2.2 4-4.2M7.8 17.4h8.4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'),
+  places: svg(24, '<path d="M2.6 5.6l6-2.4 6.8 2.4 6-2.4v15.2l-6 2.4-6.8-2.4-6 2.4z" fill="#8BCB7A"/><path d="M8.6 3.2v15.2M15.4 5.6v15.2" stroke="#6AAE5B" stroke-width="1.6"/><path d="M12 7.4a3 3 0 0 1 3 3c0 2.2-3 5-3 5s-3-2.8-3-5a3 3 0 0 1 3-3z" fill="#FF7A59"/><circle cx="12" cy="10.4" r="1.1" fill="#fff"/>'),
+  // restaurant purchases
+  chef: svg(32, '<ellipse cx="16" cy="28.4" rx="9" ry="1.8" fill="#000" opacity=".12"/><rect x="9" y="18" width="14" height="8.4" rx="2" fill="#F1EADF"/><path d="M8.6 19.4c-3.2 0-5.2-2.4-5.2-5.2a5.2 5.2 0 0 1 6.6-5 6.4 6.4 0 0 1 12 0 5.2 5.2 0 0 1 6.6 5c0 2.8-2 5.2-5.2 5.2z" fill="#fff"/><path d="M10 23.4h12" stroke="#DCD2C4" stroke-width="1.6"/><path d="M8.6 12.6a3 3 0 0 1 2.4-2" stroke="#E9E2D8" stroke-width="1.6" stroke-linecap="round" fill="none"/>'),
+  table: svg(32, '<ellipse cx="16" cy="28.6" rx="11" ry="2" fill="#000" opacity=".12"/><path d="M14.4 14h3.2v13h-3.2z" fill="#A86B3C"/><ellipse cx="16" cy="27" rx="6" ry="1.6" fill="#A86B3C"/><ellipse cx="16" cy="13.4" rx="13" ry="4.6" fill="#C98A52"/><ellipse cx="16" cy="12.4" rx="13" ry="4.6" fill="#E2A86C"/><ellipse cx="12.6" cy="11.4" rx="3.2" ry="1" fill="#F4C996"/>'),
+  boot: svg(32, '<ellipse cx="16" cy="28.6" rx="11" ry="1.8" fill="#000" opacity=".12"/><path d="M9.4 3.6h9v13.2l7 3.2c1.8.8 2.6 2.2 2.6 4.2V27H5.4v-7.4c0-1.6.8-2.8 2.2-3.4l1.8-.8z" fill="#B97A45"/><path d="M5.4 24.4h22.6V27H5.4z" fill="#7C4E2A"/><path d="M9.4 7.6h9M9.4 11h9" stroke="#D69A60" stroke-width="1.8"/><path d="M28.6 10.4h-4.2M29 14.6h-3" stroke="#FFB347" stroke-width="2" stroke-linecap="round"/>'),
+  // places
+  inn: svg(48, '<ellipse cx="24" cy="43" rx="17" ry="2.6" fill="#000" opacity=".12"/><path d="M9 21h30v21H9z" fill="#F3DDB8"/><path d="M4.6 23L24 7.6 43.4 23z" fill="#D9643A"/><path d="M4.6 23L24 7.6 26.4 9.4 9.6 23z" fill="#E8835A"/><rect x="20" y="29" width="8" height="13" rx="4" fill="#9A6A43"/><rect x="12" y="27" width="5.6" height="5.6" rx="1.4" fill="#8FCBEA"/><rect x="30.4" y="27" width="5.6" height="5.6" rx="1.4" fill="#8FCBEA"/><rect x="31" y="9" width="4.4" height="8" fill="#B88C66"/>'),
+  harbor: svg(48, '<ellipse cx="24" cy="43" rx="17" ry="2.6" fill="#000" opacity=".12"/><circle cx="24" cy="24" r="17" fill="#CFE7F2"/><circle cx="24" cy="11.6" r="3.4" fill="none" stroke="#3F6F8A" stroke-width="3"/><path d="M24 15v21M17 19.4h14M11.6 27.4c1 5.6 6 9.2 12.4 9.2s11.4-3.6 12.4-9.2" fill="none" stroke="#3F6F8A" stroke-width="3.4" stroke-linecap="round"/><path d="M9.4 26.6l2.6 2.6 2.4-3.2M38.6 26.6L36 29.2l-2.4-3.2" fill="none" stroke="#3F6F8A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'),
+  forest: svg(48, '<ellipse cx="24" cy="43" rx="17" ry="2.6" fill="#000" opacity=".12"/><rect x="21.6" y="32" width="4.8" height="10" rx="1.2" fill="#9A6A43"/><path d="M24 4.6l12 15h-5.4l7.4 9.6H10l7.4-9.6H12z" fill="#6DB35E"/><path d="M24 4.6l12 15h-5.4l7.4 9.6H24z" fill="#5AA04D"/>'),
+  castle: svg(48, '<ellipse cx="24" cy="43" rx="17" ry="2.6" fill="#000" opacity=".12"/><path d="M8 16h8v4h4v-4h8v4h4v-4h8v26H8z" fill="#C9C2D6"/><path d="M8 16h8v4h4v-4h3v26H8z" fill="#D9D3E4"/><rect x="20" y="30" width="8" height="12" rx="4" fill="#7C6E93"/><path d="M24 4v10" stroke="#7C6E93" stroke-width="2"/><path d="M24 4.4l7 2.6-7 2.6z" fill="#E8835A"/>'),
+  // tutorial hand (64 x 76)
+  hand: '<svg viewBox="0 0 64 76" aria-hidden="true"><g fill="#000" opacity=".18" transform="translate(3 5)"><rect x="21" y="2" width="13" height="40" rx="6.5"/><path d="M15 36c0-5 3-8 7-8h26c5 0 8 3 8 8v12c0 14-9 24-22 24h-4c-10 0-15-7-17-15z"/></g><g fill="#fff" stroke="#6B5644" stroke-width="2.6" stroke-linejoin="round"><rect x="21" y="2" width="13" height="40" rx="6.5"/><rect x="32" y="25" width="12" height="20" rx="6"/><rect x="42" y="29" width="11" height="18" rx="5.5"/><path d="M15 36c0-5 3-8 7-8h26c5 0 8 3 8 8v12c0 14-9 24-22 24h-4c-10 0-15-7-17-15z"/><rect x="5" y="36" width="13" height="23" rx="6.5" transform="rotate(-28 11.5 47.5)"/></g><path d="M25 8v8" stroke="#FFD9CC" stroke-width="3" stroke-linecap="round"/></svg>',
 };
 
-export function icon(name, cls = '') {
-  return el('span', 'ico ' + cls, { html: ICONS[name] || '' });
+// dish id -> icon name (all dishes have their own drawing)
+export function dishIcon(dish) {
+  return ICONS[dish] ? dish : 'juice';
 }
-
-// Outlined text (white with a dark ink stroke under the fill).
-export function otext(cls = '', text = '') {
-  return el('span', 'ot ' + cls, { text });
-}
-
-// A pool of reusable elements for floats/coins so we never create DOM per frame.
-export function makePool(parent, cls, size) {
-  const items = [];
-  for (let i = 0; i < size; i++) {
-    const e = el('div', cls);
-    e.style.visibility = 'hidden';
-    parent.appendChild(e);
-    items.push({ e, busy: false, anim: null });
-  }
-  let next = 0;
-  return {
-    get() {
-      for (let k = 0; k < items.length; k++) {
-        const it = items[(next + k) % items.length];
-        if (!it.busy) { next = (next + k + 1) % items.length; it.busy = true; it.e.style.visibility = 'visible'; return it; }
-      }
-      return null;
-    },
-    release(it) {
-      it.busy = false;
-      it.e.style.visibility = 'hidden';
-      if (it.anim) { it.anim.cancel(); it.anim = null; }
-    },
-  };
-}
-
-// Station look shared by the card, the Upgrades list and the lab.
-export const GLYPH = {
-  saw: 'saw', assembly: 'assembly', paint: 'paint', wrap: 'wrap',
-  cutter: 'cutter', stuffing: 'stuffing', stitching: 'stitching', ribbon: 'ribbon',
-};
-export const STATION_COLORS = ['#FF8B1F', '#34A3FF', '#FF4F7E', '#8A5CF6'];
-export const FACTORY_GLYPH = { wood: 'car', teddy: 'bear' };
-export const FACTORY_COLORS = { wood: '#FFC82E', teddy: '#FF9EC2' };

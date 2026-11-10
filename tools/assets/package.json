@@ -1,0 +1,13 @@
+{
+  "name": "hero-diner-asset-tools",
+  "private": true,
+  "type": "module",
+  "description": "Asset pipeline for Heroes' Diner (run: npm install && node build.mjs <assets-src-dir>)",
+  "dependencies": {
+    "@gltf-transform/core": "^4.2.0",
+    "@gltf-transform/extensions": "^4.2.0",
+    "@gltf-transform/functions": "^4.2.0",
+    "meshoptimizer": "^0.22.0",
+    "pngjs": "^7.0.0"
+  }
+}

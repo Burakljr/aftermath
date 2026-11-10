@@ -1,196 +1,253 @@
-// Particle effects: coins, stars, confetti, puffs, sparkles, chips and floor
-// rings. One instanced mesh per kind; fixed pools, no allocations per frame.
+// Small, tidy effects with fixed pools (no allocations per frame): gold coins popping out of a
+// table when a guest pays, sparkles on upgrades, a soft burst + floor ring when something
+// opens / is bought, steam puffs at the stove and confetti when a location is complete.
+// One InstancedMesh per particle kind (coins, stars, puffs, confetti) + a few ring decals.
 import * as THREE from 'three';
-import { G, Builder, PAL, toyMaterial, tintMaskShader, TAU, rng, clamp } from './kit.js';
 
-const PI = Math.PI;
-
-function coinGeo() {
-  const b = new Builder();
-  b.add(G.cyl(0.16, 0.16, 0.055, 10), PAL.gold, 0, 0, 0, { rx: PI / 2 });
-  b.add(G.cyl(0.115, 0.115, 0.064, 10), PAL.goldHi, 0, 0, 0, { rx: PI / 2, ol: 0 });
-  b.add(G.box(0.04, 0.12, 0.07, 0), 0xfff6c8, 0, 0, 0, { ol: 0 });
-  return b.build();
-}
-function starGeo() { const b = new Builder(); b.add(G.star(0.21, 0.095, 0.08, 5, false), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function sparkleGeo() { const b = new Builder({ ol: 0 }); b.add(G.star(0.16, 0.035, 0.015, 4, false), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function confettiGeo() { const b = new Builder({ ol: 0 }); b.add(G.box(0.14, 0.02, 0.08, 0), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function puffGeo() { const b = new Builder({ ol: 0.6 }); b.add(G.sphere(7, 5), 0xffffff, 0, 0, 0, { s: 0.14, tint: 1 }); return b.build(); }
-function chipGeo() { const b = new Builder({ ol: 0 }); b.add(G.box(0.09, 0.055, 0.065, 0.015), 0xffffff, 0, 0, 0, { tint: 1 }); return b.build(); }
-function ringGeo() { const b = new Builder({ ol: 0 }); b.add(G.torus(1, 0.045, 4, 32), 0xffffff, 0, 0, 0, { rx: PI / 2, tint: 1 }); return b.build(); }
-
-// mat: 'lit' toon, 'bright' unlit toon (outlined), 'flat' basic (no outline)
-const KINDS = {
-  coin: { geo: coinGeo, max: 48, mat: 'lit', bill: false, bounce: true },
-  star: { geo: starGeo, max: 80, mat: 'bright', bill: true },
-  sparkle: { geo: sparkleGeo, max: 90, mat: 'flat', bill: true },
-  confetti: { geo: confettiGeo, max: 150, mat: 'lit', bill: false, bounce: true },
-  puff: { geo: puffGeo, max: 80, mat: 'lit', bill: false, grow: true },
-  chip: { geo: chipGeo, max: 70, mat: 'lit', bill: false, bounce: true },
-  ring: { geo: ringGeo, max: 10, mat: 'flat', bill: false, ring: true },
-};
+const KINDS = ['coin', 'star', 'puff', 'confetti'];
+const CONFETTI = [0xff6b6b, 0xffc93c, 0x4fc3f7, 0x7bd389, 0xb388ff, 0xff9f43];
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
-const _e = new THREE.Euler();
+const _q3 = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
+const _e = new THREE.Euler();
 const _c = new THREE.Color();
 const _z = new THREE.Vector3(0, 0, 1);
 
-export const CONFETTI = [PAL.red, PAL.yellow, PAL.blue, PAL.green, PAL.pink, PAL.purple, PAL.orange];
+function spriteTexture(draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  draw(c.getContext('2d'));
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 export function createFx(preset) {
   const group = new THREE.Group();
   group.name = 'fx';
-  const rand = rng(99);
-  const litMat = toyMaterial();
-  const brightMat = toyMaterial({ unlit: true });
-  const flatMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  flatMat.onBeforeCompile = tintMaskShader;
-  flatMat.customProgramCacheKey = () => 'flat-tint';
-  let mult = preset.particles;
+  let scale = preset ? preset.particles : 1;
+  const CAP = { coin: 24, star: 64, puff: 48, confetti: 160 };
 
-  const sys = {};
-  for (const [name, k] of Object.entries(KINDS)) {
-    const n = k.max;
-    const mesh = new THREE.InstancedMesh(k.geo(), k.mat === 'lit' ? litMat : k.mat === 'bright' ? brightMat : flatMat, n);
-    mesh.name = 'fx-' + name;
-    mesh.count = 0;
-    mesh.frustumCulled = false;
-    mesh.setColorAt(0, _c.set(0xffffff));
-    mesh.visible = false;
-    mesh.renderOrder = 3;
-    group.add(mesh);
-    sys[name] = {
-      k, mesh, n: 0,
-      p: new Float32Array(n * 3), v: new Float32Array(n * 3), r: new Float32Array(n * 3), w: new Float32Array(n * 3),
-      life: new Float32Array(n), max: new Float32Array(n), size: new Float32Array(n), grav: new Float32Array(n), drag: new Float32Array(n),
-      col: new Float32Array(n * 3),
+  const geos = {
+    coin: new THREE.CylinderGeometry(0.17, 0.17, 0.05, 14).rotateX(Math.PI / 2),
+    star: new THREE.PlaneGeometry(0.5, 0.5),
+    puff: new THREE.PlaneGeometry(0.7, 0.7),
+    confetti: new THREE.PlaneGeometry(0.16, 0.24),
+  };
+  const starTex = spriteTexture((ctx) => {
+    ctx.translate(32, 32);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 30);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.25, 'rgba(255,255,255,0.9)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const r = i % 2 ? 7 : 30, a = (i * Math.PI) / 4;
+      ctx.lineTo(Math.sin(a) * r, -Math.cos(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+  });
+  const puffTex = spriteTexture((ctx) => {
+    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 31);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.6, 'rgba(255,255,255,0.5)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+  });
+  const mats = {
+    coin: new THREE.MeshLambertMaterial({ color: 0xffc83a, emissive: 0x6b4300 }),
+    star: new THREE.MeshBasicMaterial({ map: starTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    puff: new THREE.MeshBasicMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: 0.85 }),
+    confetti: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+  };
+  const meshes = {};
+  const P = {};
+  for (const k of KINDS) {
+    const im = new THREE.InstancedMesh(geos[k], mats[k], CAP[k]);
+    im.name = 'fx:' + k;
+    im.frustumCulled = false;
+    im.count = 0;
+    im.visible = false;
+    im.renderOrder = k === 'coin' ? 4 : 5;
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    if (k !== 'coin') im.setColorAt(0, _c.set(0xffffff));
+    group.add(im);
+    meshes[k] = im;
+    const n = CAP[k];
+    P[k] = {
+      n: 0, cap: n,
+      x: new Float32Array(n), y: new Float32Array(n), z: new Float32Array(n),
+      vx: new Float32Array(n), vy: new Float32Array(n), vz: new Float32Array(n),
+      age: new Float32Array(n), life: new Float32Array(n), size: new Float32Array(n),
+      rot: new Float32Array(n), spin: new Float32Array(n), grav: new Float32Array(n), drag: new Float32Array(n),
+      col: new Uint32Array(n),
     };
   }
 
-  function spawn(name, x, y, z, vx, vy, vz, o) {
-    const S = sys[name];
-    if (!S) return;
-    let i = S.n;
-    if (i >= S.k.max) {
-      // recycle the oldest-ish particle
-      i = Math.floor(rand() * S.k.max);
-    } else S.n++;
-    const i3 = i * 3;
-    S.p[i3] = x; S.p[i3 + 1] = y; S.p[i3 + 2] = z;
-    S.v[i3] = vx; S.v[i3 + 1] = vy; S.v[i3 + 2] = vz;
-    S.r[i3] = rand() * TAU; S.r[i3 + 1] = rand() * TAU; S.r[i3 + 2] = rand() * TAU;
-    const spin = o.spin ?? 6;
-    S.w[i3] = (rand() - 0.5) * spin; S.w[i3 + 1] = (rand() - 0.5) * spin; S.w[i3 + 2] = (rand() - 0.5) * spin;
-    const life = (o.life ?? 1) * (0.8 + rand() * 0.4);
-    S.life[i] = life; S.max[i] = life;
-    S.size[i] = (o.size ?? 1) * (0.8 + rand() * 0.4);
-    S.grav[i] = o.grav ?? 9;
-    S.drag[i] = o.drag ?? 0.5;
-    const cols = o.colors;
-    _c.set(cols ? cols[Math.floor(rand() * cols.length)] : 0xffffff);
-    S.col[i3] = _c.r; S.col[i3 + 1] = _c.g; S.col[i3 + 2] = _c.b;
-    S.mesh.visible = true;
+  // ring decals on the floor (expanding, fading)
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, depthWrite: false, opacity: 0.8, blending: THREE.AdditiveBlending });
+  const ringGeo = new THREE.RingGeometry(0.82, 1, 40).rotateX(-Math.PI / 2);
+  const rings = [];
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(ringGeo, ringMat.clone());
+    m.visible = false;
+    m.renderOrder = 2;
+    group.add(m);
+    rings.push({ m, t: 0, life: 0.7 });
   }
 
-  const n = (count) => Math.max(1, Math.round(count * mult));
-  const list = Object.values(sys);
+  let seed = 1234567;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+
+  function emit(kind, x, y, z, o) {
+    const p = P[kind];
+    if (p.n >= p.cap) return;
+    const i = p.n++;
+    p.x[i] = x; p.y[i] = y; p.z[i] = z;
+    p.vx[i] = o.vx; p.vy[i] = o.vy; p.vz[i] = o.vz;
+    p.age[i] = -(o.delay || 0); p.life[i] = o.life; p.size[i] = o.size;
+    p.rot[i] = rnd() * Math.PI * 2; p.spin[i] = o.spin || 0; p.grav[i] = o.grav || 0; p.drag[i] = o.drag || 0;
+    p.col[i] = o.color || 0xffffff;
+  }
+  const n = (k) => Math.max(1, Math.round(k * scale));
 
   const api = {
     group,
-    setPreset(p) { mult = p.particles; },
-    /** radial burst: kind, centre, count, { speed, up, spread, size, life, grav, drag, colors, spin } */
-    burst(kind, pos, count, o = {}) {
-      const c = n(count);
-      const speed = o.speed ?? 3, up = o.up ?? 3, spread = o.spread ?? 1;
-      for (let i = 0; i < c; i++) {
-        const a = rand() * TAU, r = (0.4 + rand() * 0.6) * speed;
-        spawn(kind, pos.x + (rand() - 0.5) * 0.2 * spread, pos.y + (rand() - 0.5) * 0.15, pos.z + (rand() - 0.5) * 0.2 * spread,
-          Math.cos(a) * r * spread, up * (0.6 + rand() * 0.6), Math.sin(a) * r * spread, o);
+    coins(pos, value) {
+      const count = n(value >= 1000 ? 5 : value >= 50 ? 4 : 3);
+      for (let i = 0; i < count; i++) {
+        const a = rnd() * Math.PI * 2, sp = 0.6 + rnd() * 0.8;
+        emit('coin', pos.x, pos.y, pos.z, { vx: Math.cos(a) * sp, vy: 4.2 + rnd() * 1.6, vz: Math.sin(a) * sp, life: 0.75 + rnd() * 0.2, size: 1, spin: 9 + rnd() * 6, grav: 11, delay: i * 0.04 });
       }
     },
-    /** gentle emission (one particle) for machine work */
-    emit(kind, pos, o = {}) {
-      if (!o.always && rand() > mult + 0.15) return;
-      const a = rand() * TAU, r = (o.speed ?? 1) * (0.3 + rand() * 0.7);
-      spawn(kind, pos.x, pos.y, pos.z, Math.cos(a) * r, (o.up ?? 1.5) * (0.5 + rand()), Math.sin(a) * r, o);
-    },
-    /** confetti rain over an area centred at pos */
-    rain(pos, count, radius = 4, o = {}) {
-      const c = n(count);
-      for (let i = 0; i < c; i++) {
-        spawn('confetti', pos.x + (rand() - 0.5) * radius * 2, pos.y + rand() * 2.5, pos.z + (rand() - 0.5) * radius * 2,
-          (rand() - 0.5) * 1.2, -0.3 - rand() * 0.8, (rand() - 0.5) * 1.2,
-          { life: 2.6, size: 1.2, grav: 0.6, drag: 1.4, spin: 10, colors: CONFETTI, ...o });
+    sparkle(pos, strength = 1) {
+      const count = n(8 * strength);
+      for (let i = 0; i < count; i++) {
+        const a = rnd() * Math.PI * 2, sp = 1 + rnd() * 1.6 * strength;
+        emit('star', pos.x, pos.y, pos.z, {
+          vx: Math.cos(a) * sp, vy: 1.6 + rnd() * 2.4, vz: Math.sin(a) * sp * 0.6, life: 0.55 + rnd() * 0.35, size: 0.6 + rnd() * 0.7,
+          spin: (rnd() - 0.5) * 6, grav: 3, drag: 1.5, color: rnd() < 0.5 ? 0xffe27a : 0xffffff, delay: rnd() * 0.08,
+        });
       }
     },
-    ring(pos, color = 0xffd23c, size = 1.6) {
-      spawn('ring', pos.x, pos.y, pos.z, 0, 0, 0, { life: 0.45, size, grav: 0, drag: 0, spin: 0, colors: [color] });
+    burst(pos, strength = 1) {
+      api.sparkle(pos, strength);
+      const count = n(7 * strength);
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        emit('puff', pos.x + Math.cos(a) * 0.5, 0.25, pos.z + Math.sin(a) * 0.35, {
+          vx: Math.cos(a) * 1.6, vy: 0.5 + rnd() * 0.4, vz: Math.sin(a) * 1.2, life: 0.55 + rnd() * 0.2, size: 0.9 + rnd() * 0.5, drag: 3, color: 0xfff8ee,
+        });
+      }
+      api.confettiAt(pos, n(14 * strength));
     },
-    clear() { for (const S of Object.values(sys)) { S.n = 0; S.mesh.count = 0; S.mesh.visible = false; } },
-    count() { let c = 0; for (const S of list) c += S.n; return c; },
-
+    steam(pos) {
+      for (let i = 0; i < n(3); i++) {
+        emit('puff', pos.x + (rnd() - 0.5) * 0.5, pos.y, pos.z + (rnd() - 0.5) * 0.3, {
+          vx: (rnd() - 0.5) * 0.2, vy: 0.9 + rnd() * 0.4, vz: 0, life: 0.9 + rnd() * 0.3, size: 0.55 + rnd() * 0.3, drag: 0.6, color: 0xffffff, delay: i * 0.15,
+        });
+      }
+    },
+    confettiAt(pos, count) {
+      for (let i = 0; i < count; i++) {
+        const a = rnd() * Math.PI * 2, sp = 1.5 + rnd() * 2;
+        emit('confetti', pos.x, pos.y + 0.3, pos.z, {
+          vx: Math.cos(a) * sp, vy: 3 + rnd() * 3, vz: Math.sin(a) * sp * 0.6, life: 1.2 + rnd() * 0.6, size: 1,
+          spin: 6 + rnd() * 8, grav: 6, drag: 1.8, color: CONFETTI[(rnd() * CONFETTI.length) | 0],
+        });
+      }
+    },
+    confetti(pos, strength = 1) {
+      // rain over the whole room
+      const count = n(70 * strength);
+      for (let i = 0; i < count; i++) {
+        emit('confetti', (rnd() - 0.5) * 12, pos.y + rnd() * 3, -8 + rnd() * 17, {
+          vx: (rnd() - 0.5) * 1.5, vy: -0.5 - rnd(), vz: (rnd() - 0.5) * 1.5, life: 2.2 + rnd() * 1.3, size: 1.2,
+          spin: 5 + rnd() * 8, grav: 1.2, drag: 0.8, color: CONFETTI[(rnd() * CONFETTI.length) | 0], delay: rnd() * 0.6,
+        });
+      }
+    },
+    ring(pos) {
+      const r = rings.find((x) => !x.m.visible) || rings[0];
+      r.t = 0;
+      r.m.visible = true;
+      r.m.position.copy(pos);
+    },
     update(dt, camera) {
-      const camQ = camera.quaternion;
-      for (let si = 0; si < list.length; si++) {
-        const S = list[si];
-        if (!S.n) { if (S.mesh.visible) { S.mesh.visible = false; S.mesh.count = 0; } continue; }
-        const k = S.k;
-        let i = 0;
-        while (i < S.n) {
-          S.life[i] -= dt;
-          if (S.life[i] <= 0) {
-            // swap-remove
-            const last = S.n - 1;
-            if (i !== last) {
-              const a = i * 3, b = last * 3;
-              for (let j = 0; j < 3; j++) { S.p[a + j] = S.p[b + j]; S.v[a + j] = S.v[b + j]; S.r[a + j] = S.r[b + j]; S.w[a + j] = S.w[b + j]; S.col[a + j] = S.col[b + j]; }
-              S.life[i] = S.life[last]; S.max[i] = S.max[last]; S.size[i] = S.size[last]; S.grav[i] = S.grav[last]; S.drag[i] = S.drag[last];
-            }
-            S.n--;
+      camera.getWorldQuaternion(_q);
+      for (const k of KINDS) {
+        const p = P[k];
+        const im = meshes[k];
+        let w = 0;
+        for (let i = 0; i < p.n; i++) {
+          p.age[i] += dt;
+          if (p.age[i] >= p.life[i]) {
+            // remove: move the last particle here
+            const j = --p.n;
+            p.x[i] = p.x[j]; p.y[i] = p.y[j]; p.z[i] = p.z[j]; p.vx[i] = p.vx[j]; p.vy[i] = p.vy[j]; p.vz[i] = p.vz[j];
+            p.age[i] = p.age[j]; p.life[i] = p.life[j]; p.size[i] = p.size[j]; p.rot[i] = p.rot[j]; p.spin[i] = p.spin[j];
+            p.grav[i] = p.grav[j]; p.drag[i] = p.drag[j]; p.col[i] = p.col[j];
+            i--;
             continue;
           }
-          const i3 = i * 3;
-          const drag = Math.max(0, 1 - S.drag[i] * dt);
-          S.v[i3 + 1] -= S.grav[i] * dt;
-          S.v[i3] *= drag; S.v[i3 + 1] *= drag; S.v[i3 + 2] *= drag;
-          S.p[i3] += S.v[i3] * dt; S.p[i3 + 1] += S.v[i3 + 1] * dt; S.p[i3 + 2] += S.v[i3 + 2] * dt;
-          if (k.bounce && S.p[i3 + 1] < 0.04) { S.p[i3 + 1] = 0.04; S.v[i3 + 1] *= -0.3; S.v[i3] *= 0.5; S.v[i3 + 2] *= 0.5; S.w[i3] *= 0.5; S.w[i3 + 2] *= 0.5; }
-          S.r[i3] += S.w[i3] * dt; S.r[i3 + 1] += S.w[i3 + 1] * dt; S.r[i3 + 2] += S.w[i3 + 2] * dt;
-          const t = 1 - S.life[i] / S.max[i]; // 0 -> 1
-          let sc;
-          if (k.ring) sc = S.size[i] * (0.3 + 0.9 * Math.sqrt(t)) * (t > 0.6 ? 1 - (t - 0.6) * 0.5 : 1);
-          else if (k.grow) sc = S.size[i] * (t < 0.25 ? 0.4 + 2.4 * t : 1 - Math.max(0, (t - 0.45) / 0.55) * 0.95);
-          else sc = S.size[i] * (t < 0.1 ? t / 0.1 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1);
-          if (sc < 0.001) sc = 0.001;
-          _p.set(S.p[i3], S.p[i3 + 1], S.p[i3 + 2]);
-          if (k.bill) {
-            _q2.setFromAxisAngle(_z, S.r[i3 + 2]);
-            _q.copy(camQ).multiply(_q2);
-          } else if (k.ring) {
-            _q.identity();
+          if (p.age[i] < 0) continue;
+          const dr = Math.exp(-p.drag[i] * dt);
+          p.vx[i] *= dr; p.vz[i] *= dr; p.vy[i] = p.vy[i] * dr - p.grav[i] * dt;
+          p.x[i] += p.vx[i] * dt; p.y[i] += p.vy[i] * dt; p.z[i] += p.vz[i] * dt;
+          if (k === 'confetti' && p.y[i] < 0.02) { p.y[i] = 0.02; p.vy[i] = 0; p.vx[i] *= 0.5; p.vz[i] *= 0.5; p.spin[i] *= 0.9; }
+          p.rot[i] += p.spin[i] * dt;
+          const t = p.age[i] / p.life[i];
+          let s = p.size[i];
+          if (k === 'coin') {
+            s *= t < 0.15 ? t / 0.15 : t > 0.75 ? (1 - t) / 0.25 : 1;
+            _q2.setFromEuler(_e.set(0, p.rot[i], 0));
+          } else if (k === 'confetti') {
+            s *= t > 0.8 ? (1 - t) / 0.2 : 1;
+            _q2.setFromEuler(_e.set(p.rot[i], p.rot[i] * 0.7, p.rot[i] * 0.3));
           } else {
-            _e.set(S.r[i3], S.r[i3 + 1], S.r[i3 + 2]);
-            _q.setFromEuler(_e);
+            s *= k === 'star' ? Math.sin(Math.min(1, t * 1.2) * Math.PI) : 0.6 + t * 0.8;
+            _q2.copy(_q).multiply(_q3.setFromAxisAngle(_z, p.rot[i]));
           }
-          if (k.ring) _s.set(sc, 1, sc);
-          else _s.set(sc, sc, sc);
-          _m.compose(_p, _q, _s);
-          S.mesh.setMatrixAt(i, _m);
-          _c.setRGB(S.col[i3], S.col[i3 + 1], S.col[i3 + 2]);
-          S.mesh.setColorAt(i, _c);
-          i++;
+          _p.set(p.x[i], p.y[i], p.z[i]);
+          _s.set(s, s, s);
+          im.setMatrixAt(w, _m.compose(_p, _q2, _s));
+          if (k !== 'coin') {
+            if (k === 'puff') _c.set(p.col[i]).multiplyScalar(1 - t * 0.6);
+            else _c.set(p.col[i]);
+            im.setColorAt(w, _c);
+          }
+          w++;
         }
-        S.mesh.count = S.n;
-        S.mesh.visible = S.n > 0;
-        S.mesh.instanceMatrix.needsUpdate = true;
-        if (S.mesh.instanceColor) S.mesh.instanceColor.needsUpdate = true;
+        im.count = w;
+        im.visible = w > 0;
+        if (w) {
+          im.instanceMatrix.needsUpdate = true;
+          if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        }
+      }
+      for (const r of rings) {
+        if (!r.m.visible) continue;
+        r.t += dt;
+        const t = r.t / r.life;
+        if (t >= 1) { r.m.visible = false; continue; }
+        const s = 0.6 + t * 1.9;
+        r.m.scale.set(s, 1, s);
+        r.m.material.opacity = 0.8 * (1 - t);
       }
     },
-    dispose() { for (const S of Object.values(sys)) S.mesh.geometry.dispose(); flatMat.dispose(); },
+    clear() {
+      for (const k of KINDS) { P[k].n = 0; meshes[k].count = 0; meshes[k].visible = false; }
+      for (const r of rings) r.m.visible = false;
+    },
+    setPreset(p) { scale = p ? p.particles : 1; },
+    get count() { let c = 0; for (const k of KINDS) c += P[k].n; return c; },
   };
   return api;
 }

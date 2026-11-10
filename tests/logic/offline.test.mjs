@@ -1,58 +1,61 @@
-import { test, assert, near } from './harness.mjs';
+import { test, assert, eq, near } from './harness.mjs';
 import { createGame } from '../../js/game/index.js';
 import { RULES } from '../../js/game/config.js';
+import { runBot } from './bot.mjs';
 
 function midGame() {
-  let ms = 5e6;
-  const g = createGame({ now: () => ms, lang: 'en' });
-  g.state.money = 1e6;
-  for (let i = 0; i < 20; i++) g.act({ type: 'upgrade', station: i % 2 });
-  g.act({ type: 'open', station: 'paint' });
-  return { g, clock: () => ms, set: (v) => (ms = v) };
+  const r = runBot({ seed: 3, maxTime: 240 });
+  return r.game.save();
 }
 
-test('offline earnings are capped at 2 hours', () => {
-  const { g, clock } = midGame();
-  const save = g.save();
-  const income = g.select.incomePerSec();
-  const later = clock() + 5 * 3600 * 1000;
-  const g2 = createGame({ save, now: () => later });
-  const off = g2.select.offline();
-  assert(off, 'expected offline earnings');
-  assert(off.seconds === RULES.offlineCap && RULES.offlineCap === 7200, `seconds ${off.seconds}`);
-  near(off.amount, Math.floor(income * 7200), 1, 'amount = income x 2 h');
-  const before = g2.state.money;
-  assert(g2.act({ type: 'claimOffline' }).ok, 'claim works');
-  near(g2.state.money, before + off.amount, 1e-6, 'money added');
-  assert(g2.select.offline() === null, 'claimed once');
-  assert(!g2.act({ type: 'claimOffline' }).ok, 'cannot claim twice');
-});
-
-test('short absences (under a minute) give nothing; 30 minutes gives 30 minutes', () => {
-  const { g, clock } = midGame();
-  const save = g.save();
-  const income = g.select.incomePerSec();
-  const g2 = createGame({ save, now: () => clock() + 30 * 1000 });
-  assert(g2.select.offline() === null, 'no offline for 30 s');
-  const g3 = createGame({ save, now: () => clock() + 30 * 60 * 1000 });
-  near(g3.select.offline().amount, Math.floor(income * 1800), 1, '30 min');
-});
-
-test('a long pause while running (page hidden) also becomes offline earnings, capped', () => {
-  const { g, clock, set } = midGame();
-  g.tick(0.016);
-  set(clock() + 3 * 3600 * 1000);
-  g.tick(0.016);
+test('offline earnings = average income x time away', () => {
+  const s = midGame();
+  const t0 = JSON.parse(s).lastSeen;
+  const probe = createGame({ save: s, now: () => t0 });
+  const rate = probe.select.incomePerSec();
+  assert(rate > 10, 'mid game income ' + rate);
+  const g = createGame({ save: s, now: () => t0 + 30 * 60 * 1000 });
   const off = g.select.offline();
-  assert(off && off.seconds === 7200, 'capped pause earnings');
+  assert(off, 'offline pending');
+  near(off.seconds, 1800, 1);
+  near(off.amount, Math.floor(rate * 1800), 2);
+  const before = g.state.money;
+  eq(g.act({ type: 'claimOffline' }).ok, true);
+  near(g.state.money, before + off.amount, 1e-6);
+  eq(g.select.offline(), null);
+  eq(g.act({ type: 'claimOffline' }).reason, 'none');
 });
 
-test('unclaimed offline earnings survive a save and do not exceed the cap', () => {
-  const { g, clock } = midGame();
-  const s1 = g.save();
-  const t2 = clock() + 90 * 60 * 1000;
-  const g2 = createGame({ save: s1, now: () => t2 });
-  const s2 = g2.save();
-  const g3 = createGame({ save: s2, now: () => t2 + 90 * 60 * 1000 });
-  assert(g3.select.offline().seconds === 7200, `seconds ${g3.select.offline().seconds}`);
+test('offline earnings are capped at 2 hours', () => {
+  const s = midGame();
+  const t0 = JSON.parse(s).lastSeen;
+  const rate = createGame({ save: s, now: () => t0 }).select.incomePerSec();
+  const g = createGame({ save: s, now: () => t0 + 9 * 3600 * 1000 });
+  eq(g.select.offline().seconds, RULES.offlineCap);
+  near(g.select.offline().amount, Math.floor(rate * RULES.offlineCap), 2);
+});
+
+test('short absences (< 60 s) give nothing; unclaimed time adds up to the cap', () => {
+  const s = midGame();
+  const t0 = JSON.parse(s).lastSeen;
+  eq(createGame({ save: s, now: () => t0 + 30 * 1000 }).select.offline(), null);
+  let ms = t0 + 3600 * 1000;
+  const g = createGame({ save: s, now: () => ms });
+  eq(Math.round(g.select.offline().seconds), 3600);
+  const s2 = g.save(); // not collected
+  ms += 3 * 3600 * 1000;
+  const g2 = createGame({ save: s2, now: () => ms });
+  eq(g2.select.offline().seconds, RULES.offlineCap);
+});
+
+test('a long pause while running (hidden tab) becomes offline earnings too', () => {
+  const s = midGame();
+  let ms = JSON.parse(s).lastSeen;
+  const g = createGame({ save: s, now: () => ms });
+  let got = null;
+  g.on('offline', (p) => { got = p; });
+  g.tick(0.05);
+  ms += 10 * 60 * 1000;
+  g.tick(0.05);
+  assert(got && Math.round(got.seconds) === 600, 'offline event');
 });

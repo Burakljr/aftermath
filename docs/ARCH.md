@@ -1,4 +1,55 @@
-# Toy Factory: architecture (v0 + restyle round)
+# Heroes' Diner: architecture (work in progress)
+
+## Game state contract (core builder, js/game) - current
+
+The logic owns every entity; the scene only renders `game.state` (read-only) and plays
+effects on events. Walking entities carry `{ from, to, t, dur }` (graph node ids from
+`js/game/layout.js`): place them at `t / dur` along `layout.path(from, to)` (or use
+`layout.pointAt(from, to, t / dur * layout.pathLength(from, to), out)`). `dur` is
+`pathLength / speed`; the real speed includes the Cook speed upgrade (up to x2.35 for cooks),
+so derive animation playback from `pathLength / dur`, not from `layout.speeds`.
+Standing entities have `from === to` (their node) and `dur` = time of that activity.
+
+```
+state.location        'inn' | 'harbor'      state.locationIndex 0 | 1
+state.money, state.served, state.complete, state.cookSpeed (1..10), state.playTime
+state.stations        [{ id, open, level, boostT }]   config order = layout order = unlock order
+state.tables          [{ id: 't1'..'t6', owned }]     bought in order (t1, t2 owned at start)
+state.customers       [{ id: 'g12', look: { char: 'Knight'|'Mage'|'Rogue_Hooded', tint: 0..3 },
+                         state, seat: 't3a', table: 't3', dish, station, from, to, t, dur }]
+   state: 'enter'   out -> door (walk)
+          'toSeat'  door -> seat node (walk)
+          'waiting' seated, ordered (dish/station set), until a cook serves (t counts up, dur 0)
+          'eating'  dur = 2.6 s (dish on seat.plate)
+          'paying'  dur = 1.1 s (coin pop + cheer); 'pay' event at its start
+          'leaving' seat -> out (walk); removed from the array when the walk ends
+   A fresh location starts with one guest already 'waiting' at t1a.
+   At most 12 guests are seated; a few more can be 'leaving' at the same time (<= ~16 total).
+state.cooks           [{ id: 'c1'..'c4', state, station, order, from, to, t, dur, home }]
+   state: 'idle'      at home (cookHomes[n])
+          'toStation' walk to st_<station>   (order = { id, customer, station, dish })
+          'cooking'   at the station, dur = cook time; t runs x2 while the station's boostT > 0
+          'toTable'   walk st_<station> -> t<n>f, carrying order.dish
+          'serving'   at the table front, dur 0.45 s; the guest starts eating at its start
+          'return'    walk back home (if no order is waiting)
+   One cook per station at a time (from assignment until the dish is cooked).
+state.orders          [{ id, customer, station, dish }] waiting for a cook (FIFO)
+```
+
+Events (`game.on(ev, fn)`; main.js forwards all of `EVENTS` to `scene.fx(ev, payload)`):
+`arrive {customer}`, `order {customer, dish, station}`, `cookStart {cook, station, customer, dish}`,
+`cookDone {cook, station, customer, dish}` (addition: dish leaves the station),
+`serve {customer, dish, cook}`, `pay {customer, value, dish, station}`, `leave {customer}` (stands up),
+`upgrade {station, level, milestone}` (milestones 10/25/50/100), `open {station}`,
+`buyTable {table}`, `hire {cook}`, `cookSpeed {level}`, `boost {station}`, `goal {id}`,
+`claim {id, reward}`, `locationComplete {id}`, `locationStart {id}` (call `scene.setLocation(id)`),
+`money {value, delta}`, `offline {seconds, amount}`, `setting {key, value}`, `tutorial {step}`.
+
+Station `kind` (config): 'drinks' | 'grill' | 'pot' | 'oven'. Station ids: inn = juice, grill,
+stew, oven; harbor = cocoa, veggie, soup, roast. Dish ids: juice, burger, stew, dinner (inn);
+cocoa, veggieburger, soup, dinner (harbor).
+
+# (old toy-factory notes below, being replaced)
 
 Plain static HTML/CSS/JS ES modules, no build step, no network fetches at run time.
 Everything is vendored and referenced with relative paths, so the game works from a

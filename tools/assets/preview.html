@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>asset preview</title>
+<style>html,body{margin:0;background:#333;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../../vendor/three/build/three.module.min.js","three/addons/":"../../vendor/three/addons/"}}</script>
+</head><body>
+<script type="module">
+// Contact sheet of assets/models (tools only, not shipped): ?mode=props|heroes&clip=Walking_A&t=0.3
+import * as THREE from 'three';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { loadModel } from '../../js/scene/assets.js';
+const q = new URLSearchParams(location.search);
+const mode = q.get('mode') || 'props';
+const W = innerWidth, H = innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#556');
+scene.add(new THREE.HemisphereLight('#fff6e8', '#6a5040', 1.6));
+const sun = new THREE.DirectionalLight('#fff2dd', 2.2); sun.position.set(-4, 10, 6); scene.add(sun);
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 500);
+const labels = [];
+function label(text, x, z) { labels.push({ text, p: new THREE.Vector3(x, 0, z + 1.2) }); }
+const mixers = [];
+if (mode === 'props') {
+  const g = await loadModel('props');
+  const kids = g.scene.children.slice();
+  const cols = Number(q.get('cols') || 10); const sp = Number(q.get('sp') || 4.4);
+  const only = q.get('only') ? q.get('only').split(',') : null;
+  let i = 0;
+  for (const k of kids) {
+    if (only && !only.includes(k.name)) continue;
+    const c = k.clone();
+    const x = (i % cols) * sp, z = Math.floor(i / cols) * sp;
+    c.position.set(x, 0, z); scene.add(c); label(k.name, x, z); i++;
+  }
+  const rows = Math.ceil(i / cols);
+  const cx = (cols - 1) * sp / 2, cz = (rows - 1) * sp / 2;
+  const s = Math.max(cols * sp, rows * sp) / 2 * 0.62;
+  cam.left = -s * W / H; cam.right = s * W / H; cam.top = s; cam.bottom = -s;
+  cam.position.set(cx, 40, cz + 34); cam.lookAt(cx, 0, cz);
+} else {
+  const anims = await loadModel('anims');
+  const names = (q.get('heroes') || 'knight,mage,barbarian,barbarian_hat,rogue,rogue_hooded').split(',');
+  const clips = (q.get('clips') || 'Idle').split(',');
+  const t = Number(q.get('t') || 0.3);
+  let i = 0;
+  for (const clipName of clips) {
+    for (const n of names) {
+      const g = await loadModel(n);
+      const c = SkeletonUtils.clone(g.scene);
+      const x = (i % names.length) * 3, z = Math.floor(i / names.length) * 3.2;
+      c.position.set(x, 0, z); scene.add(c);
+      const mixer = new THREE.AnimationMixer(c);
+      const clip = anims.animations.find((a) => a.name === clipName);
+      if (clip) { mixer.clipAction(clip).play(); mixer.update(t * clip.duration); }
+      mixers.push(mixer);
+      label(n + ' ' + clipName, x, z); i++;
+    }
+  }
+  const rows = Math.ceil(i / names.length);
+  const cx = (names.length - 1) * 1.5, cz = (rows - 1) * 1.6;
+  const s = Math.max(names.length * 3 * H / W, rows * 3.2) / 2 * 0.75;
+  cam.left = -s * W / H; cam.right = s * W / H; cam.top = s; cam.bottom = -s;
+  const yaw = Number(q.get('yaw') || 0) * Math.PI / 180, el = Number(q.get('el') || 30) * Math.PI / 180;
+  cam.position.set(cx + Math.sin(yaw) * Math.cos(el) * 40, 1 + Math.sin(el) * 40, cz + Math.cos(yaw) * Math.cos(el) * 40); cam.lookAt(cx, 1, cz);
+}
+cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+renderer.render(scene, cam);
+const ctx = document.createElement('canvas'); ctx.width = W; ctx.height = H;
+Object.assign(ctx.style, { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' });
+document.body.appendChild(ctx);
+const c2 = ctx.getContext('2d'); c2.font = '11px sans-serif'; c2.fillStyle = '#fff'; c2.textAlign = 'center';
+for (const l of labels) { const v = l.p.clone().project(cam); c2.fillText(l.text, (v.x + 1) / 2 * W, (1 - v.y) / 2 * H); }
+window.__ready = true;
+</script>
+</body></html>

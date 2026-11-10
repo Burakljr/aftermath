@@ -1,0 +1,234 @@
+{
+  "generated": "2026-11-10T17:11:30.164Z",
+  "source": "KayKit Restaurant Bits 1.0 + KayKit Adventurers Character Pack 1.0 by Kay Lousberg (CC0)",
+  "files": {
+    "anims.glb": 175204,
+    "barbarian.glb": 233424,
+    "knight.glb": 283560,
+    "mage.glb": 265808,
+    "props.glb": 1480840,
+    "rogue_hooded.glb": 232652
+  },
+  "total": 2671488,
+  "props": [
+    "floor_kitchen",
+    "floor_kitchen_small",
+    "wall",
+    "wall_window_open",
+    "wall_window_closed",
+    "wall_doorway",
+    "wall_orderwindow",
+    "wall_orderwindow_decorated",
+    "wall_half",
+    "door_A",
+    "door_B",
+    "pillar_A",
+    "pillar_B",
+    "kitchencounter_straight_A",
+    "kitchencounter_straight_B",
+    "kitchencounter_straight_A_backsplash",
+    "kitchencounter_straight_B_backsplash",
+    "kitchencounter_straight_decorated",
+    "kitchencounter_straight_A_decorated",
+    "kitchencounter_sink_backsplash",
+    "kitchencounter_outercorner",
+    "kitchencounter_innercorner",
+    "stove_single",
+    "stove_multi",
+    "stove_multi_decorated",
+    "stove_single_countertop",
+    "stove_multi_countertop",
+    "oven",
+    "fridge_A",
+    "fridge_A_decorated",
+    "fridge_B",
+    "kitchencabinet",
+    "kitchencabinet_half",
+    "extractorhood",
+    "kitchentable_A",
+    "kitchentable_A_large",
+    "kitchentable_A_large_decorated",
+    "kitchentable_B_large",
+    "kitchentable_sink_large_decorated",
+    "shelf_papertowel",
+    "shelf_papertowel_decorated",
+    "dishrack_plates",
+    "dishrack",
+    "cuttingboard",
+    "pot_A",
+    "pot_A_stew",
+    "pot_B_stew",
+    "pot_large",
+    "stew_pot",
+    "pan_A",
+    "pan_B",
+    "lid_A",
+    "lid_large",
+    "towelrail",
+    "papertowel",
+    "table_round_A",
+    "table_round_A_small",
+    "table_round_A_small_decorated",
+    "table_round_A_decorated",
+    "table_round_B",
+    "chair_A",
+    "chair_B",
+    "chair_stool",
+    "menu",
+    "plate",
+    "plate_dirty",
+    "plate_small",
+    "bowl",
+    "bowl_small",
+    "bowl_dirty",
+    "stew_bowl",
+    "food_burger",
+    "food_vegetableburger",
+    "food_stew",
+    "food_dinner",
+    "ketchup",
+    "mustard",
+    "food_ingredient_burger_uncooked",
+    "food_ingredient_burger_cooked",
+    "food_ingredient_tomato",
+    "food_ingredient_carrot",
+    "food_ingredient_bun",
+    "food_ingredient_lettuce",
+    "food_ingredient_onion",
+    "food_ingredient_potato",
+    "food_ingredient_cheese",
+    "food_ingredient_steak",
+    "food_ingredient_ham_cooked",
+    "crate",
+    "crate_lid",
+    "crate_tomatoes",
+    "crate_carrots",
+    "crate_lettuce",
+    "crate_onions",
+    "crate_potatoes",
+    "crate_buns",
+    "crate_cheese",
+    "crate_steak",
+    "jar_A_large",
+    "jar_A_medium",
+    "jar_A_small",
+    "jar_B_large",
+    "jar_B_medium",
+    "jar_B_small",
+    "jar_C_large",
+    "jar_C_medium",
+    "jar_C_small",
+    "jar_D_large",
+    "jar_D_medium",
+    "jar_D_small",
+    "mug_juice",
+    "mug_cocoa",
+    "mug"
+  ],
+  "heroes": {
+    "knight": {
+      "verts": 4276,
+      "tris": 4712
+    },
+    "mage": {
+      "verts": 3806,
+      "tris": 4509
+    },
+    "barbarian": {
+      "verts": 3342,
+      "tris": 4045
+    },
+    "rogue_hooded": {
+      "verts": 3252,
+      "tris": 4005
+    }
+  },
+  "weightedJoints": [
+    "hips",
+    "spine",
+    "chest",
+    "upperarm.l",
+    "lowerarm.l",
+    "wrist.l",
+    "hand.l",
+    "upperarm.r",
+    "lowerarm.r",
+    "wrist.r",
+    "hand.r",
+    "head",
+    "upperleg.l",
+    "lowerleg.l",
+    "foot.l",
+    "toes.l",
+    "upperleg.r",
+    "lowerleg.r",
+    "foot.r",
+    "toes.r"
+  ],
+  "clips": [
+    {
+      "name": "Cheer",
+      "channels": 19,
+      "duration": 1.667
+    },
+    {
+      "name": "Idle",
+      "channels": 17,
+      "duration": 1.067
+    },
+    {
+      "name": "Interact",
+      "channels": 18,
+      "duration": 1.3
+    },
+    {
+      "name": "PickUp",
+      "channels": 19,
+      "duration": 1.3
+    },
+    {
+      "name": "Running_A",
+      "channels": 26,
+      "duration": 0.8
+    },
+    {
+      "name": "Sit_Chair_Down",
+      "channels": 21,
+      "duration": 0.8
+    },
+    {
+      "name": "Sit_Chair_Idle",
+      "channels": 21,
+      "duration": 3.6
+    },
+    {
+      "name": "Sit_Chair_StandUp",
+      "channels": 21,
+      "duration": 0.8
+    },
+    {
+      "name": "Unarmed_Idle",
+      "channels": 16,
+      "duration": 1.067
+    },
+    {
+      "name": "Use_Item",
+      "channels": 17,
+      "duration": 1.6
+    },
+    {
+      "name": "Walking_A",
+      "channels": 19,
+      "duration": 1.067
+    },
+    {
+      "name": "Walking_B",
+      "channels": 22,
+      "duration": 1.067
+    }
+  ],
+  "channels": {
+    "kept": 236,
+    "removed": 1205
+  }
+}

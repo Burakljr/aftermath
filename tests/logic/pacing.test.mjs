@@ -1,52 +1,49 @@
-// Pacing of active play, measured with the attentive-player bot.
+// The attentive-player bot must hit the pacing targets of the design (see docs/ARCH.md).
 import { test, assert } from './harness.mjs';
 import { runBot } from './bot.mjs';
 
-const SEEDS = [1, 2, 3, 4];
-const runs = SEEDS.map((seed) => runBot({ seed, maxTime: 3600 }));
+const SEEDS = [3, 7, 11, 19];
+const runs = SEEDS.map((seed) => runBot({ seed, maxTime: 1800 }));
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const within = (v, lo, hi, what) => assert(v !== undefined && v >= lo && v <= hi, `${what}: ${v === undefined ? 'never' : fmt(v)} not in ${fmt(lo)}..${fmt(hi)}`);
 
-test('first upgrade within 5 s', () => {
-  for (const r of runs) assert(r.marks.firstUpgrade !== undefined && r.marks.firstUpgrade <= 5, `first upgrade at ${r.marks.firstUpgrade}`);
-});
-
-test('station 3 (Paint) opens near 1 minute (40-90 s)', () => {
+test('first upgrade within 5 s, first coins within 12 s', () => {
   for (const r of runs) {
-    const t = r.marks['open:paint'];
-    assert(t >= 40 && t <= 90, `paint opened at ${fmt(t)}`);
+    within(r.marks.firstUpgrade, 0, 5, 'first upgrade');
+    within(r.marks.firstPay, 0, 12, 'first pay');
   }
 });
 
-test('station 4 (Gift Wrap) opens near 3 minutes (140-230 s)', () => {
+test('Grill opens about 1 min, Stew about 3 min, Oven about 6 min', () => {
   for (const r of runs) {
-    const t = r.marks['open:wrap'];
-    assert(t >= 140 && t <= 230, `wrap opened at ${fmt(t)}`);
+    within(r.marks['open:grill'], 40, 90, 'grill');
+    within(r.marks['open:stew'], 150, 240, 'stew');
+    within(r.marks['open:oven'], 290, 450, 'oven');
   }
 });
 
-test('factory 1 completes in 8-12 minutes of active play', () => {
+test('Village Inn is complete in about 10-12 min', () => {
+  for (const r of runs) within(r.marks['complete:inn'], 9 * 60, 13 * 60, 'complete');
+});
+
+test('a reward moment (purchase or goal) every 10-20 s; never a long wait', () => {
   for (const r of runs) {
-    const t = r.marks['complete:wood'];
-    assert(t !== undefined, 'factory 1 never completed');
-    assert(t >= 480 && t <= 720, `factory 1 complete at ${fmt(t)}`);
+    const end = r.marks['complete:inn'];
+    const gaps = [];
+    let prev = 0;
+    for (const e of r.rewards) { if (e.t > end) break; gaps.push(e.t - prev); prev = e.t; }
+    gaps.sort((a, b) => a - b);
+    const p90 = gaps[Math.floor(gaps.length * 0.9)];
+    assert(p90 <= 20, `90 % of gaps should be <= 20 s, got ${p90.toFixed(1)}`);
+    assert(r.maxGap <= 30, `longest gap ${r.maxGap.toFixed(1)} s at ${fmt(r.gapAt)}`);
   }
 });
 
-test('opening a station always raises income clearly (x1.15 or more)', () => {
+test('every purchase type is used: 4 cooks, 6 tables, cook speed', () => {
   for (const r of runs) {
-    for (const o of r.opens) assert(o.after >= o.before * 1.15, `${o.station} at ${fmt(o.t)}: ${o.before.toFixed(1)} -> ${o.after.toFixed(1)}/s`);
+    const s = r.game.state;
+    assert(s.cooks.length === 4, 'cooks ' + s.cooks.length);
+    assert(s.tables.every((t) => t.owned), 'tables');
+    assert(s.cookSpeed >= 3, 'cook speed ' + s.cookSpeed);
   }
-});
-
-test('a reward moment (upgrade, open, goal, milestone) at least every 20 s', () => {
-  for (const r of runs) assert(r.maxGap <= 20, `gap of ${r.maxGap.toFixed(1)} s at ${fmt(r.gapAt)}`);
-});
-
-test('factory 2 (Teddy Bears) is reachable and completes in 6-15 minutes', () => {
-  const r = runBot({ seed: 5, maxTime: 3600, stopAfterFactory: 1 });
-  const a = r.marks['complete:wood'];
-  const b = r.marks['complete:teddy'];
-  assert(a !== undefined && b !== undefined, 'factory 2 never completed');
-  assert(b - a >= 360 && b - a <= 900, `factory 2 took ${fmt(b - a)}`);
-  assert(r.maxGap <= 20, `gap of ${r.maxGap.toFixed(1)} s at ${fmt(r.gapAt)}`);
 });
