@@ -41,17 +41,24 @@ export function createMarks(ctx) {
     const r = game.act({ type: 'buyTable' });
     if (!r.ok) { ctx.sfx('nope'); ctx.openMenu('upgrades'); }
   });
+  let tCost = -1;
   function updateTable(hideAll) {
-    const tv = game.select.tableView();
-    const a = !hideAll && tv.next && tv.canAfford ? ctx.anchor('table', tv.next) : null;
+    // next table = first one not owned (tables are bought in order); no allocation per frame
+    const ts = game.state.tables;
+    let owned = 0;
+    while (owned < ts.length && ts[owned].owned) owned++;
+    const costs = game.config().tables.costs;
+    const cost = owned < ts.length && owned < costs.length ? costs[owned] : Infinity;
+    const a = !hideAll && cost <= game.state.money ? ctx.anchor('table', ts[owned].id) : null;
     const show = !!(a && a.visible !== false);
     if (show !== tShown) { tShown = show; setStyle(tRoot, 'display', show ? '' : 'none'); }
     if (!show) return;
     setStyle(tRoot, 'transform', `translate3d(${Math.round(a.x)}px,${Math.round(a.y)}px,0)`);
-    setText(tPrice, ctx.num(tv.cost));
+    if (cost !== tCost) { tCost = cost; setText(tPrice, ctx.num(cost)); }
   }
 
   function relabel() {
+    tCost = -1;
     for (const it of items) {
       it.level = -1;
       setText(it.signLbl, ctx.tx('sign.open'));

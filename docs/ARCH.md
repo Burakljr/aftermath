@@ -91,8 +91,9 @@ state.cooks      [{ id: 'c1'..'c4', state, station, slot 0|1, order: { id, custo
    the station's boostT > 0) -> 'toTable' (walk to the table front, carrying order.dish) ->
    'serving' (0.45 s; the guest starts eating) -> next order ('toStation') or 'return' (walk home).
    Up to two cooks per station at a time (RULES.stationSlots): slot 0 at the main spot st_<id>,
-   slot 1 at the helper spot sh_<id>; `station` and `slot` are set from assignment until the dish
-   is cooked (null / 0 afterwards). The scene shows the helper's dish on helperDishSpot.
+   slot 1 at the helper spot sh_<id>; `station` is set from assignment until the dish is cooked
+   (null afterwards), `slot` only counts while 'toStation' / 'cooking'. The scene shows the
+   helper's dish on helperDishSpot.
 state.orders     [{ id, customer, station, dish }]  waiting for a cook (FIFO; each takes the
                  nearest free cook if its station has a free spot)
 state.goals [{ id, done, claimed }], settings { lang, sound, quality, fps },
@@ -299,14 +300,15 @@ file type. Size: about 4.6 MB (67 files). `tests/preview.cjs` checks it on
 
 ### Download size and scene cost (measured)
 
-Everything index.html loads: models 2.56 MB (props 1.42 MB, four heroes 0.22-0.27 MB each,
-animations 0.17 MB), three.js + 3 addons 0.88 MB, game/UI/scene code 0.25 MB, fonts 55 KB,
-html/css 31 KB: about 3.8 MB in total (about 1.5 MB with gzip).
+Everything index.html loads (MiB): models 2.56 (props 1.42, four heroes 0.22-0.27 each,
+animations 0.17), three.js + 3 addons 0.88, game/UI/scene code 0.26, fonts 0.05, html/css 0.03:
+about 3.8 MiB (3.9 MB) in total, about 1.5 MiB with gzip.
 
-Real game on SwiftShader (iPhone 13 viewport, High, pixel ratio 2): start 24-25 draw calls /
-46-51k triangles; busy Village Inn (all stations, 5-6 tables, 10-12 guests + 4 cooks)
-36-44 calls / 97-119k triangles; busy Harbor Tavern 40-44 calls / 96-115k; Low 40 calls /
-94k at pixel ratio 1.25. Budget: 120 calls / 150k triangles.
+Real game on SwiftShader (iPhone 13 viewport, High, pixel ratio 2), after the fixer pass:
+start 25-27 draw calls / 46k triangles; busy Village Inn (all stations, 5-6 tables, 10-14
+guests + 4 cooks) 39-44 calls / 94-107k triangles, busiest frame sampled over a whole Village
+Inn run 47 calls / 120k; busy Harbor Tavern 40-43 calls / 103-110k; Low (pixel ratio 1.25)
+inn 38-39 calls / 86-90k, harbor 43 / 91k. Budget: 120 calls / 150k triangles.
 
 ## Audio (`js/audio.js`)
 
@@ -347,7 +349,8 @@ Parts:
   pacing (4 seeds), softlock (careless bot, Harbor Tavern, never buying), save roundtrip and
   determinism, broken/tampered saves, guarded storage, offline (rate, 2 h cap, < 60 s, hidden tab),
   action validation, income estimate vs simulation, world contract (state order, walk durations,
-  one cook per station, one guest per seat, waits, events, newest dish, boost).
+  at most two cooks per station on separate spots and a helper really helps, one guest per
+  seat, waits, events, newest dish, boost).
 - `node tests/logic/bot.mjs [--lazy] [--location=2] [--seed=N]`: pacing timeline.
 - `timeout 600 node tests/ui/lab-play.cjs` (PORT 5402): HUD, tutorial (all 3 steps with real
   taps), card (upgrade, hold, not enough coins, close), bubbles + pay floats, goal pill, Open
@@ -415,14 +418,22 @@ mip levels would bleed neighbouring colours.
   Neutral tone mapping (exposure 1.06), sRGB output. No shadow maps: soft blob shadows under
   characters and tables (one instanced mesh) and baked soft contact-shadow strips along the
   kitchen row, the pass counters and the walls, plus faint additive window-light patches.
-- Themes (`room.js THEMES`): a theme repaints a few atlas swatches on a copy of the atlas.
-  Village Inn: cream plaster over a wooden wainscot, honey-brown wood checker floor in the
-  dining room, light tiles in the kitchen, orange tables / chairs, grass outside.
-  Harbor Tavern: white over sea-blue walls, blue / white checker floor, terracotta kitchen tiles,
-  brown round tables with wooden chairs, a green fridge, sand outside and the sea behind.
-- Room (12 x 20): back row fridge + 4 stations + sink, wall cabinets and a shelf with jars,
-  pass counters with plates / jars / sauces / a menu, a host desk and vegetable crates by the
-  door, a low front wall (dollhouse cut) open at the door.
+- Themes (`room.js THEMES`): a theme repaints a few atlas swatches on copies of the atlas:
+  `base` (the shared prop material: counter tops [6,3], fridge body [2,1], stove / oven body
+  [1,1]), `furniture` (dining tables + chairs only), `wall`, `dining`, `kitchen` floors, and a
+  `view` gradient painted on a quad behind the back window (sky + hills / sea).
+  Village Inn: cream plaster over a walnut wainscot, pale sandstone checker floor in the dining
+  room, walnut tables / chairs (they read clearly on the floor), light natural-wood counter
+  tops, a cream fridge, a brick-red oven, light tiles in the kitchen, sky and green hills in the
+  window, grass outside. The saturated orange is kept for UI accents only.
+  Harbor Tavern (`mirror: true`): the kitchen is mirrored (sink and the sea-view window on the
+  left, the first station and a white fridge on the right; layout.js lists its stations right
+  to left), navy counter tops, white enamel stoves / oven, scrubbed deck planks in the kitchen,
+  white over sea-blue walls, blue / white checker dining floor, brown round tables with wooden
+  chairs, cargo crates by the door, sand outside and the sea behind.
+- Room (12 x 20): back row fridge + 4 stations + sink, three wall cabinets, pass counters with
+  plates / jars / a menu / buns (no squeeze bottles or paper towels: it is an inn), a host desk
+  and vegetable crates by the door, a low front wall (dollhouse cut) open at the door.
 
 ### Stations (`stations.js`)
 
@@ -439,9 +450,11 @@ boost = warm glow on the floor in front.
 
 Guests: `look.char` Knight / Mage / Rogue_Hooded (Rogue maps to the hooded model), `look.tint`
 0..3: tint 0 original, 1..3 rotate the signature colour on a texture copy (knight red cape ->
-blue / green / purple, with bronze and gold armour on tints 2 and 3; mage purple -> blue /
-crimson / green; rogue green -> red / blue / yellow); skin untouched. Cooks: bald bearded
-Barbarians (no cape, no bear hood). Every hero instance has its own material (opacity fades at
+blue / green / purple, with matte bronze and gold armour on tints 2 and 3 (low saturation,
+highlights pulled down so the helmet details survive at 1x); mage purple -> blue / crimson /
+green; rogue green -> red / blue / yellow); skin untouched. Cooks: bald bearded Barbarians
+(no cape, no bear hood) whose blue tunic is recoloured to cream cook's whites
+(`TINTS.barbarian.whites`). Every hero instance has its own material (opacity fades at
 the door) and mixer; instances are pooled and reused.
 
 | entity state | what the scene shows |
@@ -452,7 +465,7 @@ the door) and mixer; instances are pooled and reused.
 | guest without a seat (queue) | Idle at its node, facing the room |
 | cook idle | Idle at home, facing the room |
 | cook toStation / return | Running_A (playback from the real speed, so the Cook speed upgrade shows) |
-| cook cooking | Interact at the station, facing it; the dish grows on `dishSpot` during the last 45 % of the cook time; steam puffs over stove / pot / oven |
+| cook cooking | Interact at the station, facing it; the dish grows on `dishSpot` (`helperDishSpot` for a helper, slot 1) during the last 45 % of the cook time; steam puffs over stove / pot / oven |
 | cook toTable | Run_Carry (running legs, both arms forward) with the dish in front of the chest |
 | cook serving | the dish travels from the hands to `seat.plate` in 0.32 s, then Idle |
 
@@ -502,10 +515,10 @@ instanced dishes / shadows / particles, cached routes, positional `play()` argum
 Static room = a handful of merged meshes; each station and table is one mesh; each hero one
 skinned mesh.
 
-Measured (Playwright, SwiftShader, iPhone 13 viewport), busy inn with all 4 stations, 6 tables,
-8 guests + 4 cooks: High 34 draw calls / 89k triangles, Low 34 / 75k (pixel ratio 1.25);
-with goal confetti + coins + sparkles 40 / 91k; Harbor busy 36 / 85k; empty inn at the start
-20 / 33k.
+Measured (Playwright, SwiftShader, iPhone 13 viewport, scene lab), busy inn with all 4
+stations, 6 tables, 8 guests + 4 cooks: High 35 draw calls / 88k triangles, Low 35 / 75k
+(pixel ratio 1.25); with goal confetti + coins + sparkles 41 / 90k; Harbor busy 37 / 86k;
+empty inn at the start 21 / 32k. Real-game numbers: "Download size and scene cost" above.
 
 ### Scene lab and tests
 
