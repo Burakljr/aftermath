@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Toy Factory - scene lab</title>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+<style>
+  @font-face { font-family: 'Fredoka'; font-weight: 600; font-display: swap;
+    src: url('assets/fonts/fredoka-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Fredoka'; font-weight: 700; font-display: swap;
+    src: url('assets/fonts/fredoka-latin-700-normal.woff2') format('woff2'); }
+  :root { --ink: #2A1E3B; --cream: #FFF4DC; --cream2: #F6DFAF; --green: #36C657; --green2: #1E9A3E; --blue: #34A3FF; --blue2: #1C6FD1; --yellow: #FFC82E; --orange: #FF8B1F; --pink: #FF4F7E; --purple: #8A5CF6; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #5cc8ff; font-family: 'Fredoka', ui-rounded, system-ui, sans-serif; font-weight: 700; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  /* mock HUD in the style of the restyle spec (the real UI lives in js/ui) */
+  .ol { color: #fff; -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink); }
+  #hud { position: fixed; left: 0; right: 0; top: 0; pointer-events: none; padding: calc(env(safe-area-inset-top) + 8px) 10px 0; box-sizing: border-box; }
+  #hud .bar { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .money { position: relative; min-width: 150px; height: 44px; box-sizing: border-box; padding: 0 18px 0 46px; border-radius: 24px; background: rgba(42,30,59,0.55); border: 3.5px solid var(--ink); display: flex; align-items: center; font-size: 29px; }
+  .coin { position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; box-sizing: border-box; background: radial-gradient(circle at 36% 32%, #FFE27A 0 32%, #FFB800 34% 100%); border: 3.5px solid var(--ink); box-shadow: inset 0 -4px 0 #E89A00; }
+  .coin::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; border: 3px solid #FFE27A; opacity: 0.9; }
+  .income { padding: 1px 12px 2px; border-radius: 14px; background: var(--green); border: 3px solid var(--ink); font-size: 16px; box-shadow: inset 0 -3px 0 var(--green2); }
+  .badge { position: fixed; left: 10px; top: calc(env(safe-area-inset-top) + 8px); width: 58px; height: 58px; border-radius: 18px; background: var(--yellow); border: 3.5px solid var(--ink); box-shadow: inset 0 -5px 0 #E8A100; box-sizing: border-box; }
+  .badge::before { content: ''; position: absolute; left: 13px; top: 11px; width: 26px; height: 26px; background: #fff; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+  .stars { position: absolute; left: 4px; right: 4px; bottom: -12px; height: 12px; border-radius: 6px; background: #fff; border: 3px solid var(--ink); }
+  .stars i { display: block; width: 60%; height: 100%; border-radius: 4px; background: var(--yellow); }
+  .gear { position: fixed; right: 10px; top: calc(env(safe-area-inset-top) + 8px); width: 50px; height: 50px; border-radius: 16px; background: var(--blue); border: 3.5px solid var(--ink); box-sizing: border-box; box-shadow: inset 0 -5px 0 var(--blue2); }
+  .gear::after { content: ''; position: absolute; inset: 11px; border-radius: 50%; border: 6px dotted #fff; box-sizing: border-box; }
+  #goals { position: fixed; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom) + 6px); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .nextgoal { position: relative; width: 74%; box-sizing: border-box; padding: 6px 12px 7px; border-radius: 18px; background: var(--cream); border: 3.5px solid var(--ink); color: var(--ink); font-size: 14px; box-shadow: 0 4px 0 var(--ink); }
+  .nextgoal .track { margin-top: 4px; height: 10px; border-radius: 6px; background: var(--cream2); border: 2.5px solid var(--ink); overflow: hidden; }
+  .nextgoal .fill { height: 100%; width: 62%; background: var(--green); }
+  .nextgoal .dot { position: absolute; right: -6px; top: -8px; width: 18px; height: 18px; border-radius: 50%; background: #FF4747; border: 3px solid var(--ink); }
+  .menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 360px; }
+  .mbtn { position: relative; height: 70px; border-radius: 20px; border: 3.5px solid var(--ink); box-sizing: border-box; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 15px; box-shadow: 0 5px 0 var(--ink); }
+  .mbtn::before { content: ''; position: absolute; left: 6px; right: 6px; top: 5px; height: 26%; border-radius: 12px; background: rgba(255,255,255,0.35); }
+  .mbtn.b1 { background: linear-gradient(#5DB8FF, var(--blue)); box-shadow: inset 0 -6px 0 var(--blue2), 0 4px 0 var(--ink); }
+  .mbtn.b2 { background: linear-gradient(#5DDB78, var(--green)); box-shadow: inset 0 -6px 0 var(--green2), 0 4px 0 var(--ink); }
+  .mbtn.b3 { background: linear-gradient(#FFB45E, var(--orange)); box-shadow: inset 0 -6px 0 #D96A0A, 0 4px 0 var(--ink); }
+  .label { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; will-change: transform; white-space: nowrap; }
+  .lvl { background: var(--purple); border: 3px solid var(--ink); border-radius: 12px; padding: 1px 9px 3px; font-size: 16px; box-shadow: inset 0 -3px 0 #6A3FD6, 0 3px 0 var(--ink); color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; }
+  .price { background: var(--cream); border: 3.5px solid var(--ink); border-radius: 18px; padding: 4px 12px 6px; font-size: 18px; color: var(--ink); box-shadow: 0 4px 0 var(--ink); margin-top: -11px; }
+  .price b { display: inline-block; margin-left: 6px; padding: 0 9px 2px; border-radius: 12px; background: var(--green); border: 3px solid var(--ink); color: #fff; -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; box-shadow: inset 0 -3px 0 var(--green2); }
+  #toggle { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 70px); z-index: 10; font: 600 12px system-ui; padding: 6px 9px; border-radius: 10px; border: 0; background: #3b3355; color: #fff; opacity: 0.8; }
+  #panel { position: fixed; right: 8px; top: calc(env(safe-area-inset-top) + 102px); z-index: 10; width: 250px; max-height: 70vh; overflow: auto; background: rgba(30,24,52,0.9); color: #fff; font: 12px system-ui; border-radius: 12px; padding: 8px; display: none; }
+  #panel.on { display: block; }
+  #panel h4 { margin: 8px 0 4px; font-size: 12px; color: #c9bdff; }
+  #panel button { font: 11px system-ui; margin: 2px; padding: 4px 6px; border-radius: 6px; border: 0; background: #5a4b9c; color: #fff; }
+  #panel .row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+  #stats { white-space: pre; font: 11px ui-monospace, monospace; color: #b8ffcf; }
+  .nohud #hud, .nohud #goals, .nohud .badge, .nohud .gear, .nolabels .label { display: none; }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="hud"><div class="bar"><div class="money ol"><span class="coin"></span><span id="money">1.2K</span></div><div class="income ol">+<span id="ips">36</span>/s</div></div></div>
+<div class="badge"><div class="stars"><i></i></div></div>
+<div class="gear"></div>
+<div id="goals">
+  <div class="nextgoal">Open the Paint Booth<div class="track"><div class="fill"></div></div><div class="dot"></div></div>
+  <div class="menu"><div class="mbtn b1 ol">Upgrades</div><div class="mbtn b2 ol">Goals</div><div class="mbtn b3 ol">Factories</div></div>
+</div>
+<div id="labels"></div>
+<button id="toggle">Lab</button>
+<div id="panel"></div>
+<script type="module">
+import { createScene } from './js/scene/scene.js';
+
+// ---------------------------------------------------------------- fake data
+const MILESTONES = [10, 25, 50, 100];
+const FACT = {
+  wood: { id: 'wood', nameKey: 'factory.wood', palette: { toy: [0xff5a5f, 0x3fa9f5, 0xffcc29, 0x4fd18b] },
+    stations: [
+      { id: 'saw', baseTime: 1.0, baseValue: 1, openCost: 0 },
+      { id: 'assembly', baseTime: 1.6, baseValue: 2, openCost: 0 },
+      { id: 'paint', baseTime: 2.4, baseValue: 6, openCost: 120 },
+      { id: 'wrap', baseTime: 3.2, baseValue: 20, openCost: 900 } ] },
+  teddy: { id: 'teddy', nameKey: 'factory.teddy', palette: {},
+    stations: [
+      { id: 'cutter', baseTime: 1.0, baseValue: 10, openCost: 0 },
+      { id: 'stuffing', baseTime: 1.6, baseValue: 20, openCost: 0 },
+      { id: 'stitching', baseTime: 2.4, baseValue: 60, openCost: 1200 },
+      { id: 'ribbon', baseTime: 3.2, baseValue: 200, openCost: 9000 } ] },
+};
+
+const P = new URLSearchParams(location.search);
+const num = (k, d) => (P.has(k) ? Number(P.get(k)) : d);
+const list = (k, d) => (P.has(k) ? P.get(k).split(',').map(Number) : d);
+const bits = (k, d) => (P.has(k) ? P.get(k).split('').map((c) => c === '1') : d);
+
+let cfg, state, flow;
+function freshState() {
+  cfg = FACT[P.get('factory') === 'teddy' ? 'teddy' : 'wood'];
+  const open = bits('open', [true, true, false, false]);
+  const levels = list('levels', [1, 1, 1, 1]);
+  const trays = list('tray', [0, 0, 0, 0]);
+  const boost = bits('boost', [false, false, false, false]);
+  flow = num('flow', 1) !== 0;
+  state = {
+    v: 1, money: num('money', 12), lifetimeMoney: 0, factoryIndex: cfg.id === 'teddy' ? 1 : 0,
+    factory: { id: cfg.id, sold: 0, stations: cfg.stations.map((s, i) => ({ id: s.id, open: open[i], level: levels[i] || 1, progress: 0, tray: i === 0 ? 0 : (trays[i] || 0), boostT: boost[i] ? 1e9 : 0 })) },
+    goals: [], settings: { lang: 'en', sound: true, quality: P.get('quality') || 'high', fps: false }, tutorial: 'done', lastSeen: 0,
+  };
+}
+freshState();
+
+function cycleTime(i) {
+  const s = state.factory.stations[i];
+  let m = 0; for (const x of MILESTONES) if (s.level >= x) m++;
+  return cfg.stations[i].baseTime / ((1 + 0.04 * (s.level - 1)) * Math.pow(2, m)) / (s.boostT > 0 ? 2 : 1);
+}
+function lastOpen() { let l = 0; state.factory.stations.forEach((s, i) => { if (s.open) l = i; }); return l; }
+const events = [];
+function emit(ev, p) { events.push([ev, p]); }
+function simStep(dt) {
+  if (!flow) return;
+  const st = state.factory.stations, last = lastOpen();
+  for (let i = last; i >= 0; i--) {
+    const s = st[i];
+    if (!s.open) continue;
+    if (s.boostT > 0 && s.boostT < 1e8) s.boostT = Math.max(0, s.boostT - dt);
+    const ct = cycleTime(i);
+    let t = dt, guard = 0;
+    while (guard++ < 64) {
+      if (s.progress >= 1) {
+        if (i === last) { state.factory.sold++; s.progress = 0; const v = cfg.stations.reduce((a, c, k) => a + (st[k].open ? c.baseValue * st[k].level : 0), 0); state.money += v; emit('sold', { value: v }); }
+        else { let n = null; for (let k = i + 1; k < 4; k++) if (st[k].open) { n = st[k]; break; } if (n && n.tray < 3) { n.tray++; s.progress = 0; emit('pass', { from: s.id, to: n.id }); } else break; }
+      }
+      if (t <= 0) break;
+      if (s.progress === 0 && i > 0) { if (s.tray > 0) s.tray--; else break; }
+      const need = (1 - s.progress) * ct;
+      if (t >= need) { t -= need; s.progress = 1; emit('cycle', { station: s.id }); }
+      else { s.progress += t / ct; if (s.progress <= 0) s.progress = 1e-6; t = 0; }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- scene
+const canvas = document.getElementById('scene');
+const manual = num('manual', 0) === 1;
+const scene = createScene(canvas, { quality: state.settings.quality, autoQuality: num('auto', manual ? 0 : 1) === 1, preserveDrawingBuffer: true });
+scene.setFactory(cfg);
+if (P.get('hud') === '0') document.body.classList.add('nohud');
+// emulate device safe areas (Playwright has none): safe=top,bottom in CSS px
+if (P.has('safe')) {
+  const [st, sb] = P.get('safe').split(',').map(Number);
+  scene.setInsets({ top: 96 + st, bottom: 150 + sb });
+  document.getElementById('hud').style.paddingTop = (st + 8) + 'px';
+  for (const q of ['.badge', '.gear']) document.querySelector(q).style.top = (st + 8) + 'px';
+  document.getElementById('toggle').style.top = (st + 70) + 'px';
+  document.getElementById('goals').style.bottom = (sb + 6) + 'px';
+}
+if (P.get('labels') === '0') document.body.classList.add('nolabels');
+
+const SIM_DT = 1 / 60;
+function step(dt = SIM_DT, render = true) {
+  // advance the fake game in small steps, forward events, update the scene once
+  let left = dt;
+  while (left > 1e-6) { const h = Math.min(SIM_DT, left); simStep(h); left -= h; }
+  for (const [ev, p] of events) scene.fx(ev, p);
+  events.length = 0;
+  scene.update(state, dt, render);
+  labels();
+}
+function setTime(t) {
+  freshState();
+  scene.setFactory(cfg);
+  scene.update(state, 0);
+  // run the time in 0.1 s scene steps (sim at 60 Hz inside)
+  let left = t;
+  while (left > 1e-6) { const h = Math.min(0.1, left); step(h); left -= h; }
+  step(0);
+}
+
+// ---------------------------------------------------------------- mock UI labels
+const labelEls = [];
+const fmt = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.0', '') + 'K' : String(Math.floor(n)));
+function labels() {
+  const root = document.getElementById('labels');
+  for (let i = 0; i < 4; i++) {
+    let el = labelEls[i];
+    if (!el) { el = document.createElement('div'); el.className = 'label'; root.appendChild(el); labelEls[i] = el; }
+    const s = state.factory.stations[i];
+    const a = scene.anchor(s.id);
+    const txt = s.open ? 'Lv ' + s.level : 'Open <b>' + fmt(cfg.stations[i].openCost) + '</b>';
+    const cls = 'label ' + (s.open ? 'lvl' : 'price');
+    if (el.dataset.t !== txt) { el.dataset.t = txt; el.innerHTML = txt; }
+    if (el.className !== cls) el.className = cls;
+    el.style.transform = `translate(${a.x.toFixed(1)}px, ${a.y.toFixed(1)}px) translate(-50%, -100%)`;
+  }
+  document.getElementById('money').textContent = fmt(state.money);
+}
+
+// ---------------------------------------------------------------- panel
+const panel = document.getElementById('panel');
+document.getElementById('toggle').onclick = () => panel.classList.toggle('on');
+function btn(row, text, fn) { const b = document.createElement('button'); b.textContent = text; b.onclick = fn; row.appendChild(b); return b; }
+function row(title) { if (title) { const h = document.createElement('h4'); h.textContent = title; panel.appendChild(h); } const r = document.createElement('div'); r.className = 'row'; panel.appendChild(r); return r; }
+function go(params) { const u = new URLSearchParams(location.search); for (const [k, v] of Object.entries(params)) u.set(k, v); location.search = u.toString(); }
+let r = row('Factory');
+btn(r, 'Wood', () => go({ factory: 'wood' }));
+btn(r, 'Teddy', () => go({ factory: 'teddy' }));
+btn(r, 'Flow on/off', () => { flow = !flow; });
+btn(r, 'High', () => { state.settings.quality = 'high'; scene.setQuality('high'); });
+btn(r, 'Low', () => { state.settings.quality = 'low'; scene.setQuality('low'); });
+btn(r, 'HUD', () => document.body.classList.toggle('nohud'));
+btn(r, 'Labels', () => document.body.classList.toggle('nolabels'));
+for (let i = 0; i < 4; i++) {
+  r = row('Station ' + (i + 1));
+  const s = () => state.factory.stations[i];
+  btn(r, 'open', () => { if (!s().open) { s().open = true; scene.fx('open', { station: s().id }); } });
+  btn(r, 'lock', () => { s().open = false; s().progress = 0; s().tray = 0; });
+  btn(r, 'up', () => { s().level++; scene.fx('upgrade', { station: s().id, level: s().level, milestone: MILESTONES.includes(s().level) }); });
+  for (const L of [10, 25, 50, 100]) btn(r, 'L' + L, () => { s().level = L; scene.fx('upgrade', { station: s().id, level: L, milestone: true }); });
+  btn(r, 'boost', () => { s().boostT = Math.min(5, (s().boostT || 0) + 1.5); scene.fx('boost', { station: s().id }); });
+  btn(r, 'tray+', () => { if (i > 0) s().tray = Math.min(3, s().tray + 1); });
+}
+r = row('FX');
+for (const ev of ['sold', 'goal', 'claim', 'factoryComplete', 'factoryStart']) btn(r, ev, () => scene.fx(ev, { value: 10, id: 'g' }));
+const statsEl = document.createElement('div'); statsEl.id = 'stats'; panel.appendChild(statsEl);
+
+canvas.addEventListener('pointerdown', (e) => {
+  const hit = scene.pick(e.clientX, e.clientY);
+  window.lastPick = hit;
+  if (hit && hit.type === 'station') {
+    const s = state.factory.stations.find((x) => x.id === hit.id);
+    if (s && s.open) { s.boostT = Math.min(5, (s.boostT || 0) + 1.5); scene.fx('boost', { station: s.id }); }
+  }
+});
+
+// ---------------------------------------------------------------- loop / hooks
+window.lab = { scene, get state() { return state; }, step, setTime, fx: (e, p) => scene.fx(e, p), cfg: () => cfg, labels };
+window.__setTime = setTime;
+window.step = step;
+window.toy = { step: (dt) => step(dt), get game() { return { state }; }, scene };
+
+setTime(num('t', 0));
+if (P.has('fx')) for (const ev of P.get('fx').split(',')) { const [e, st] = ev.split(':'); scene.fx(e, { station: st, level: 10, milestone: e === 'upgrade', value: 10 }); }
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  step(dt);
+  const st = scene.stats();
+  if (panel.classList.contains('on')) statsEl.textContent = `fps ${st.fps}  ${st.frameMs}ms\ncalls ${st.calls}  tris ${st.tris}\nquality ${st.quality}${st.autoLowered ? ' (auto)' : ''}\nparticles ${st.particles}`;
+  requestAnimationFrame(frame);
+}
+if (!manual) requestAnimationFrame(frame);
+window.labReady = true;
+</script>
+</body>
+</html>

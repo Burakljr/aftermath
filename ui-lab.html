@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#9fdcff">
+<title>Toy Factory UI lab</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  /* Static placeholder where the 3D canvas will be (UI lab only). */
+  #stage {
+    position: fixed; inset: 0; overflow: hidden; touch-action: none;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 2px, transparent 2px 46px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.18) 0 2px, transparent 2px 46px),
+      linear-gradient(180deg, #7FCBFF 0%, #A9DDFF 21%, #FFB35C 21.2%, #FFB35C 22.6%, #FFD98E 22.8%, #FFC870 100%);
+  }
+  #stage svg.belt { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .blob {
+    position: absolute; width: 96px; height: 80px; margin: -40px 0 0 -48px;
+    border-radius: 22px; display: grid; place-items: center; color: #fff;
+    border: 4px solid #2A1E3B; box-sizing: border-box;
+    background-image: linear-gradient(rgba(255,255,255,.3), rgba(255,255,255,0) 50%) !important;
+    box-shadow: inset 0 -9px 0 rgba(0,0,0,.18), 0 8px 0 rgba(42,30,59,.25);
+    transition: filter .2s, transform .12s;
+  }
+  .blob .ico { width: 44px; height: 44px; }
+  .blob.locked { background: repeating-linear-gradient(45deg, #fff4dcdd 0 10px, #ffd59add 10px 20px) !important; box-shadow: none; border: 4px dashed #C98A3A; color: #C98A3A; }
+  .blob.locked .ico { opacity: .35; }
+  .blob.boost { filter: brightness(1.18) saturate(1.2); }
+  .blob.flash { transform: scale(1.12); }
+  .blob .worker { position: absolute; right: -16px; bottom: -8px; width: 32px; height: 32px; border-radius: 50%; background: #FFD7B0; border: 3px solid #2A1E3B; box-shadow: inset 0 -4px 0 #F2B98A; }
+  .blob .worker::before { content: ''; position: absolute; left: -3px; right: -3px; top: -6px; height: 13px; border-radius: 12px 12px 3px 3px; background: #FFC82E; border: 3px solid #2A1E3B; }
+  .blob.locked .worker { display: none; }
+  .blob .prog { position: absolute; left: 12px; right: 12px; bottom: 9px; height: 7px; border-radius: 9px; background: rgba(42,30,59,.35); overflow: hidden; }
+  .blob .prog i { display: block; height: 100%; background: #fff; transform-origin: left; }
+  .blob .tray { position: absolute; left: -28px; top: 50%; display: flex; flex-direction: column; gap: 3px; margin-top: -26px; }
+  .blob .tray b { width: 15px; height: 15px; border-radius: 4px; background: #FFB24D; border: 2.5px solid #2A1E3B; }
+  .truck { position: absolute; width: 124px; height: 68px; margin: -34px 0 0 -62px; border-radius: 16px; background: #FF4F7E; border: 4px solid #2A1E3B; box-sizing: border-box; box-shadow: inset 0 -9px 0 rgba(0,0,0,.18); }
+  .truck::before { content: ''; position: absolute; right: -38px; top: 14px; width: 40px; height: 48px; border-radius: 0 14px 10px 0; background: #FFC82E; border: 4px solid #2A1E3B; border-left: 0; }
+  .truck::after { content: ''; position: absolute; left: 12px; bottom: -16px; width: 22px; height: 22px; border-radius: 50%; background: #2A1E3B; box-shadow: 72px 0 0 #2A1E3B; }
+  .lab-tag { position: fixed; left: 6px; bottom: 2px; font: 600 10px system-ui; color: #a2702a; z-index: 1; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="ui"></div>
+<div class="lab-tag">UI lab: placeholder scene</div>
+<script type="module">
+import { createGame, EVENTS } from './js/game/index.js';
+import { createUI } from './js/ui/index.js';
+import { createAudio } from './js/audio.js';
+import { SCREEN } from './js/scene/layout.js';
+import { ICONS } from './js/ui/dom.js';
+import { GLYPH, STATION_COLORS } from './js/ui/dom.js';
+
+const params = new URLSearchParams(location.search);
+
+// ---- fake scene implementing the scene API with fixed positions ----
+function createFakeScene(stage) {
+  const W = () => window.innerWidth;
+  const H = () => window.innerHeight;
+  let cfg = null;
+  let blobs = [];
+  let truck = null;
+  let belt = null;
+  let quality = 'high';
+  function pos(i) { const p = SCREEN.stations[i]; return { x: p.x * W(), y: p.y * H() }; }
+  function build() {
+    stage.innerHTML = '';
+    belt = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    belt.setAttribute('class', 'belt');
+    stage.appendChild(belt);
+    blobs = cfg.stations.map((s, i) => {
+      const b = document.createElement('div');
+      b.className = 'blob';
+      b.style.background = STATION_COLORS[i];
+      b.innerHTML = `<span class="ico">${ICONS[GLYPH[s.id]] || ''}</span><span class="worker"></span><span class="prog"><i></i></span><span class="tray"></span>`;
+      stage.appendChild(b);
+      return { b, prog: b.querySelector('.prog i'), tray: b.querySelector('.tray'), trayN: -1 };
+    });
+    truck = document.createElement('div');
+    truck.className = 'truck';
+    stage.appendChild(truck);
+    layout();
+  }
+  function layout() {
+    if (!cfg) return;
+    const pts = cfg.stations.map((_, i) => pos(i));
+    const t = { x: SCREEN.truck.x * W(), y: SCREEN.truck.y * H() };
+    blobs.forEach((o, i) => { o.b.style.left = pts[i].x + 'px'; o.b.style.top = pts[i].y + 'px'; });
+    truck.style.left = t.x + 'px';
+    truck.style.top = t.y + 'px';
+    const all = [{ x: pts[0].x, y: pts[0].y - 90 }, ...pts, t];
+    belt.innerHTML = `<polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#2A1E3B" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#5B5F7A" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#8E93B0" stroke-width="10" stroke-dasharray="6 10" stroke-linejoin="round"/>`;
+  }
+  window.addEventListener('resize', layout);
+  return {
+    setFactory(c) { cfg = c; build(); },
+    update(state) {
+      state.factory.stations.forEach((s, i) => {
+        const o = blobs[i];
+        if (!o) return;
+        o.b.classList.toggle('locked', !s.open);
+        o.b.classList.toggle('boost', s.boostT > 0);
+        o.prog.style.transform = `scaleX(${s.progress.toFixed(3)})`;
+        if (o.trayN !== s.tray) { o.trayN = s.tray; o.tray.innerHTML = '<b></b>'.repeat(s.tray); }
+      });
+    },
+    fx(ev, p) {
+      if (!p || !p.station) return;
+      const i = cfg.stations.findIndex((s) => s.id === p.station);
+      if (i < 0 || (ev !== 'boost' && ev !== 'upgrade' && ev !== 'open')) return;
+      const b = blobs[i].b;
+      b.classList.add('flash');
+      setTimeout(() => b.classList.remove('flash'), 120);
+    },
+    pick(x, y) {
+      let best = null;
+      let bd = 60 * 60;
+      cfg.stations.forEach((s, i) => {
+        const p = pos(i);
+        const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (d < bd) { bd = d; best = { type: 'station', id: s.id }; }
+      });
+      if (best) return best;
+      const t = { x: SCREEN.truck.x * W(), y: SCREEN.truck.y * H() };
+      if (Math.abs(t.x - x) < 70 && Math.abs(t.y - y) < 40) return { type: 'truck' };
+      return null;
+    },
+    anchor(id) {
+      if (id === 'truck') return { x: SCREEN.truck.x * W(), y: SCREEN.truck.y * H() - 30, visible: true };
+      if (id === 'coins') return { x: SCREEN.coins.x * W(), y: SCREEN.coins.y * H(), visible: true };
+      const i = typeof id === 'number' ? id : cfg.stations.findIndex((s) => s.id === id);
+      if (i < 0) return null;
+      const p = pos(i);
+      return { x: p.x, y: p.y - 46, visible: true };
+    },
+    setQuality(q) { quality = q; },
+    stats() { return { fps: 60, calls: 41, tris: 36800, quality }; },
+    resize() { layout(); },
+    setInsets() {},
+  };
+}
+
+// ---- game + ui ----
+let ms = Date.now();
+const lang = params.get('lang') || 'en';
+const now = () => ms;
+let save = null;
+const preset = params.get('state') || 'fresh';
+
+if (preset === 'offline') {
+  const g0 = createGame({ now: () => ms - 80 * 60 * 1000, lang });
+  g0.state.money = 1e6;
+  for (let i = 0; i < 12; i++) g0.act({ type: 'upgrade', station: i % 2 });
+  g0.act({ type: 'open', station: 'paint' });
+  for (let i = 0; i < 9; i++) g0.act({ type: 'upgrade', station: 'paint' });
+  g0.state.money = 850;
+  g0.state.tutorial = 'done';
+  save = g0.save();
+}
+
+const game = createGame({ save, now, lang });
+const scene = createFakeScene(document.getElementById('stage'));
+scene.setFactory(game.config());
+const audio = createAudio();
+const ui = createUI({ root: document.getElementById('ui'), game, scene, audio, canvas: document.getElementById('stage') });
+for (const ev of EVENTS) game.on(ev, (p) => scene.fx(ev, p));
+game.on('factoryStart', () => scene.setFactory(game.config()));
+
+function step(dt) {
+  let left = dt;
+  while (left > 1e-9) {
+    const h = Math.min(left, 1 / 60);
+    ms += h * 1000;
+    game.tick(h);
+    scene.update(game.state, h);
+    ui.update(h);
+    left -= h;
+  }
+}
+
+function buy(station, n) { for (let i = 0; i < n; i++) game.act({ type: 'upgrade', station }); }
+
+// presets for screenshots
+function applyPreset(p) {
+  const s = game.state;
+  if (p === 'fresh') return;
+  s.tutorial = 'done';
+  if (['card', 'poor', 'locked', 'goals', 'settings', 'tut1', 'milestone', 'sales', 'upgrades', 'goalspanel', 'factories', 'collect'].includes(p)) {
+    s.money = 5000;
+    buy('saw', 6); buy('assembly', 8);
+    s.money = 120;
+  }
+  if (p === 'card') { s.money = 2400; step(0.5); ui.openCard('assembly'); }
+  if (p === 'sales') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 12); s.money = 40; step(3); game.act({ type: 'boost', station: 'paint' }); }
+  if (p === 'poor') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 7); s.money = 260; step(0.5); ui.openCard('paint'); }
+  if (p === 'locked') { s.money = 820; step(0.5); ui.openCard('paint'); }
+  if (p === 'goals') { s.money = 1e4; buy('saw', 2); game.act({ type: 'claimGoal', id: 'w1' }); s.factory.sold = 25; s.money = 300; }
+  if (p === 'tut1') { s.tutorial = 1; s.money = 760; }
+  if (p === 'settings') { step(0.3); ui.openSettings(); }
+  if (p === 'upgrades') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 7); s.money = 2600; step(0.3); ui.openMenu('upgrades'); }
+  if (p === 'goalspanel') { s.money = 1e4; buy('saw', 2); s.factory.sold = 21; s.money = 300; step(0.3); ui.openMenu('goals'); }
+  if (p === 'collect') { s.money = 1e4; buy('saw', 2); s.money = 300; step(0.3); }
+  if (p === 'factories') { s.money = 1e4; buy('saw', 2); for (const g of game.config().goals.slice(0, 5)) { game.state.goals.find((x) => x.id === g.id).done = true; game.act({ type: 'claimGoal', id: g.id }); } s.money = 300; step(0.3); ui.openMenu('factories'); }
+  if (p === 'milestone') { s.money = 1e4; step(0.2); ui.openCard('assembly'); buy('assembly', 1); }
+  if (p === 'complete') {
+    s.money = 1e13;
+    game.act({ type: 'open', station: 'paint' });
+    game.act({ type: 'open', station: 'wrap' });
+    for (let i = 0; i < 4; i++) buy(i, 60);
+    s.factory.sold = 1240;
+    step(0.1);
+    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
+  }
+  if (p === 'late') {
+    s.money = 1e9;
+    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
+    buy(0, 30); buy(1, 30); buy(2, 22); buy(3, 12);
+    s.factory.sold = 800; step(0.1);
+    for (const g of game.config().goals.slice(0, 12)) game.act({ type: 'claimGoal', id: g.id });
+    s.money = 2.5e6;
+  }
+  if (p === 'teddyfac') {
+    s.money = 1e13;
+    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
+    for (let i = 0; i < 4; i++) buy(i, 60);
+    s.factory.sold = 1240; step(0.1);
+    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
+    game.act({ type: 'nextFactory' });
+    step(0.2); ui.openMenu('factories');
+  }
+  if (p === 'teddy') {
+    s.money = 1e13;
+    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
+    for (let i = 0; i < 4; i++) buy(i, 60);
+    s.factory.sold = 1240; step(0.1);
+    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
+    game.act({ type: 'nextFactory' });
+  }
+}
+applyPreset(preset);
+step(1 / 60);
+
+window.toy = { game, ui, scene, audio, step, buy, applyPreset };
+
+if (!params.has('paused')) {
+  let last = performance.now();
+  const loop = (t) => {
+    const dt = Math.min(0.1, (t - last) / 1000);
+    last = t;
+    step(dt);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
