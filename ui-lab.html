@@ -31,8 +31,9 @@ let params;
 try { params = new URLSearchParams(location.search); } catch { params = new URLSearchParams(''); }
 
 // ---------------------------------------------------------------- fake scene (scene API)
-// A flat top-down drawing of js/game/layout.js with dots for guests and cooks, so every
-// anchor the UI needs exists and moves like in the real game.
+// A flat drawing of js/game/layout.js seen like the real camera (the room turned 45 deg and
+// squashed: kitchen corner at the top, door corner at the bottom) with dots for guests and
+// cooks, so every anchor the UI needs exists and moves like in the real game.
 function createFakeScene(stage, game) {
   const canvas = stage.querySelector('canvas');
   const g2 = canvas.getContext('2d');
@@ -40,52 +41,68 @@ function createFakeScene(stage, game) {
   let quality = 'high';
   const dots = new Map();
   const tmp = [0, 0];
-  let W = 0, H = 0, sx = 1, ox = 0, oy = 0, sz = 1;
+  const tmp2 = [0, 0];
+  const SQ = 0.574;      // sin(35 deg): floor depth squash of the real camera
+  const R = Math.SQRT1_2;
+  const HALF = 6.4;      // half width framed (like the game: the side corners bleed off)
+  const WALL = 2.8;      // back wall height in floor units (drawn)
+  let W = 0, H = 0, s = 1, ox = 0, oy = 0;
   const COLORS = ['#5B8DEF', '#B06BE0', '#4BAE7A', '#E0884B'];
 
+  // world floor point [x, z] -> screen [x, y]
+  const P = (x, z, out = [0, 0]) => { out[0] = ox + (x - z) * R * s; out[1] = oy + (x + z) * R * SQ * s; return out; };
   function fit() {
     W = window.innerWidth; H = window.innerHeight;
     const b = layout.bounds;
     const top = 104, bottom = 178;
-    sx = Math.min((W - 24) / (b.maxX - b.minX), 40);
-    sz = (H - top - bottom) / (b.maxZ - b.minZ);
-    ox = W / 2 - ((b.minX + b.maxX) / 2) * sx;
-    oy = top - b.minZ * sz;
+    s = Math.min((W - 8) / (2 * HALF), 40);
+    const half = (b.maxX - b.minX) * R * SQ * s;      // floor diamond half height
+    const contentH = 2 * half + WALL * s + 40;
+    ox = W / 2; // the diagonal x = z is the screen centre line
+    oy = top + Math.max(0, (H - top - bottom - contentH) / 2) + WALL * s + half;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     g2.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw();
   }
-  const px = (x) => ox + x * sx;
-  const py = (z) => oy + z * sz;
-  function rr(x, y, w, h, r, fill) { g2.beginPath(); g2.roundRect(x, y, w, h, r); g2.fillStyle = fill; g2.fill(); }
+  function poly(pts, fill) { g2.beginPath(); pts.forEach((p, i) => (i ? g2.lineTo(p[0], p[1]) : g2.moveTo(p[0], p[1]))); g2.closePath(); g2.fillStyle = fill; g2.fill(); }
+  const quad = (x0, z0, x1, z1) => [P(x0, z0), P(x1, z0), P(x1, z1), P(x0, z1)];
   function draw() {
     const harbor = layout.id === 'harbor';
     g2.fillStyle = harbor ? '#BFD9E2' : '#E9D2AE';
     g2.fillRect(0, 0, W, H);
     const b = layout.bounds;
+    // back walls (z = minZ and x = minX edges)
+    const up = WALL * s;
+    const wall = harbor ? '#7FA9BC' : '#C99A6A';
+    const c0 = P(b.minX, b.minZ), cR = P(b.maxX, b.minZ), cL = P(b.minX, b.maxZ);
+    poly([c0, cR, [cR[0], cR[1] - up], [c0[0], c0[1] - up]], wall);
+    poly([c0, cL, [cL[0], cL[1] - up], [c0[0], c0[1] - up]], harbor ? '#6F99AC' : '#B98A5A');
     // floor
-    rr(px(b.minX), py(b.minZ), (b.maxX - b.minX) * sx, (b.maxZ - b.minZ) * sz, 10, harbor ? '#D7E7EC' : '#F2DDBA');
-    // kitchen tiles
-    const kitchen = layout.kitchen || { maxZ: -5, pass: [] };
-    g2.fillStyle = harbor ? '#C5DCE4' : '#E8D3B2';
-    g2.fillRect(px(b.minX), py(b.minZ), (b.maxX - b.minX) * sx, (kitchen.maxZ - b.minZ) * sz);
-    // back wall
-    rr(px(b.minX), py(b.minZ) - 26, (b.maxX - b.minX) * sx, 30, 6, harbor ? '#7FA9BC' : '#C99A6A');
-    // pass counters
-    for (const p of kitchen.pass) rr(px(p.x0), py(p.z) - 6, (p.x1 - p.x0) * sx, 12, 4, '#B07A4E');
-    // stations
-    for (const st of layout.stations) rr(px(st.pos[0]) - 0.9 * sx, py(st.pos[1]) - 0.9 * sz, 1.8 * sx, 1.8 * sz, 8, '#9C9AA6');
-    // tables
+    poly(quad(b.minX, b.minZ, b.maxX, b.maxZ), harbor ? '#D7E7EC' : '#F2DDBA');
+    // kitchen tiles: the L along both back walls (or a band along the back wall)
+    const k = layout.kitchen || {};
+    const kc = harbor ? '#C5DCE4' : '#E8D3B2';
+    if (k.shape === 'L') {
+      const reach = (k.reach ?? 0.6) + 0.5;
+      poly(quad(b.minX, b.minZ, b.minX + k.depth, reach), kc);
+      poly(quad(b.minX, b.minZ, reach, b.minZ + k.depth), kc);
+    } else if (k.maxZ !== undefined) poly(quad(b.minX, b.minZ, b.maxX, k.maxZ), kc);
+    // stations (2 x 2 counters)
+    for (const st of layout.stations) poly(quad(st.pos[0] - 0.9, st.pos[1] - 0.9, st.pos[0] + 0.9, st.pos[1] + 0.9), '#9C9AA6');
+    // tables + chairs
     layout.tables.forEach((t, i) => {
       const owned = game.state.tables[i] && game.state.tables[i].owned;
       g2.globalAlpha = owned ? 1 : 0.28;
-      for (const s of t.seats) { g2.beginPath(); g2.arc(px(s.pos[0]), py(s.pos[1]), 0.36 * sx, 0, 7); g2.fillStyle = '#B07A4E'; g2.fill(); }
-      g2.beginPath(); g2.ellipse(px(t.pos[0]), py(t.pos[1]), 0.75 * sx, 0.75 * sz, 0, 0, 7); g2.fillStyle = '#D9A36E'; g2.fill();
+      for (const st of t.seats) { const q = P(st.pos[0], st.pos[1]); g2.beginPath(); g2.ellipse(q[0], q[1], 0.36 * s, 0.36 * s * SQ, 0, 0, 7); g2.fillStyle = '#B07A4E'; g2.fill(); }
+      const q = P(t.pos[0], t.pos[1]);
+      g2.beginPath(); g2.ellipse(q[0], q[1], 0.75 * s, 0.75 * s * SQ, 0, 0, 7); g2.fillStyle = '#D9A36E'; g2.fill();
       g2.globalAlpha = 1;
     });
     // door
-    rr(px(layout.door.pos[0]) - 1.1 * sx, py(b.maxZ) - 4, 2.2 * sx, 8, 3, '#8A5A36');
+    const d = P(layout.door.pos[0], layout.door.pos[1]);
+    g2.fillStyle = '#8A5A36';
+    g2.fillRect(d[0] - 1.1 * s, d[1] - 4, 2.2 * s, 8);
   }
 
   function dotFor(id, cls, color) {
@@ -116,11 +133,13 @@ function createFakeScene(stage, game) {
       frame++;
       for (const c of state.customers) {
         const p = pos(c);
-        dotFor(c.id, 'guest', COLORS[c.look.tint % 4]).style.transform = `translate(${px(p[0])}px, ${py(p[1])}px)`;
+        const q = P(p[0], p[1], tmp2);
+        dotFor(c.id, 'guest', COLORS[c.look.tint % 4]).style.transform = `translate(${q[0]}px, ${q[1]}px)`;
       }
       for (const k of state.cooks) {
         const p = pos(k);
-        dotFor(k.id, 'cook').style.transform = `translate(${px(p[0])}px, ${py(p[1])}px)`;
+        const q = P(p[0], p[1], tmp2);
+        dotFor(k.id, 'cook').style.transform = `translate(${q[0]}px, ${q[1]}px)`;
       }
       for (const [id, d] of dots) if (d._seen !== frame) { d.remove(); dots.delete(id); }
     },
@@ -128,29 +147,32 @@ function createFakeScene(stage, game) {
     pick(x, y) {
       let best = null; let bd = Infinity;
       const test = (type, id, X, Y, r) => { const d = Math.hypot(X - x, Y - y); if (d < r && d < bd) { bd = d; best = { type, id }; } };
-      for (const st of layout.stations) test('station', st.id, px(st.pos[0]), py(st.pos[1]), 46);
-      for (const c of game.state.customers) { const p = pos(c); test('customer', c.id, px(p[0]), py(p[1]) - 8, 20); }
-      for (const k of game.state.cooks) { const p = pos(k); test('cook', k.id, px(p[0]), py(p[1]) - 8, 20); }
-      for (const t of layout.tables) test('table', t.id, px(t.pos[0]), py(t.pos[1]), 34);
+      const at = (p, type, id, dy, r) => { const q = P(p[0], p[1], tmp2); test(type, id, q[0], q[1] + dy, r); };
+      for (const st of layout.stations) at(st.pos, 'station', st.id, -0.6 * s, 40);
+      for (const c of game.state.customers) at(pos(c), 'customer', c.id, -8, 20);
+      for (const k of game.state.cooks) at(pos(k), 'cook', k.id, -8, 20);
+      for (const t of layout.tables) at(t.pos, 'table', t.id, 0, 34);
       return best;
     },
     anchor(kind, id) {
       // like the real scene: above an open station, lower (just above the plot) for closed ones
       if (kind === 'station') {
-        const i = layout.stations.findIndex((s) => s.id === id);
+        const i = layout.stations.findIndex((x) => x.id === id);
         const st = layout.stations[i];
         if (!st) return null;
         const open = game.state.stations[i] && game.state.stations[i].open;
-        return { x: px(st.pos[0]), y: py(st.pos[1]) + (open ? -0.9 * sz - 4 : 0.5 * sz), visible: true };
+        const q = P(st.pos[0], st.pos[1], tmp2);
+        return { x: q[0], y: q[1] - (open ? 1.9 * s : 0.7 * s), visible: true };
       }
-      if (kind === 'table') { const t = layout.tables.find((s) => s.id === id); return t ? { x: px(t.pos[0]), y: py(t.pos[1]), visible: true } : null; }
+      if (kind === 'table') { const t = layout.tables.find((x) => x.id === id); if (!t) return null; const q = P(t.pos[0], t.pos[1], tmp2); return { x: q[0], y: q[1] - 0.6 * s, visible: true }; }
       if (kind === 'customer' || kind === 'cook') {
         const e = (kind === 'customer' ? game.state.customers : game.state.cooks).find((c) => c.id === id);
         if (!e) return null;
         const p = pos(e);
-        return { x: px(p[0]), y: py(p[1]) - 22, visible: true };
+        const q = P(p[0], p[1], tmp2);
+        return { x: q[0], y: q[1] - 22, visible: true };
       }
-      if (kind === 'coins') return { x: px(layout.door.pos[0]), y: py(layout.bounds.maxZ) - 20, visible: true };
+      if (kind === 'coins') return { x: W / 2, y: H * 0.05, visible: true };
       return null;
     },
     setQuality(q) { quality = q; },

@@ -94,7 +94,7 @@ function preset(name) {
     });
     sim.step = () => {};
     step(1.0, false);
-    scene.debug.setCloseUp({ x: 0, z: 2.2, r: 6.2 });
+    scene.debug.setCloseUp({ x: 0.6, z: 0.6, r: 6.2 });
   } else if (name === 'flow') {
     sim.setup({ location: loc, open: 2, tables: 2, cooks: 1, spawn: true, seed: 21 });
   } else if (name === 'busy' || name === 'harbor') {
@@ -110,9 +110,11 @@ function preset(name) {
     c.look = { char: 'Knight', tint: 0 };
     const c2 = sim.spawnOne('t1a');
     c2.look = { char: 'Mage', tint: 0 };
-    for (let t = 0; t < 40 && !(c.state === 'eating' && c.t > 0.8); t += 0.1) step(0.1, false);
+    const seated = (x) => x.state === 'waiting' || x.state === 'eating';
+    const eatingNow = (a, b) => a.state === 'eating' && a.t > 0.8 && seated(b);
+    for (let t = 0; t < 60 && !eatingNow(c, c2) && !eatingNow(c2, c); t += 0.1) step(0.1, false);
     const tb = sim.layout.tables[0];
-    scene.debug.setCloseUp({ x: tb.pos[0], z: tb.pos[1] + 0.2, r: 2.6 });
+    scene.debug.setCloseUp({ x: tb.pos[0] - 0.4, z: tb.pos[1] - 0.4, r: 2.6 });
   } else if (name === 'carry') {
     sim.setup({ location: loc, open: 2, tables: 2, cooks: 1, spawn: false, seed: 5 });
     const c = sim.spawnOne('t1b');

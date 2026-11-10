@@ -18,8 +18,10 @@ The game title lives in the language files (`app.title` in `js/i18n/*.js`).
 ## Look
 
 3D art: the KayKit Restaurant Bits and Adventurers packs by Kay Lousberg (CC0), one
-consistent style, seen from a fixed 3/4 camera. UI: cream panels, one orange accent for
-buttons, gold for coins, soft shadows, the Fredoka font and our own simple SVG icons.
+consistent style, seen from a fixed diagonal (isometric) camera as a cosy cut-away diorama on a
+little garden plot (Village Inn) or a pier in the sea (Harbor Tavern); the cooks work behind
+their counters facing you and seated guests face the camera. UI: cream panels, one orange
+accent for buttons, gold for coins, soft shadows, the Fredoka font and our own simple SVG icons.
 
 ## Run
 

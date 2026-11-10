@@ -16,11 +16,13 @@ export const INSETS = UI_INSETS; // alias
  * positions. stations: above each station (level badge / Open sign), tables: above each table.
  */
 export const SCREEN = {
+  // measured on the diagonal camera (Village Inn, open stations; the Harbor Tavern mirrors
+  // left and right, the fallback keeps the inn order)
   stations: [
-    { x: 0.33, y: 0.2 }, { x: 0.45, y: 0.2 }, { x: 0.55, y: 0.2 }, { x: 0.67, y: 0.2 },
+    { x: 0.41, y: 0.3 }, { x: 0.59, y: 0.3 }, { x: 0.3, y: 0.33 }, { x: 0.7, y: 0.33 },
   ],
   tables: [
-    { x: 0.25, y: 0.52 }, { x: 0.75, y: 0.52 }, { x: 0.25, y: 0.4 }, { x: 0.75, y: 0.4 }, { x: 0.25, y: 0.64 }, { x: 0.75, y: 0.64 },
+    { x: 0.34, y: 0.54 }, { x: 0.66, y: 0.54 }, { x: 0.5, y: 0.46 }, { x: 0.19, y: 0.47 }, { x: 0.81, y: 0.47 }, { x: 0.5, y: 0.61 },
   ],
   coins: { x: 0.5, y: 0.05 },
 };

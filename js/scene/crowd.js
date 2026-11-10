@@ -16,6 +16,8 @@ export const RUN_STRIDE = 2.6;
 // seated pose: the root moves this far back toward the chair (and up) while sitting down
 const SIT = { back: -0.16, y: 0.0 };
 const TURN_RATE = 14;
+// where idle people look: toward the camera (the iso camera sits at yaw 45 deg)
+export const FACE = { yaw: Math.PI / 4 };
 
 const _v = new THREE.Vector3();
 
@@ -186,10 +188,10 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       if (walking) h.play('Walking_A', c.state === 'leaving' && v.vt < 0.3 ? 0.3 : 0.2, clamp(speed / WALK_STRIDE, 0.8, 2.6));
       else h.play('Idle', 0.25);
     } else if (!seat) {
-      // no seat (a queue spot, or a lab line-up): stand and look at the room
+      // no seat (a queue spot, or a lab line-up): stand and look at the camera
       walkPos(c, pt, v);
       v.x = pt[0]; v.z = pt[1];
-      yawT = 0;
+      yawT = FACE.yaw;
       h.play('Idle', 0.25);
     } else {
       // seated (waiting / eating) or standing up (paying)
@@ -263,14 +265,19 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       if (dx * dx + dz * dz > 1e-8) yawT = Math.atan2(dx, dz);
       h.play(carrying ? 'Run_Carry' : 'Running_A', 0.18, clamp(speed / RUN_STRIDE, 0.8, 1.8));
     } else if (c.state === 'cooking') {
-      yawT = Math.PI;
+      // face the station counter (the cooks work behind it, facing the room)
+      const st = stationsById.get(c.station);
+      yawT = st ? Math.atan2(st.pos[0] - v.x, st.pos[1] - v.z) : FACE.yaw;
       h.play('Interact', 0.2, 1.2);
     } else if (c.state === 'serving') {
-      yawT = 0;
+      // face the table the dish goes to
+      const cu = order && custEntity.get(order.customer);
+      const tb = cu && tablesById.get(cu.table);
+      yawT = tb ? Math.atan2(tb.pos[0] - v.x, tb.pos[1] - v.z) : FACE.yaw;
       if (carrying) h.play('Carry_Idle', 0.12);
       else h.play('Idle', 0.25);
     } else {
-      yawT = 0;
+      yawT = FACE.yaw;
       h.play('Idle', 0.3);
     }
     v.yaw = angleDamp(v.yaw, yawT, TURN_RATE, dt);

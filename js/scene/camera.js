@@ -1,6 +1,7 @@
-// Orthographic 3/4 camera for a portrait phone: looks at the back wall (kitchen at the top of
-// the screen, door at the bottom), tilted down by `elevation` degrees, optionally turned by
-// `yaw` degrees. fit() frames a set of world points inside the viewport minus UI insets.
+// Orthographic diorama camera for a portrait phone, tilted down by `elevation` degrees and
+// turned by `yaw` degrees about y (the game uses 35 / 45: it looks at the room diagonally
+// from its open front corner, kitchen corner at the top of the screen, door at the bottom;
+// see CAM in scene.js). fit() frames a set of world points inside the viewport minus UI insets.
 import * as THREE from 'three';
 import { DEG } from './kit.js';
 
@@ -34,7 +35,7 @@ export function createCamera({ elevation = 50, yaw = 0 } = {}) {
    * px per unit... (kept simple: size by points, then clamp px/unit to [minPx, maxPx]).
    * Returns px per world unit.
    */
-  function fit(width, height, insets, points, { minPx = 0, maxPx = Infinity, align = 0.5 } = {}) {
+  function fit(width, height, insets, points, { minPx = 0, maxPx = Infinity, align = 0.5, zoom = 1 } = {}) {
     camera.updateMatrixWorld(true);
     const inv = camera.matrixWorldInverse;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -45,7 +46,8 @@ export function createCamera({ elevation = 50, yaw = 0 } = {}) {
     }
     const availW = Math.max(60, width - insets.left - insets.right);
     const availH = Math.max(60, height - insets.top - insets.bottom);
-    let px = Math.min(availW / (x1 - x0), availH / (y1 - y0));
+    // zoom > 1 lets the frame overflow a little (the side corners of the diamond may bleed off)
+    let px = Math.min(availW / (x1 - x0) * zoom, availH / (y1 - y0));
     px = Math.max(minPx, Math.min(maxPx, px));
     const s = 1 / px; // world units per px
     const cx = (x0 + x1) / 2;

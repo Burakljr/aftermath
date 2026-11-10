@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { clamp, easeOutBack } from './kit.js';
 
 export const MILESTONES = [10, 25, 50, 100];
+export const OVEN_Y = 0.66; // oven height scale (2.02 -> 1.33)
 export function tierFor(level) {
   let t = 0;
   for (const m of MILESTONES) if (level >= m) t++;
@@ -25,16 +26,17 @@ function recipe(kind, tier, alt) {
   const P = [];
   const add = (...a) => P.push(a);
   if (kind === 'drinks') {
+    // the cook works behind the counter (z < 0): tall things stand at the ends and the front
     const mugFull = alt ? 'mug_cocoa' : 'mug_juice';
-    add('kitchencounter_straight_A_backsplash', 0, 0, 0);
-    add(mugFull, -0.55, 1.0, 0.25, 0.4, 1.0);
-    add(mugFull, -0.1, 1.0, 0.45, -0.5, 1.0);
-    add('mug', 0.45, 1.0, 0.1, 1.2, 1.0);
-    add(alt ? 'jar_D_large' : 'jar_C_large', -0.6, 1.0, -0.55, 0, 1.0);
-    if (tier >= 1) { add(alt ? 'jar_B_large' : 'jar_A_large', -0.05, 1.0, -0.6, 0, 1.0); add(mugFull, 0.55, 1.0, 0.5, 2.2, 1.0); }
-    if (tier >= 2) { add(alt ? 'crate_potatoes' : 'crate_carrots', 0.45, 1.0, -0.45, 0.1, 0.36); }
-    if (tier >= 3) { add('jar_C_medium', -0.65, 1.0, -0.1, 0, 0.8); add(alt ? 'jar_D_small' : 'jar_A_small', 0.75, 1.0, -0.15, 0, 0.8); }
-    if (tier >= 4) { add('jar_D_large', 0.35, 1.0, -0.05, 0, 0.8); add(mugFull, 0.1, 1.0, 0.05, 0.9, 1.0); }
+    add('kitchencounter_straight_A', 0, 0, 0);
+    add(mugFull, -0.4, 1.0, 0.45, 0.4, 1.0);
+    add(mugFull, 0.05, 1.0, 0.55, -0.5, 1.0);
+    add('mug', 0.45, 1.0, 0.4, 1.2, 1.0);
+    add(alt ? 'jar_D_large' : 'jar_C_large', -0.75, 1.0, -0.2, 0, 1.0);
+    if (tier >= 1) { add(alt ? 'jar_B_large' : 'jar_A_large', 0.78, 1.0, -0.25, 0, 1.0); add(mugFull, 0.62, 1.0, 0.72, 2.2, 1.0); }
+    if (tier >= 2) { add(alt ? 'crate_potatoes' : 'crate_carrots', -0.62, 1.0, 0.35, 0.1, 0.3); }
+    if (tier >= 3) { add('jar_C_medium', 0.8, 1.0, 0.2, 0, 0.8); add(alt ? 'jar_D_small' : 'jar_A_small', -0.8, 1.0, -0.65, 0, 0.8); }
+    if (tier >= 4) { add('jar_D_large', 0.8, 1.0, -0.7, 0, 0.8); add(mugFull, -0.15, 1.0, 0.75, 0.9, 1.0); }
   } else if (kind === 'grill') {
     if (tier < 2) {
       add('stove_single', 0, 0, 0);
@@ -50,7 +52,7 @@ function recipe(kind, tier, alt) {
     }
     if (tier >= 4) { add('food_ingredient_bun', 0.75, 1.2, 0.62, 0, 0.45); add('food_ingredient_tomato', -0.78, 1.2, 0.6, 0, 0.4); }
   } else if (kind === 'pot') {
-    add('kitchencounter_straight_A_backsplash', 0, 0, 0);
+    add('kitchencounter_straight_A', 0, 0, 0);
     if (tier < 2) {
       add('stove_single_countertop', 0, 0.01, 0, 0, 0.72);
       add('pot_A_stew', 0, 1.2, -0.05, 0, 0.8);
@@ -62,12 +64,13 @@ function recipe(kind, tier, alt) {
       if (tier >= 3) { add('bowl_small', -0.62, 1.0, 0.55, 0, 0.55); add('bowl_small', -0.62, 1.12, 0.55, 0, 0.55); }
       if (tier >= 4) { add('food_ingredient_carrot', 0.62, 1.0, -0.62, 1.2, 0.45); add('lid_A', 0.7, 1.0, 0.62, 0.4, 0.5); }
     }
-  } else { // oven
-    add('oven', 0, 0, 0);
-    if (tier >= 1) add('plate_small', -0.55, 2.02, 0.2, 0, 0.7);
-    if (tier >= 2) { add('plate_small', -0.55, 2.1, 0.2, 0, 0.7); add('food_ingredient_ham_cooked', 0.3, 2.04, 0.0, 0.6, 0.45); }
-    if (tier >= 3) add('crate_potatoes', 0.35, 2.02, -0.5, 0.15, 0.32);
-    if (tier >= 4) add('plate_small', -0.55, 2.18, 0.2, 0, 0.7);
+  } else { // oven: squat (the cook stands behind it and must show above it)
+    const OY = OVEN_Y, top = 2.02 * OY;
+    add('oven', 0, 0, 0, 0, [1, OY, 1]);
+    if (tier >= 1) add('plate_small', -0.55, top, 0.2, 0, 0.7);
+    if (tier >= 2) { add('plate_small', -0.55, top + 0.08, 0.2, 0, 0.7); add('food_ingredient_ham_cooked', -0.1, top + 0.02, 0.35, 0.6, 0.45); }
+    if (tier >= 3) add('crate_potatoes', 0.45, top, 0.4, 0.15, 0.3);
+    if (tier >= 4) add('plate_small', -0.55, top + 0.16, 0.2, 0, 0.7);
   }
   return P;
 }

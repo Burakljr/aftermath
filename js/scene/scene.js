@@ -6,7 +6,7 @@ import { getLayout } from '../game/layout.js';
 import { loadModels } from './assets.js';
 import { createKit, clamp } from './kit.js';
 import { createCamera } from './camera.js';
-import { buildRoom, themeFor } from './room.js';
+import { buildRoom, themeFor, backdropTexture } from './room.js';
 import { createStations } from './stations.js';
 import { createTables } from './tables.js';
 import { createHeroLib, HERO_MODELS } from './heroes.js';
@@ -17,8 +17,20 @@ import { presetFor, createPerfMonitor } from './quality.js';
 import { UI_INSETS, SCREEN } from './layout.js';
 
 const MODELS = ['props', 'anims', ...HERO_MODELS];
+// diagonal (iso) diorama camera: looks at the room from its open front corner
+export const CAM = { elevation: 35, yaw: 45, zoom: 1 };
 const _v = new THREE.Vector3();
 const _box = { x0: 0, y0: 0, x1: 0, y1: 0 };
+const _o = { x: 0, y: 0, visible: false };
+const _tc = [0, 0];
+// centre of a table group: the table and its chairs (seats may sit on any sides)
+function tableCentre(t, out) {
+  let x = t.pos[0] * 2, z = t.pos[1] * 2;
+  for (const s of t.seats) { x += s.chair.pos[0]; z += s.chair.pos[1]; }
+  const n = 2 + t.seats.length;
+  out[0] = x / n; out[1] = z / n;
+  return out;
+}
 
 export async function createScene(canvas, opts = {}) {
   let preset = presetFor(opts.quality);
@@ -38,15 +50,16 @@ export async function createScene(canvas, opts = {}) {
   renderer.info.autoReset = false;
 
   const scene = new THREE.Scene();
-  const cam = createCamera({ elevation: opts.elevation ?? 40, yaw: opts.yaw ?? 0 });
+  const cam = createCamera({ elevation: opts.elevation ?? CAM.elevation, yaw: opts.yaw ?? CAM.yaw });
   const camera = cam.camera;
   scene.add(camera);
 
   // warm, bright light: sky/ground hemisphere + one sun from the upper left front
-  const hemi = new THREE.HemisphereLight(0xfff4e2, 0x8a6a52, 1.9);
+  const hemi = new THREE.HemisphereLight(0xfff4e2, 0x8a6a52, 1.65);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
-  sun.position.set(-5, 12, 7);
+  const sun = new THREE.DirectionalLight(0xfff0d8, 2.7);
+  // from the camera's right: the dining wall (facing +x) is sunlit, the kitchen wall in soft shade
+  sun.position.set(8, 12, 3.5);
   scene.add(sun, sun.target);
 
   const models = await loadModels(MODELS, opts.onProgress);
@@ -98,8 +111,8 @@ export async function createScene(canvas, opts = {}) {
     crowd.setLayout(L);
     fx.clear();
     const th = themeFor(L.id);
-    scene.background = new THREE.Color(th.background);
-    renderer.setClearColor(scene.background, 1);
+    renderer.setClearColor(new THREE.Color(th.background), 1);
+    scene.background = th.backdrop ? backdropTexture(th.backdrop) : new THREE.Color(th.background);
     resize(true);
     perf.rest();
   }
@@ -127,7 +140,9 @@ export async function createScene(canvas, opts = {}) {
     if (!room) return;
     if (closeUp) {
       const { x, z, r } = closeUp;
-      const pts = [new THREE.Vector3(x - r, 0, z - r * 0.6), new THREE.Vector3(x + r, 0, z + r * 0.6), new THREE.Vector3(x, 2.6, z - r * 0.6)];
+      // a diamond around (x, z) for the diagonal camera, plus a head-height point at the back
+      const pts = [new THREE.Vector3(x - r, 0, z + r * 0.4), new THREE.Vector3(x + r * 0.4, 0, z - r),
+        new THREE.Vector3(x - r * 0.5, 2.8, z - r * 0.5), new THREE.Vector3(x + r * 0.5, 0, z + r * 0.5)];
       pxPerUnit = cam.fit(view.width, view.height, { top: 0, bottom: 0, left: 0, right: 0 }, pts);
       return;
     }
@@ -135,7 +150,7 @@ export async function createScene(canvas, opts = {}) {
       top: insets.top + safe.top, bottom: insets.bottom + safe.bottom,
       left: (insets.left || 0) + safe.left, right: (insets.right || 0) + safe.right,
     };
-    pxPerUnit = cam.fit(view.width, view.height, ins, room.focus, { align: 0.5 });
+    pxPerUnit = cam.fit(view.width, view.height, ins, room.focus, { align: 0.5, zoom: CAM.zoom });
   }
 
   function resize(force) {
@@ -181,7 +196,8 @@ export async function createScene(canvas, opts = {}) {
     }
     blobs.begin();
     dishes.begin();
-    if (tables) for (const v of tables.views) if (v.owned) blobs.add(v.t.pos[0], v.t.pos[1], 3.4, 2.0);
+    // soft shadow under each owned table group (table + the two chairs on its far side)
+    if (tables) for (const v of tables.views) if (v.owned) { tableCentre(v.t, _tc); blobs.add(_tc[0], _tc[1], 2.9, 2.9); }
     crowd.update(state, dt);
     steamTick(state, dt);
     dishes.end();
@@ -204,7 +220,7 @@ export async function createScene(canvas, opts = {}) {
       if (steamT[i] <= 0) {
         steamT[i] = 1.1;
         const ls = v.ls;
-        fx.steam(_p3.set(ls.pos[0] - 0.1, v.kind === 'oven' ? 2.1 : 1.45, ls.pos[1] + 0.1));
+        fx.steam(_p3.set(ls.pos[0] - 0.1, v.kind === 'oven' ? 1.5 : 1.45, ls.pos[1] + 0.1));
       }
     }
   }
@@ -224,6 +240,11 @@ export async function createScene(canvas, opts = {}) {
     return out;
   }
   const _p3 = new THREE.Vector3();
+  // a point in front of a station: `d` units toward the room along its facing
+  function stationFront(v, d, y, out) {
+    const f = v.ls.facing || 0;
+    return out.set(v.ls.pos[0] + Math.sin(f) * d, y, v.ls.pos[1] + Math.cos(f) * d);
+  }
   function stationView(id) {
     if (!stations) return null;
     if (typeof id === 'number') return stations.views[id] || null;
@@ -241,8 +262,10 @@ export async function createScene(canvas, opts = {}) {
     if (kind === 'station') {
       const v = stationView(id);
       if (!v) return out;
-      const top = !v.open ? 1.25 : v.kind === 'oven' ? 2.5 : v.kind === 'grill' && v.tier >= 4 ? 2.4 : 2.0;
-      return project(_p3.set(v.ls.pos[0], top, v.ls.pos[1] + 0.6), out);
+      // open: above the station and the cook behind it (clear of his head); closed: the Open
+      // sign stands on the counter
+      if (!v.open) return project(stationFront(v, 0.6, 1.25, _p3), out);
+      return project(stationFront(v, -0.2, 3.15, _p3), out);
     }
     if (kind === 'table') {
       const t = layout.tables.find((x) => x.id === id) || layout.tables[id];
@@ -269,30 +292,73 @@ export async function createScene(canvas, opts = {}) {
     }
     return out;
   }
+  // the camera ray through a tap (CSS px), and a test against a square footprint between y0 / y1
+  const _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
+  function tapRay(x, y) {
+    const nx = x / view.width * 2 - 1, ny = 1 - y / view.height * 2;
+    _ro.set(nx, ny, -1).unproject(camera);
+    _rd.set(nx, ny, 1).unproject(camera).sub(_ro).normalize();
+  }
+  // does the tap ray pass within `r` of (cx, cz) (round) or inside the square of half size `r`
+  // somewhere between the heights y0 and y1?
+  function rayHits(cx, cz, r, y0, y1, round) {
+    if (Math.abs(_rd.y) < 1e-6) return false;
+    for (let k = 0; k <= 6; k++) {
+      const yy = y0 + (y1 - y0) * k / 6;
+      const s = (yy - _ro.y) / _rd.y;
+      const dx = _ro.x + _rd.x * s - cx, dz = _ro.z + _rd.z * s - cz;
+      if (round ? dx * dx + dz * dz <= r * r : Math.abs(dx) <= r && Math.abs(dz) <= r) return true;
+    }
+    return false;
+  }
+  // a table group: the table top / pedestal and its chairs
+  function rayHitsTable(t) {
+    if (rayHits(t.pos[0], t.pos[1], 0.95, 0, 1.05, true)) return true;
+    for (const st of t.seats) if (rayHits(st.chair.pos[0], st.chair.pos[1], 0.5, 0, 1.25, false)) return true;
+    return false;
+  }
   function pick(clientX, clientY) {
     if (!layout) return null;
     const r = canvas.getBoundingClientRect();
     const x = clientX - r.left, y = clientY - r.top;
     const hit = (b, pad = 0) => x >= b.x0 - pad && x <= b.x1 + pad && y >= b.y0 - pad && y <= b.y1 + pad;
-    // stations first (the main tap target)
+    // stations first (the main tap target). Seen from the diagonal the screen boxes of two
+    // neighbouring stations overlap near the corner, so the nearest box centre wins.
+    let sBest = null, sD = Infinity;
     for (const v of stations.views) {
-      screenBox(v.ls.pos[0], v.ls.pos[1] + 0.3, 1.0, 1.3, 0, v.open ? 2.1 : 1.2, _box);
-      if (hit(_box, 2)) return { type: 'station', id: v.id };
+      // the counter and the lane behind it (where its cook stands)
+      const side = Math.abs(Math.sin(v.ls.facing || 0)) > 0.7; // along the x = const wall
+      stationFront(v, -0.35, 0, _p3);
+      screenBox(_p3.x, _p3.z, side ? 1.45 : 1.0, side ? 1.0 : 1.45, 0, v.open ? 2.3 : 1.2, _box);
+      if (!hit(_box, 2)) continue;
+      const c = project(stationFront(v, 0.5, v.open ? 1.0 : 0.6, _p3), _o);
+      const d = Math.hypot(x - c.x, y - c.y);
+      if (d < sD) { sD = d; sBest = v; }
     }
-    let best = null, bestD = Infinity;
-    const consider = (type, id, b) => {
+    if (sBest) return { type: 'station', id: sBest.id };
+    let best = null, bestD = Infinity, bestMoving = false;
+    const consider = (type, id, b, moving) => {
       if (!hit(b, 4)) return;
       const d = Math.hypot(x - (b.x0 + b.x1) / 2, y - (b.y0 + b.y1) / 2);
-      if (d < bestD) { bestD = d; best = { type, id }; }
+      if (d < bestD) { bestD = d; best = { type, id }; bestMoving = moving; }
     };
-    for (const [id, v] of crowd.customers) consider('customer', id, screenBox(v.x, v.z, 0.45, 0.45, 0, v.seated ? 2.1 : 2.5, _box));
-    for (const [id, v] of crowd.cooks) consider('cook', id, screenBox(v.x, v.z, 0.45, 0.45, 0, 2.5, _box));
-    if (best) return best;
-    for (const t of layout.tables) {
-      screenBox(t.pos[0], t.pos[1], 1.7, 0.9, 0, 1.2, _box);
-      if (hit(_box, 2)) return { type: 'table', id: t.id };
+    const st = lastState;
+    for (const [id, v] of crowd.customers) consider('customer', id, screenBox(v.x, v.z, 0.45, 0.45, 0, v.seated ? 2.1 : 2.5, _box), !v.seated);
+    for (const [id, v] of crowd.cooks) consider('cook', id, screenBox(v.x, v.z, 0.45, 0.45, 0, 2.5, _box), v.st !== 'cooking');
+    // seen from the diagonal, cooks and guests walk right past the tables: a faded (not yet
+    // bought) table wins over someone just walking by, so tapping it to buy stays reliable
+    // tables: the tap ray must cross the table group's footprint (table + chairs) somewhere
+    // between the floor and the table top; a screen box of a turned square is far too loose
+    tapRay(x, y);
+    let tableHit = null;
+    for (let i = 0; i < layout.tables.length; i++) {
+      const t = layout.tables[i];
+      if (!rayHitsTable(t)) continue;
+      const owned = !!(st && st.tables && st.tables[i] && st.tables[i].owned);
+      if (!owned && (!best || bestMoving)) return { type: 'table', id: t.id };
+      if (!tableHit) tableHit = { type: 'table', id: t.id };
     }
-    return null;
+    return best || tableHit;
   }
 
   // ------------------------------------------------------------------ effects
@@ -312,15 +378,15 @@ export async function createScene(canvas, opts = {}) {
         const v = stationView(p.station);
         if (!v) break;
         stations.bounce(v.id);
-        fx.sparkle(_p3.set(v.ls.pos[0], 1.6, v.ls.pos[1] + 0.6), p.milestone ? 2 : 1);
-        if (p.milestone) fx.ring(_p3.set(v.ls.pos[0], 0.05, v.ls.pos[1] + 0.8));
+        fx.sparkle(stationFront(v, 0.6, 1.6, _p3), p.milestone ? 2 : 1);
+        if (p.milestone) fx.ring(stationFront(v, 0.8, 0.05, _p3));
         break;
       }
       case 'open': {
         const v = stationView(p.station);
         if (!v) break;
-        fx.burst(_p3.set(v.ls.pos[0], 1.2, v.ls.pos[1] + 0.6));
-        fx.ring(_p3.set(v.ls.pos[0], 0.05, v.ls.pos[1] + 0.8));
+        fx.burst(stationFront(v, 0.6, 1.2, _p3));
+        fx.ring(stationFront(v, 0.8, 0.05, _p3));
         break;
       }
       case 'buyTable': {
@@ -338,7 +404,7 @@ export async function createScene(canvas, opts = {}) {
       }
       case 'boost': {
         const v = stationView(p.station);
-        if (v) fx.sparkle(_p3.set(v.ls.pos[0], 1.4, v.ls.pos[1] + 0.8), 0.6);
+        if (v) fx.sparkle(stationFront(v, 0.8, 1.4, _p3), 0.6);
         break;
       }
       case 'serve': {
@@ -347,8 +413,8 @@ export async function createScene(canvas, opts = {}) {
         break;
       }
       case 'cookStart': {
-        const st = layout.stations.find((s) => s.id === p.station);
-        if (st) fx.steam(_p3.set(st.pos[0], 1.5, st.pos[1] + 0.2));
+        const v = stationView(p.station);
+        if (v) fx.steam(stationFront(v, 0.2, 1.5, _p3));
         break;
       }
       case 'locationComplete':
@@ -398,6 +464,7 @@ export async function createScene(canvas, opts = {}) {
     dispose() { disposeLocation(); renderer.dispose(); },
     debug: {
       setCloseUp(v) { closeUp = v; frame(); },
+      ray(x, y) { tapRay(x, y); return [_ro.toArray(), _rd.toArray()]; },
       project(x, y, z) { return project(new THREE.Vector3(x, y, z), { x: 0, y: 0, visible: false }); },
       renderer, scene, camera, cam, kit, heroLib, crowd, fx, perf,
       get layout() { return layout; }, get stations() { return stations; }, get tables() { return tables; },

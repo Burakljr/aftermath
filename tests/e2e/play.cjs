@@ -34,6 +34,9 @@ async function main() {
     page.on('requestfailed', (r) => errors.push('request failed: ' + r.url() + ' (' + (r.failure() && r.failure().errorText) + ', ' + Math.round((Date.now() - t0) / 1000) + ' s)'));
 
     const S = (fn, arg) => page.evaluate(fn, arg);
+    // SwiftShader queues the frames drawn during a fast-forward; read one pixel back (waits for
+    // the queue) before a reload, so the reload's 30 s navigation timeout does not include it
+    const drainGpu = () => S(() => { try { const gl = window.diner.scene.debug.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } catch { /* no WebGL */ } });
     const step = (s) => S((x) => window.diner.step(x), s);
     // taps: CSS transitions run on the wall clock, so give them a moment
     const tapAt = async (x, y) => { await page.touchscreen.tap(x, y); await step(0.05); await wait(280); };
@@ -121,8 +124,17 @@ async function main() {
     check(await S(() => window.diner.game.state.stations[1].open), 'Open opens the Grill');
     check(await S(() => window.diner.game.state.tutorial) === 'done', 'tutorial is done');
     check(await cardOpen() && /Grill/.test(await text('.card .name')) && /Upgrade/.test(await text('.card .big')), 'the card now offers the Grill upgrade');
-    // tap the floor of the aisle between the kitchen pass and the tables to close the card
-    p = await S(() => window.diner.scene.debug.project(0, 0, -3.5));
+    // tap an empty bit of floor to close the card: the first of a few spots away from the walk
+    // paths (inner corner of the kitchen L, by the dining walls) with nothing under it
+    p = await S(() => {
+      const d = window.diner;
+      for (const [x, z] of [[-2.75, -2.75], [-2, 5.25], [5.25, -2], [0, -3.5]]) {
+        const q = d.scene.debug.project(x, 0, z);
+        const el = document.elementFromPoint(q.x, q.y);
+        if (!d.scene.pick(q.x, q.y) && el && el.tagName === 'CANVAS') return q;
+      }
+      return d.scene.debug.project(-2.75, 0, -2.75);
+    });
     await tapAt(p.x, p.y);
     check(!(await cardOpen()), 'tapping the floor closes the card');
     await step(0.3);
@@ -191,6 +203,7 @@ async function main() {
 
     // ------------------------------------------------------------ reload keeps progress
     const before = await S(() => { const g = window.diner.game; window.diner.save(); return { loc: g.state.location, levels: g.state.stations.map((s) => s.level).join(','), money: g.state.money, served: g.state.served, tables: g.select.tableView().owned, cooks: g.state.cooks.length }; });
+    await drainGpu();
     await page.reload();
     await boot();
     const after = await S(() => { const g = window.diner.game; return { loc: g.state.location, levels: g.state.stations.map((s) => s.level).join(','), money: g.state.money, served: g.state.served, tables: g.select.tableView().owned, cooks: g.state.cooks.length, tut: g.state.tutorial }; });
@@ -243,6 +256,7 @@ async function main() {
     await step(0.6);
     await wait(300);
     check(await visible('.fps') && /FPS/.test(await text('.fps')), 'FPS meter shows the scene stats');
+    await drainGpu();
     await page.reload();
     await boot();
     check(await S(() => { const s = window.diner.game.state.settings; return s.lang === 'en' && s.sound === false && s.fps === true && s.quality === 'high'; }), 'settings survive a reload');
@@ -250,6 +264,7 @@ async function main() {
     // ------------------------------------------------------------ automatic drop to Low is remembered
     await S(() => window.diner.scene.debug.perf.onSlow()); // what the frame-time monitor calls on a slow phone
     check(await S(() => window.diner.scene.stats().quality) === 'low' && await S(() => window.diner.game.state.settings.quality) === 'low', 'slow frames drop the graphics to Low and the setting follows');
+    await drainGpu();
     await page.reload();
     await boot();
     check(await S(() => window.diner.game.state.settings.quality) === 'low' && await S(() => window.diner.scene.stats().quality) === 'low', 'the automatic Low is remembered after a reload');

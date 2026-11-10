@@ -44,7 +44,7 @@ js/i18n/en.js, tr.js  flat key -> string, {name} placeholders, identical keys
 js/audio.js           procedural Web Audio sounds (no files)
 js/ui/*.js            DOM UI (see "UI")
 css/app.css           all UI styles + Fredoka @font-face
-ui-lab.html           UI lab: real game + UI on a flat placeholder drawing of layout.js
+ui-lab.html           UI lab: real game + UI on a flat diagonal drawing of layout.js (like the camera)
 tests/logic/*         node tests (no deps): node tests/logic/run.mjs
 tests/ui/*            Playwright: lab-play.cjs (interactions), lab-shots.cjs (screenshots)
 ```
@@ -54,16 +54,38 @@ tests/ui/*            Playwright: lab-play.cjs (interactions), lab-shots.cjs (sc
 ### Layout (`js/game/layout.js`)
 
 World units at KayKit native scale (a counter tile 2 x 2, a small round table 1.5 wide,
-characters ~2.4 tall). x right, z toward the camera (bottom of the screen), y up. Floor points
-`[x, z]`, points with height `[x, y, z]`, `facing` = rotation about y (0 = toward +z).
+characters ~2.4 tall). x and z on the floor, y up. Floor points `[x, z]`, points with height
+`[x, y, z]`, `facing` = rotation about y (0 = toward +z, PI/2 = toward +x). The camera looks at
+the room diagonally from its open front corner (+x, +z): the x = z diagonal is the vertical
+axis of the screen (kitchen corner at the top, door corner at the bottom); facing PI/4 looks
+straight at the camera.
 `LAYOUTS[id]` / `getLayout(id)`:
 `{ id, bounds, door { pos, node: 'door', outside: 'out' }, queue, tables [{ id: 't1'..'t6', pos,
 front: 't<n>f', seats [{ id: 't<n>a|b' (= graph node), pos, facing, plate [x,y,z], chair }] }],
 stations [{ id, pos, facing, cookSpot, node: 'st_<id>', dishSpot, helperSpot, helperNode: 'sh_<id>',
-helperDishSpot }] (helper* = a second cook working at the station, 1 unit to its left),
+helperDishSpot }] (helper* = a second cook working at the station, 1 unit further along the wall),
 cookHomes ['h1'..'h4'],
-kitchen, graph { nodes, edges }, speeds { customer, cook }, path(from, to), pathLength(from, to),
-pointAt(from, to, s, out) }`. Station order = config order = unlock order.
+kitchen { shape: 'L', minZ, maxZ, depth, reach, lane, counter, pass: [], open }, obstacles [{ kind,
+x0, x1, z0, z1 }], iso: true, swapped (Harbor Tavern), graph { nodes, edges }, speeds { customer,
+cook }, path(from, to), pathLength(from, to), pointAt(from, to, s, out) }`. Station order = config
+order = unlock order.
+
+Plan (`buildIso()` in `layout.js`, both places, 14 x 14 room, bounds -7..7):
+- Kitchen = an L in the far corner. The station counters stand 2.2 from the back walls (Juice
+  Bar and Stew Pot on the back-left wall x = -7, Grill and Oven on the back-right wall z = -7,
+  so the unlock order alternates sides); the cooks work in a lane 0.75 from the wall, behind
+  their counter, facing the room. The two lanes meet in the cooks' corner (homes h1..h4) and
+  come out past the end of each counter row (nodes EL / ER -> XL / XR) into the dining room.
+- Tables: both seats on the far side of the table (seat a on the -x side facing +x, seat b on
+  the -z side facing +z), so every seated guest faces the camera at 3/4; the cook hands the
+  dish over at the table's front corner (`t<n>f`). Six tables in a 3-2-1 pyramid pointing at the
+  door: t4 t3 t5 by the kitchen, t1 t2 in the middle (owned at the start), t6 by the door. Shared
+  hub nodes between neighbouring tables (H12, H34, H35) keep the graph small.
+- Door = the open front corner (6.25, 6.25), outside node at (9.4, 9.4), queue spots outside.
+- Harbor Tavern = the same plan mirrored across x = z (`swap: true`, `swapXZ()`): the kitchen
+  sides, the sink and the windows swap on screen and every walk keeps its length (same pacing).
+- Speeds: customer 2.8, cook 3.9 units/s (walks average a little longer than in the old
+  12 x 20 plan; pacing re-checked with the bot and the e2e run).
 
 Timing rule: the logic times every walk as `pathLength(from, to) / speed` and stores
 `{ from, to, t, dur }`; the scene places the walker at `t / dur` along `path(from, to)`.
@@ -170,13 +192,15 @@ new game (default: phone language, English otherwise).
   steps (waiting guests per station from Little's law, then the queue penalty); within ~10 % of
   the simulation (tests/logic/estimate.test.mjs).
 - Offline: estimate x min(away, 2 h), only if away >= 60 s, collected on return.
-- Measured by `node tests/logic/bot.mjs` (attentive player, seeds 3/7/11/19): first upgrade 0 s,
-  first coins 9 s, 2nd cook ~0:30, Grill 0:50, Stew 2:55-3:11, Oven 5:49-6:08, Village Inn
-  complete 11:20-11:37, longest gap between reward moments 21-26 s; guests wait ~10 s for
-  food (p90 ~11 s, max ~30 s). Waiting guests all showing the same dish (3 or more waiting):
-  ~6 % of the time after minute 2 (was 26 %); a cook idle while an order waits: ~1 % (was 21 %).
+- Measured by `node tests/logic/bot.mjs` (attentive player, seeds 3/7/11/19, diagonal 14 x 14
+  plan): first upgrade 0 s, first coins 9 s, 2nd cook ~0:30, Grill 0:50-0:51, Stew 2:54-3:10,
+  Oven 5:49-6:30, Village Inn complete 10:56-11:36, longest gap between reward moments
+  22-27 s (e2e run: Grill 0:36, Stew 3:09, Oven 5:58, complete 11:39). Guests wait ~10 s for
+  food (p90 ~11 s, max ~30 s), waiting guests all showing the same dish (3 or more waiting)
+  ~6 % of the time after minute 2 (was 26 %), a cook idle while an order waits ~1 % (was 21 %)
+  (these three measured on the earlier 12 x 20 plan; the walks are similar).
   Careless bot (cheapest buys, late goals, no boosts): complete in ~19 min (no softlock).
-  Harbor Tavern: ~12 min.
+  Harbor Tavern: ~11-12 min.
 - Tutorial: 0 "Tap the Juice Bar" (the UI moves to 1 when its card opens), 1 "Upgrade" (an
   upgrade moves to 2), 2 "Open the Grill" (shown once affordable; opening ends it).
 
@@ -218,8 +242,9 @@ detection; the only per-frame layout writes are transforms at scene anchors.
 - Modals: Restaurant complete (stars, guests served, Next place / Keep playing), Welcome back
   (offline earnings, Collect), Settings (language, sound, graphics, FPS, credits).
 - Tutorial: pointing hand + ring + short bubble (text-wrap: balance); for an open station the
-  ring pulses on the appliance, the hand points up at it from the counter front and the bubble
-  waits below the pass; bubbles for card buttons sit above the card.
+  ring pulses on the station's cook and counter (the open-station anchor sits above the cook's
+  head), the hand points up at it from the counter front and the bubble waits below it, over
+  the dining room; bubbles for card buttons sit above the card.
 - Toasts (opened, new cook, new table, milestone, goal done) sit just above the bottom UI, under
   the HUD while a tutorial bubble is shown, and as a slim banner at the very top while a menu
   sheet is open (they follow when a card or sheet opens or closes), so they never cover the
@@ -255,8 +280,8 @@ orange progress bar) and `#fatal` (shown only when WebGL cannot start).
    `game.act({ type: 'setting', key: 'quality', value: 'low' })`, so the next start is Low.
    A quality the player picks by hand turns the automatic drop off for the session. If the
    scene cannot start (no WebGL), a small fallback scene (screen positions from
-   `js/scene/layout.js SCREEN`) keeps the UI usable and `#fatal` says "This device could not
-   start the 3D view".
+   `js/scene/layout.js SCREEN`, measured on the diagonal camera) keeps the UI usable and
+   `#fatal` says "This device could not start the 3D view".
 5. `createUI({ root: #ui, game, scene, audio: createAudio(), canvas })`. The UI handles canvas
    taps itself (`scene.pick`): station -> boost + card, guest -> "<dish>, please" toast, cook ->
    info, faded table -> bought at once when it is the next table and affordable (otherwise the
@@ -304,11 +329,11 @@ Everything index.html loads (MiB): models 2.56 (props 1.42, four heroes 0.22-0.2
 animations 0.17), three.js + 3 addons 0.88, game/UI/scene code 0.26, fonts 0.05, html/css 0.03:
 about 3.8 MiB (3.9 MB) in total, about 1.5 MiB with gzip.
 
-Real game on SwiftShader (iPhone 13 viewport, High, pixel ratio 2), after the fixer pass:
-start 25-27 draw calls / 46k triangles; busy Village Inn (all stations, 5-6 tables, 10-14
-guests + 4 cooks) 39-44 calls / 94-107k triangles, busiest frame sampled over a whole Village
-Inn run 47 calls / 120k; busy Harbor Tavern 40-43 calls / 103-110k; Low (pixel ratio 1.25)
-inn 38-39 calls / 86-90k, harbor 43 / 91k. Budget: 120 calls / 150k triangles.
+Real game on SwiftShader (iPhone 13 viewport, High, pixel ratio 2), diagonal camera:
+start 26 draw calls / 50k triangles; busy Village Inn (all stations, 5-6 tables, 11-13
+guests + 4 cooks) 41-45 calls / 107-115k triangles, busiest frame sampled over a whole Village
+Inn run 49 calls / 127k; busy Harbor Tavern 41-48 calls / 104-121k; Low (pixel ratio 1.25)
+harbor 43 / 93k. Budget: 120 calls / 150k triangles.
 
 ## Audio (`js/audio.js`)
 
@@ -336,7 +361,9 @@ Real game (integration), each starts its own server on PORT (default 5403):
   Restaurant complete -> Harbor Tavern (scene, HUD, Cocoa Stand card); reload keeps
   progress; 3 h away -> Welcome back capped at 2 h; Türkçe and back (titles, HUD, no "!"),
   Low / High (pixel ratio), sound, FPS meter, settings survive a reload; automatic Low is
-  stored; sandboxed iframe (no storage) runs; no console errors or failed requests.
+  stored; sandboxed iframe (no storage) runs; no console errors or failed requests. Before each
+  `page.reload()` it reads one pixel back (`drainGpu`): SwiftShader queues the frames drawn
+  during a fast-forward and the reload's 30 s navigation timeout would otherwise count them.
 - `timeout 600 node tests/shots.cjs <outDir> [bestDir]`: 01-start-tutorial, 02-station-card,
   03-busy-inn, 04-upgrades-panel, 05-goals, 06-location-complete, 07-harbor-tavern,
   08-settings-tr at DPR 2 plus `@1x` copies, `stats.json`; bestDir gets 4 owner-facing shots.
@@ -367,9 +394,12 @@ Parts:
 
 A pure view: every frame it reads `game.state` (read-only) and draws it; `fx(event, payload)`
 plays effects. No text in 3D (badges, prices, "+coins" are DOM, positioned with `anchor()`).
-All art is KayKit (CC0, Kay Lousberg): Restaurant Bits for the room, the Adventurers pack for
-the people. Nothing is drawn from code primitives except tiny particles (coins, sparkles,
-confetti, steam) and soft shadow / light decals.
+The room, the furniture and the people are KayKit (CC0, Kay Lousberg): Restaurant Bits for the
+room, the Adventurers pack for the people. Drawn from code: tiny particles (coins, sparkles,
+confetti, steam), soft shadow / light decals, the view behind the windows, the backdrop
+gradient and the outside (plot, path, fence, lanterns, flower beds, trees, bushes, tufts, the
+harbour pier and sea): chunky low-poly shapes with vertex colours in the KayKit palette, merged
+into one mesh (Restaurant Bits has no outdoor props).
 
 ### Files
 
@@ -377,14 +407,14 @@ confetti, steam) and soft shadow / light decals.
 js/scene/scene.js     createScene(): renderer, lights, camera fit, sync with the state, events, pick, anchors, stats
 js/scene/assets.js    loadModel(name) / loadModels(names): assets/models/<name>.glb or window.__EMBED[name] (base64)
 js/scene/kit.js       prop templates from props.glb, shared Lambert material, recoloured atlas copies, static batcher
-js/scene/room.js      static room per location (floors, walls, kitchen row, pass, decor, contact shadows, window light); THEMES
+js/scene/room.js      static room per location (floors, back walls, cut front walls, kitchen L, decor, contact shadows, window light, outside plot); THEMES, backdropTexture
 js/scene/stations.js  stations: merged mesh per visual tier, locked placeholder, pop / bounce, boost glow
 js/scene/tables.js    tables + chairs (one mesh each), faded until bought, pop on buy
 js/scene/heroes.js    hero templates, tinted textures, pooled instances (one AnimationMixer each), crossfades
 js/scene/crowd.js     customers + cooks <-> state entities: walk along the graph, sit, eat, pay, leave; cook, carry, serve
 js/scene/dishes.js    instanced dishes / empty plates / blob shadows (filled every frame); DISH map
 js/scene/fx.js        pooled particles: coins, sparkles, puffs, confetti, floor rings, steam
-js/scene/camera.js    orthographic camera (elevation 40 deg, yaw 0) + fit to the viewport minus UI insets
+js/scene/camera.js    orthographic camera (CAM in scene.js: elevation 35 deg, yaw 45 deg) + fit to the viewport minus UI insets
 js/scene/quality.js   High / Low presets, frame-time monitor, automatic drop to Low
 js/scene/layout.js    screen-space fallbacks for the UI (UI_INSETS, SCREEN); re-exports getLayout
 js/game/layout.js     world layout + walk graph of both locations (schema in "Shared contract")
@@ -410,30 +440,44 @@ mip levels would bleed neighbouring colours.
 
 ### Look
 
-- Camera: orthographic, looking at the back wall (kitchen at the top of the screen, door at the
-  bottom), 40 deg down, no yaw. Fit: the room floor (x -6.1..6.1) and the station tops fill the
-  viewport minus the UI insets + safe areas (`setInsets()`), centred; on a 390 px wide phone
-  that is ~32 px per unit, standing characters ~50-55 px tall.
-- Light: hemisphere (warm sky / brown ground) + one warm directional light, Lambert materials,
+- Camera (`CAM` in `scene.js`): orthographic, 35 deg down, turned 45 deg: it looks at the room
+  diagonally from its open front corner, so both back walls show and the floor is a diamond
+  (a cosy diorama instead of a floor plan). Fit points (`room.js focus`): the outer table
+  seats on the left and right, the top of the far corner and the path below the door, inside
+  the viewport minus the UI insets + safe areas (`setInsets()`). In portrait the frame is
+  limited by the width, so the room's left and right corners bleed off the screen edges (only
+  crates, a menu stand, the sink and the fridge live there; nothing you tap is cut). On a
+  390 px wide phone that is ~30 px per unit at both 390 x 844 and 390 x 664 (standing
+  characters ~60 px, seated ~50 px); every station, table and the door sit between the HUD and
+  the goal pill at both sizes. No pan.
+- Light: hemisphere (warm sky / brown ground, 1.65) + one warm directional light (2.7) from the
+  camera's right (8, 12, 3.5), so the two back walls get different shading; Lambert materials,
   Neutral tone mapping (exposure 1.06), sRGB output. No shadow maps: soft blob shadows under
-  characters and tables (one instanced mesh) and baked soft contact-shadow strips along the
-  kitchen row, the pass counters and the walls, plus faint additive window-light patches.
+  characters and table groups (one instanced mesh) and baked soft contact-shadow strips along
+  the counter rows and the walls, plus faint additive window-light patches. Background: a small
+  CanvasTexture gradient (`backdropTexture`, sky blue to warm cream with a faint vignette).
 - Themes (`room.js THEMES`): a theme repaints a few atlas swatches on copies of the atlas:
   `base` (the shared prop material: counter tops [6,3], fridge body [2,1], stove / oven body
-  [1,1]), `furniture` (dining tables + chairs only), `wall`, `dining`, `kitchen` floors, and a
-  `view` gradient painted on a quad behind the back window (sky + hills / sea).
-  Village Inn: cream plaster over a walnut wainscot, pale sandstone checker floor in the dining
-  room, walnut tables / chairs (they read clearly on the floor), light natural-wood counter
-  tops, a cream fridge, a brick-red oven, light tiles in the kitchen, sky and green hills in the
-  window, grass outside. The saturated orange is kept for UI accents only.
-  Harbor Tavern (`mirror: true`): the kitchen is mirrored (sink and the sea-view window on the
-  left, the first station and a white fridge on the right; layout.js lists its stations right
-  to left), navy counter tops, white enamel stoves / oven, scrubbed deck planks in the kitchen,
-  white over sea-blue walls, blue / white checker dining floor, brown round tables with wooden
-  chairs, cargo crates by the door, sand outside and the sea behind.
-- Room (12 x 20): back row fridge + 4 stations + sink, three wall cabinets, pass counters with
-  plates / jars / a menu / buns (no squeeze bottles or paper towels: it is an inn), a host desk
-  and vegetable crates by the door, a low front wall (dollhouse cut) open at the door.
+  [1,1]), `furniture` (dining tables + chairs only), `wall`, `dining`, `kitchen` floors,
+  `cupboard` (the wall cupboards), a `view` gradient on panes behind the windows, and the
+  outside colours (`backdrop`, `grass`, `soil`, `path`, `leaves`, `flowers`, `water`, ...).
+  Village Inn: cream plaster over a walnut wainscot, honey / caramel checker in the dining
+  room, light tiles in the kitchen, walnut tables / chairs, light natural-wood counter tops,
+  wooden cupboards, a cream fridge, a brick-red oven, sky and green hills in the windows, and
+  outside a raised garden plot (grass top, soil sides) with a stepping-stone path, a picket
+  fence, flower beds along the cut front walls, two lantern posts at the door, round trees
+  behind the far corner (they peek over the walls), bushes and grass tufts.
+  Harbor Tavern (the mirrored plan): white over sea-blue walls, blue / white checker dining
+  floor, scrubbed deck planks in the kitchen, navy counter tops, blue cupboards, white enamel
+  stoves / oven, a white fridge, brown tables with wooden chairs, the sea in the windows, and
+  the plot is a wooden pier on posts in the sea (foam line, sea plane) with white fences.
+- Room (14 x 14): two tall back walls (wall scale 0.86, 3.44 high) with wooden cupboards over
+  the cooks' lanes and windows over the dining room; low cut front walls (0.52 high) with their
+  thickness and pillars showing, the floor slab edge along the cut; the open front corner is
+  the door. Kitchen L (see "Layout"): sink + fridge past the back-right counter row, a dresser
+  with plates / jars past the back-left row, jars on the shelves of the cooks' corner; crates
+  and a menu stand by the side corners. The static room is a few merged meshes (props by
+  material, shadows, window light, window view, outside).
 
 ### Stations (`stations.js`)
 
@@ -442,9 +486,11 @@ oven / roast = oven. Tier = milestones reached (levels 10/25/50/100 -> 1..4); ea
 merged mesh built on demand and cached: drinks = counter with mugs + jars (+ more jars, a crate
 of carrots / potatoes), grill = single stove with a pan and a patty -> multi stove with two pans
 -> decorated multi stove (+ bun, tomato), pot = countertop stove + stew pot -> two pots + bowls,
-oven = oven (+ plates, a roast, a crate on top). A closed station is a plain counter (the UI's
-Open sign stands on it). Tier change / open = pop (squash and stretch), plain upgrade = bounce,
-boost = warm glow on the floor in front.
+oven = oven (+ plates, a roast, a crate on top). The cooks work behind the counters, so the
+drinks / pot counters have no backsplash, tall props stand at the ends and the front, and the
+oven is squat (`OVEN_Y` 0.66) so its cook shows above it. A closed station is a plain counter
+(the UI's Open sign stands on it). Tier change / open = pop (squash and stretch), plain upgrade
+= bounce, boost = warm glow on the floor in front.
 
 ### Characters (`heroes.js`, `crowd.js`)
 
@@ -462,17 +508,17 @@ the door) and mixer; instances are pooled and reused.
 | guest enter / toSeat / leaving | Walking_A along `path(from, to)` at `t / dur` (playback from `pathLength / dur`), facing the walk direction, fade in over 0.4 s at the door / out over the last 0.45 s |
 | guest waiting / eating | Sit_Chair_Down (0.75 s) on arrival, then Sit_Chair_Idle, facing the table; eating: the dish on `seat.plate`, a small bite pulse, shrinking a little |
 | guest paying | Sit_Chair_StandUp then Cheer; empty plate / bowl / mug on the table (it pops away 1.4 s into leaving); coins pop on `pay` |
-| guest without a seat (queue) | Idle at its node, facing the room |
-| cook idle | Idle at home, facing the room |
+| guest without a seat (queue) | Idle at its node, facing the camera (`FACE.yaw` = 45 deg) |
+| cook idle | Idle at home, facing the camera |
 | cook toStation / return | Running_A (playback from the real speed, so the Cook speed upgrade shows) |
-| cook cooking | Interact at the station, facing it; the dish grows on `dishSpot` (`helperDishSpot` for a helper, slot 1) during the last 45 % of the cook time; steam puffs over stove / pot / oven |
+| cook cooking | Interact behind the station counter, facing it (and the camera); the dish grows on `dishSpot` (`helperDishSpot` for a helper, slot 1) during the last 45 % of the cook time; steam puffs over stove / pot / oven |
 | cook toTable | Run_Carry (running legs, both arms forward) with the dish in front of the chest |
-| cook serving | the dish travels from the hands to `seat.plate` in 0.32 s, then Idle |
+| cook serving | facing the table, the dish travels from the hands to `seat.plate` in 0.32 s, then Idle |
 
 `Walk_Carry` / `Run_Carry` / `Carry_Idle` are built at load time: legs and body from the clip,
 both arms turned to point forward (solved once on a template). Clip feet speeds (measured):
 Walking_A ~0.75, Running_A ~1.5 units/s at timeScale 1; guests walk with quick steps
-(timeScale ~2.2 at 3 u/s), cooks run (~1.4 at 3.6 u/s).
+(timeScale ~2.1 at 2.8 u/s), cooks run (~1.5 at 3.9 u/s).
 
 Dishes (`dishes.js DISH`): juice -> mug_juice, cocoa -> mug_cocoa, burger -> food_burger,
 veggieburger -> food_vegetableburger, stew / soup -> food_stew, dinner -> food_dinner; empty:
@@ -484,22 +530,29 @@ mug / bowl_dirty / plate_dirty. Unknown dish ids fall back to the burger.
   `autoQuality` (default true), `onAutoQuality(q)` (called once when the scene drops itself to
   Low: persist it with `game.act({ type: 'setting', key: 'quality', value: q })`),
   `preserveDrawingBuffer` (tests), `antialias` (default true; fixed at creation), `elevation` /
-  `yaw` (degrees, lab only), `onProgress(done, total)` (model loading). Resolves after all six
-  models are loaded and the first location is built (no frame drawn yet).
+  `yaw` (degrees, lab only; default `CAM` 35 / 45), `onProgress(done, total)` (model loading).
+  Resolves after all six models are loaded and the first location is built (no frame drawn
+  yet).
 - `update(state, dt, render = true)`: dt clamped to 0.1 s; switches the location by itself when
   `state.location` changes (so `setLocation` on `locationStart` is optional); `render = false`
   skips the draw (fast-forward), `draw()` draws once.
-- `fx(event, payload)`: pay (coins from the table), upgrade (bounce + sparkles; milestone: more +
-  floor ring; the tier pop comes from the state), open (burst + ring), buyTable (pop + burst),
+- `fx(event, payload)` (station effects sit in front of the station along its facing): pay
+  (coins from the table), upgrade (bounce + sparkles; milestone: more + floor ring; the tier pop
+  comes from the state), open (burst + ring), buyTable (pop + burst),
   hire (puff at the cook's home), boost (sparkles), serve (small sparkle), cookStart (steam),
   locationComplete (confetti rain), locationStart (switch + confetti), setting {key: 'quality'}.
   Others are ignored.
-- `pick(clientX, clientY)`: screen-space boxes of the projected 3D bounds; stations first (box
-  around the station and the cook spot), then the nearest guest / cook, then tables (incl.
-  faded ones). Returns null on empty floor.
-- `anchor(kind, id, out?)`: station (open: above the appliance, ~2 units up; closed: just above
-  the counter), table (1.3 up), customer / cook (above the head: 2.75 standing, 2.35 seated),
-  coins (`SCREEN.coins`, top centre), door. `anchor(stationId)` (one argument) = station.
+- `pick(clientX, clientY)`: stations first: screen box of the counter and the lane behind it
+  (where its cook stands); seen from the diagonal the boxes of two neighbouring stations
+  overlap near the corner, so the nearest box centre wins. Then the nearest guest / cook
+  (screen boxes). Tables: the tap ray must cross the table group's footprint (the round table
+  top / pedestal or a chair) somewhere between the floor and the table top; a faded (not yet
+  bought) table wins over a guest or cook who is just walking past it (cooks walk right in
+  front of t3), otherwise people win over tables. Returns null on empty floor.
+- `anchor(kind, id, out?)`: station (open: above the station and its cook, 3.15 up and 0.2
+  toward the wall, clear of the head; closed: on the counter, 1.25 up and 0.6 toward the
+  room, where the Open sign stands), table (1.3 up), customer / cook (above the head: 2.75
+  standing, 2.35 seated), coins (`SCREEN.coins`, top centre), door. `anchor(stationId)` (one argument) = station.
   Pass `out` to reuse an object (no allocation).
 - `setQuality(q)`, `setAutoQuality(on)`, `setInsets({ top, bottom, left, right })` (CSS px
   without safe areas; the scene adds `env(safe-area-inset-*)`), `resize()` (also automatic:
@@ -516,14 +569,16 @@ Static room = a handful of merged meshes; each station and table is one mesh; ea
 skinned mesh.
 
 Measured (Playwright, SwiftShader, iPhone 13 viewport, scene lab), busy inn with all 4
-stations, 6 tables, 8 guests + 4 cooks: High 35 draw calls / 88k triangles, Low 35 / 75k
-(pixel ratio 1.25); with goal confetti + coins + sparkles 41 / 90k; Harbor busy 37 / 86k;
-empty inn at the start 21 / 32k. Real-game numbers: "Download size and scene cost" above.
+stations, 6 tables, 8 guests + 4 cooks: High 35 draw calls / 92k triangles, Low 35 / 77k
+(pixel ratio 1.25); with goal confetti + coins + sparkles 40 / 92k; Harbor busy 37 / 90k;
+empty inn at the start 22 / 36k. The outside (plot, path, fence, trees, ...) is one draw call.
+Real-game numbers: "Download size and scene cost" above.
 
 ### Scene lab and tests
 
 `scene-lab.html?preset=start|flow|busy|harbor|eat|carry|lineup&loc=inn|harbor&quality=high|low&manual=1&bands=0&labels=0&auto=0`
-(`t=<s>` warm-up, `el=` / `yaw=` camera angles). A fake restaurant (`tests/scene/fakesim.js`,
+(`t=<s>` warm-up, `el=` / `yaw=` camera angles; the `eat` / `carry` close-ups frame a small
+diamond for the diagonal camera). A fake restaurant (`tests/scene/fakesim.js`,
 same state shape and walk graph as the logic, seeded) drives the real scene; mock DOM tags show
 the anchors (Lv badges, Open, Buy, order bubbles) and the top / bottom UI bands. Panel buttons:
 open next station, upgrade x10, buy table, hire, boost, add a guest, complete, toggle quality.
