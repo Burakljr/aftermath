@@ -3,19 +3,21 @@
 // (the same walk graph the logic times), seated guests sit on their chair facing the table,
 // cooks work at the station's cook spot and carry the dish to the table in both hands.
 import * as THREE from 'three';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { dishInfo, emptyScale } from './dishes.js';
 import { CHAR_MODEL } from './heroes.js';
 import { clamp, easeOutBack } from './kit.js';
 
-// Walking_A covers about this many units per second at timeScale 1 (measured from the feet).
-export const WALK_STRIDE = 2.05;
+// Feet speed of the clips at timeScale 1 (measured: Walking_A ~0.75, Running_A ~1.5 units/s).
+// Guests walk with quick little steps (timeScale ~2), cooks run; a bit of foot slide is fine
+// at phone size and keeps the walks short.
+export const WALK_STRIDE = 1.35;
+export const RUN_STRIDE = 2.6;
 // seated pose: the root moves this far back toward the chair (and up) while sitting down
-const SIT = { back: 0.22, y: 0.0 };
+const SIT = { back: -0.16, y: 0.0 };
 const TURN_RATE = 14;
-const ARM_BONES = /^(upperarm|lowerarm|wrist|hand)[lr]?$/;
 
 const _v = new THREE.Vector3();
-const _v2 = new THREE.Vector3();
 
 function angleDamp(a, b, k, dt) {
   let d = b - a;
@@ -24,32 +26,53 @@ function angleDamp(a, b, k, dt) {
   return a + d * (1 - Math.exp(-k * dt));
 }
 
-/** Build 'Walk_Carry' and 'Carry_Idle': legs from the walk / idle clips, arms held forward. */
-export function makeCarryClips(clips) {
-  const THREE_ = THREE;
-  const src = clips.Interact;
-  const walk = clips.Walking_A;
-  const idle = clips.Idle;
-  if (!src || !walk || !idle) return;
-  const at = 0.42; // Interact: both hands reach forward here
-  const arms = [];
-  for (const tr of src.tracks) {
-    const bone = tr.name.split('.')[0];
-    if (!ARM_BONES.test(bone)) continue;
-    const v = tr.createInterpolant().evaluate(at).slice();
-    arms.push({ name: tr.name, v, type: tr.ValueTypeName });
+/**
+ * Build 'Walk_Carry' and 'Carry_Idle': legs and body from the walk / idle clips, both arms
+ * held forward (a dish in front of the chest). The arm pose is solved once on a template:
+ * each upper arm / forearm is turned to point along a chosen direction in model space
+ * (characters face +z, their left side is +x), then stored as constant tracks.
+ */
+export function makeCarryClips(clips, templateScene) {
+  const walk = clips.Walking_A, idle = clips.Idle;
+  if (!walk || !idle || !templateScene) return;
+  const model = SkeletonUtils.clone(templateScene);
+  const bones = {};
+  model.traverse((o) => { if (o.isBone) bones[o.name] = o; });
+  const mixer = new THREE.AnimationMixer(model);
+  mixer.clipAction(idle).play();
+  mixer.update(0);
+  model.updateMatrixWorld(true);
+  const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qp = new THREE.Quaternion();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), d0 = new THREE.Vector3(), d1 = new THREE.Vector3();
+  function aim(bone, child, dir) {
+    bone.getWorldPosition(a);
+    child.getWorldPosition(b);
+    d0.subVectors(b, a).normalize();
+    d1.copy(dir).normalize();
+    qa.setFromUnitVectors(d0, d1);
+    bone.getWorldQuaternion(qb);
+    bone.parent.getWorldQuaternion(qp);
+    bone.quaternion.copy(qp.invert().multiply(qa.multiply(qb)));
+    bone.updateMatrixWorld(true);
   }
-  const armNames = new Set(arms.map((a) => a.name));
+  const out = [];
+  for (const [side, sx] of [['l', 1], ['r', -1]]) {
+    const up = bones['upperarm' + side], lo = bones['lowerarm' + side];
+    const wr = bones['wrist' + side] || bones['hand' + side];
+    if (!up || !lo || !wr) return;
+    aim(up, lo, new THREE.Vector3(sx * 0.3, -0.8, 0.42));
+    aim(lo, wr, new THREE.Vector3(-sx * 0.38, 0.02, 1));
+    out.push({ name: up.name + '.quaternion', v: up.quaternion.toArray() }, { name: lo.name + '.quaternion', v: lo.quaternion.toArray() });
+  }
+  const names = new Set(out.map((o) => o.name));
   function combine(name, base) {
-    const tracks = base.tracks.filter((t) => !armNames.has(t.name)).map((t) => t.clone());
-    for (const a of arms) {
-      const T = a.type === 'quaternion' ? THREE_.QuaternionKeyframeTrack : THREE_.VectorKeyframeTrack;
-      tracks.push(new T(a.name, [0, base.duration], [...a.v, ...a.v]));
-    }
-    return new THREE_.AnimationClip(name, base.duration, tracks);
+    const tracks = base.tracks.filter((t) => !names.has(t.name)).map((t) => t.clone());
+    for (const o of out) tracks.push(new THREE.QuaternionKeyframeTrack(o.name, [0, base.duration], [...o.v, ...o.v]));
+    return new THREE.AnimationClip(name, base.duration, tracks);
   }
   clips.Walk_Carry = combine('Walk_Carry', walk);
   clips.Carry_Idle = combine('Carry_Idle', idle);
+  if (clips.Running_A) clips.Run_Carry = combine('Run_Carry', clips.Running_A);
 }
 
 export function createCrowd({ heroes, dishes, blobs, group }) {
@@ -86,15 +109,37 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     if (n) { out[0] = n[0]; out[1] = n[1]; }
     return out;
   }
-  // position along the entity's current walk (or its node when it stays)
-  function walkPos(e, out) {
+  // position along the entity's current walk (or its node when it stays); the route is cached
+  // on the view `v` so the steady state allocates nothing. Returns the walking speed.
+  function walkPos(e, out, v) {
     if (e.dur > 0 && e.from !== e.to) {
-      const len = layout.pathLength(e.from, e.to);
-      layout.pointAt(e.from, e.to, clamp(e.t / e.dur, 0, 1) * len, out);
-      return len / e.dur;
+      if (!v || v.rf !== e.from || v.rt !== e.to) {
+        const pts = layout.path(e.from, e.to), len = layout.pathLength(e.from, e.to);
+        if (!v) { layout.pointAt(e.from, e.to, clamp(e.t / e.dur, 0, 1) * len, out); return len / e.dur; }
+        v.rf = e.from; v.rt = e.to; v.pts = pts; v.len = len;
+      }
+      along(v.pts, clamp(e.t / e.dur, 0, 1) * v.len, out);
+      return v.len / e.dur;
     }
     nodePos(e.to, out);
     return 0;
+  }
+  function along(pts, s, out) {
+    if (!pts.length) return out;
+    let left = s;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (left <= d || i === pts.length - 1) {
+        const k = d > 0 ? Math.min(1, left / d) : 1;
+        out[0] = a[0] + (b[0] - a[0]) * k;
+        out[1] = a[1] + (b[1] - a[1]) * k;
+        return out;
+      }
+      left -= d;
+    }
+    out[0] = pts[0][0]; out[1] = pts[0][1];
+    return out;
   }
 
   // ------------------------------------------------------------------ customers
@@ -129,7 +174,7 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     let opacity = 1;
     if (c.state === 'enter' || c.state === 'toSeat' || c.state === 'leaving') {
       prev[0] = v.x; prev[1] = v.z;
-      const speed = walkPos(c, pt);
+      const speed = walkPos(c, pt, v);
       walking = speed > 0 && c.t < c.dur;
       v.x = pt[0]; v.z = pt[1];
       const dx = v.x - prev[0], dz = v.z - prev[1];
@@ -138,9 +183,15 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       v.y = 0;
       if (c.state === 'enter') opacity = clamp(v.vt / 0.4, 0, 1);
       if (c.state === 'leaving') opacity = clamp((c.dur - c.t) / 0.45, 0, 1);
-      if (walking) h.play('Walking_A', { speed: clamp(speed / WALK_STRIDE, 0.6, 2.2), fade: c.state === 'leaving' && v.vt < 0.3 ? 0.3 : 0.2 });
-      else h.play('Idle', { fade: 0.25 });
-    } else if (seat) {
+      if (walking) h.play('Walking_A', c.state === 'leaving' && v.vt < 0.3 ? 0.3 : 0.2, clamp(speed / WALK_STRIDE, 0.8, 2.6));
+      else h.play('Idle', 0.25);
+    } else if (!seat) {
+      // no seat (a queue spot, or a lab line-up): stand and look at the room
+      walkPos(c, pt, v);
+      v.x = pt[0]; v.z = pt[1];
+      yawT = 0;
+      h.play('Idle', 0.25);
+    } else {
       // seated (waiting / eating) or standing up (paying)
       const fx = Math.sin(seat.facing), fz = Math.cos(seat.facing);
       yawT = seat.facing;
@@ -149,16 +200,16 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
         v.x = seat.pos[0] - fx * SIT.back * (1 - k);
         v.z = seat.pos[1] - fz * SIT.back * (1 - k);
         v.seated = v.vt < 0.45;
-        if (v.vt < 0.55) h.play('Sit_Chair_StandUp', { loop: false, speed: 1.45, fade: 0.12 });
-        else h.play('Cheer', { fade: 0.2, speed: 1.1 });
+        if (v.vt < 0.55) h.play('Sit_Chair_StandUp', 0.12, 1.45, false);
+        else h.play('Cheer', 0.2, 1.1);
       } else {
         v.sitT += dt;
         const k = clamp(v.sitT / 0.6, 0, 1);
         v.x = seat.pos[0] - fx * SIT.back * k;
         v.z = seat.pos[1] - fz * SIT.back * k;
         v.seated = true;
-        if (v.sitT < 0.75) h.play('Sit_Chair_Down', { loop: false, fade: 0.15 });
-        else h.play('Sit_Chair_Idle', { fade: 0.3 });
+        if (v.sitT < 0.75) h.play('Sit_Chair_Down', 0.15, 1, false);
+        else h.play('Sit_Chair_Idle', 0.3);
       }
     }
     v.yaw = angleDamp(v.yaw, yawT, TURN_RATE, dt);
@@ -193,24 +244,16 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     return { id: c.id, hero, st: null, vt: 0, x: pt[0], z: pt[1], yaw: 0, stamp, carry: false };
   }
 
-  function handsPos(h, out) {
-    h.root.updateMatrixWorld(true);
-    if (h.handL && h.handR) {
-      h.handL.getWorldPosition(out);
-      h.handR.getWorldPosition(_v2);
-      out.add(_v2).multiplyScalar(0.5);
-    } else {
-      out.set(0, 1.25, 0.55).applyMatrix4(h.root.matrixWorld);
-    }
-    return out;
+  // the dish rides in front of the chest, between the hands
+  function carryPos(v, out) {
+    return out.set(v.x + Math.sin(v.yaw) * 0.74, 1.04, v.z + Math.cos(v.yaw) * 0.74);
   }
-
   function updCook(v, c, dt) {
     const h = v.hero;
     if (c.state !== v.st) { v.st = c.state; v.vt = 0; } else v.vt += dt;
     let yawT = v.yaw;
     prev[0] = v.x; prev[1] = v.z;
-    const speed = walkPos(c, pt);
+    const speed = walkPos(c, pt, v);
     v.x = pt[0]; v.z = pt[1];
     const walking = speed > 0 && c.t < c.dur;
     const order = c.order;
@@ -218,17 +261,17 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
     if (walking) {
       const dx = v.x - prev[0], dz = v.z - prev[1];
       if (dx * dx + dz * dz > 1e-8) yawT = Math.atan2(dx, dz);
-      h.play(carrying ? 'Walk_Carry' : 'Walking_A', { speed: clamp(speed / WALK_STRIDE, 0.6, 2.4), fade: 0.18 });
+      h.play(carrying ? 'Run_Carry' : 'Running_A', 0.18, clamp(speed / RUN_STRIDE, 0.8, 1.8));
     } else if (c.state === 'cooking') {
       yawT = Math.PI;
-      h.play('Interact', { fade: 0.2, speed: 1.2 });
+      h.play('Interact', 0.2, 1.2);
     } else if (c.state === 'serving') {
       yawT = 0;
-      if (carrying) h.play('Carry_Idle', { fade: 0.12 });
-      else h.play('Idle', { fade: 0.25 });
+      if (carrying) h.play('Carry_Idle', 0.12);
+      else h.play('Idle', 0.25);
     } else {
       yawT = 0;
-      h.play('Idle', { fade: 0.3 });
+      h.play('Idle', 0.3);
     }
     v.yaw = angleDamp(v.yaw, yawT, TURN_RATE, dt);
     h.root.position.set(v.x, 0, v.z);
@@ -245,7 +288,7 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       const k = clamp((p - 0.55) / 0.45, 0, 1);
       if (st && k > 0) dishes.add(d.model, st.dishSpot[0], st.dishSpot[1], st.dishSpot[2], 0, d.s * clamp(easeOutBack(k, 2), 0, 1.2));
     } else if (carrying || c.state === 'serving') {
-      handsPos(h, _v);
+      carryPos(v, _v);
       const cust = custEntity.get(order.customer);
       const info = cust && seats.get(cust.seat);
       if (c.state === 'serving' && info) {
@@ -256,12 +299,14 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
         dishes.add(d.model, _v.x + (px - _v.x) * k, _v.y + (py - _v.y) * k + arc, _v.z + (pz - _v.z) * k, info.seat.facing * k, d.s);
         served.add(order.customer);
       } else if (carrying) {
-        dishes.add(d.model, _v.x, _v.y - 0.08, _v.z, v.yaw, d.s * 0.92);
+        dishes.add(d.model, _v.x, _v.y, _v.z, v.yaw, d.s * 1.12);
       }
     }
   }
 
   const custEntity = new Map();
+  function dropStaleCook(v, id) { if (v.stamp !== stamp) { heroes.release(v.hero); cooks.delete(id); } }
+  function dropStaleCustomer(v, id) { if (v.stamp !== stamp) { heroes.release(v.hero); cust.delete(id); } }
   function update(state, dt) {
     if (!layout) return;
     stamp++;
@@ -278,7 +323,7 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       v.stamp = stamp;
       updCook(v, c, dt);
     }
-    for (const [id, v] of cooks) if (v.stamp !== stamp) { heroes.release(v.hero); cooks.delete(id); }
+    cooks.forEach(dropStaleCook);
     for (let i = 0; i < cs.length; i++) {
       const c = cs[i];
       let v = cust.get(c.id);
@@ -286,7 +331,7 @@ export function createCrowd({ heroes, dishes, blobs, group }) {
       v.stamp = stamp;
       updCustomer(v, c, dt);
     }
-    for (const [id, v] of cust) if (v.stamp !== stamp) { heroes.release(v.hero); cust.delete(id); }
+    cust.forEach(dropStaleCustomer);
   }
 
   /** World point above a customer's / cook's head (for UI bubbles), or null. */

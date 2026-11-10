@@ -27,14 +27,32 @@ export function goalMeasure(def, cfg, state) {
   }
 }
 
+function stationById(state, id) {
+  const st = state.stations;
+  for (let i = 0; i < st.length; i++) if (st[i].id === id) return st[i];
+  return null;
+}
+
+// Current value of a goal without allocating (runs every tick).
+export function goalValue(def, state) {
+  switch (def.type) {
+    case 'open': { const s = stationById(state, def.station); return s && s.open ? 1 : 0; }
+    case 'level': { const s = stationById(state, def.station); return s && s.open ? s.level : 0; }
+    case 'served': return state.served;
+    case 'tables': return ownedTables(state);
+    case 'cooks': return state.cooks.length;
+    case 'cookSpeed': return state.cookSpeed;
+    default: return 0;
+  }
+}
+
 // Mark goals done (sticky). Calls onDone(id) for goals that just became done.
 export function updateGoals(cfg, state, onDone) {
   const defs = cfg.goals;
   for (let i = 0; i < defs.length; i++) {
     const g = state.goals[i];
     if (!g || g.done) continue;
-    const m = goalMeasure(defs[i], cfg, state);
-    if (m.cur >= m.target) {
+    if (goalValue(defs[i], state) >= (defs[i].target || 1)) {
       g.done = true;
       onDone(g.id);
     }

@@ -1,15 +1,15 @@
 {
-  "generated": "2026-11-10T17:11:30.164Z",
+  "generated": "2026-11-10T17:30:32.452Z",
   "source": "KayKit Restaurant Bits 1.0 + KayKit Adventurers Character Pack 1.0 by Kay Lousberg (CC0)",
   "files": {
     "anims.glb": 175204,
     "barbarian.glb": 233424,
     "knight.glb": 283560,
-    "mage.glb": 265808,
-    "props.glb": 1480840,
+    "mage.glb": 265812,
+    "props.glb": 1490968,
     "rogue_hooded.glb": 232652
   },
-  "total": 2671488,
+  "total": 2681620,
   "props": [
     "floor_kitchen",
     "floor_kitchen_small",
@@ -99,6 +99,7 @@
     "food_ingredient_cheese",
     "food_ingredient_steak",
     "food_ingredient_ham_cooked",
+    "food_ingredient_vegetableburger_cooked",
     "crate",
     "crate_lid",
     "crate_tomatoes",

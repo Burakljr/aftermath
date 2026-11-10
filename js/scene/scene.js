@@ -34,11 +34,11 @@ export async function createScene(canvas, opts = {}) {
   });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NeutralToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.06;
   renderer.info.autoReset = false;
 
   const scene = new THREE.Scene();
-  const cam = createCamera({ elevation: opts.elevation ?? 50, yaw: opts.yaw ?? 0 });
+  const cam = createCamera({ elevation: opts.elevation ?? 40, yaw: opts.yaw ?? 0 });
   const camera = cam.camera;
   scene.add(camera);
 
@@ -52,7 +52,7 @@ export async function createScene(canvas, opts = {}) {
   const models = await loadModels(MODELS, opts.onProgress);
   const kit = createKit(models.props);
   const heroLib = createHeroLib(models, models.anims);
-  makeCarryClips(heroLib.clips);
+  makeCarryClips(heroLib.clips, heroLib.templates.barbarian && heroLib.templates.barbarian.scene);
   heroLib.warm();
 
   const world = new THREE.Group();
@@ -91,9 +91,9 @@ export async function createScene(canvas, opts = {}) {
     locId = L.id;
     room = buildRoom(kit, L, preset.name);
     world.add(room.group);
-    stations = createStations(kit, L);
+    stations = createStations(kit, L, room.mats);
     world.add(stations.group);
-    tables = createTables(kit, L);
+    tables = createTables(kit, L, room.mats);
     world.add(tables.group);
     crowd.setLayout(L);
     fx.clear();
@@ -122,8 +122,15 @@ export async function createScene(canvas, opts = {}) {
     safe.right = parseFloat(cs.paddingRight) || 0;
   }
 
+  let closeUp = null; // debug: { x, z, r } frames a small area (lab close-ups)
   function frame() {
     if (!room) return;
+    if (closeUp) {
+      const { x, z, r } = closeUp;
+      const pts = [new THREE.Vector3(x - r, 0, z - r * 0.6), new THREE.Vector3(x + r, 0, z + r * 0.6), new THREE.Vector3(x, 2.6, z - r * 0.6)];
+      pxPerUnit = cam.fit(view.width, view.height, { top: 0, bottom: 0, left: 0, right: 0 }, pts);
+      return;
+    }
     const ins = {
       top: insets.top + safe.top, bottom: insets.bottom + safe.bottom,
       left: (insets.left || 0) + safe.left, right: (insets.right || 0) + safe.right,
@@ -176,10 +183,30 @@ export async function createScene(canvas, opts = {}) {
     dishes.begin();
     if (tables) for (const v of tables.views) if (v.owned) blobs.add(v.t.pos[0], v.t.pos[1], 3.4, 2.0);
     crowd.update(state, dt);
+    steamTick(state, dt);
     dishes.end();
     blobs.end();
     fx.update(dt, camera);
     if (render) draw();
+  }
+
+  // a soft puff of steam now and then over a stove / pot / oven that is cooking
+  const steamT = [0, 0, 0, 0];
+  function steamTick(state, dt) {
+    if (!state || !state.cooks || !stations) return;
+    for (let i = 0; i < stations.views.length; i++) {
+      const v = stations.views[i];
+      if (v.kind === 'drinks') continue;
+      let busy = false;
+      for (let k = 0; k < state.cooks.length; k++) if (state.cooks[k].state === 'cooking' && state.cooks[k].station === v.id) { busy = true; break; }
+      if (!busy) { steamT[i] = 0.3; continue; }
+      steamT[i] -= dt;
+      if (steamT[i] <= 0) {
+        steamT[i] = 1.1;
+        const ls = v.ls;
+        fx.steam(_p3.set(ls.pos[0] - 0.1, v.kind === 'oven' ? 2.1 : 1.45, ls.pos[1] + 0.1));
+      }
+    }
   }
 
   function draw() {
@@ -202,8 +229,9 @@ export async function createScene(canvas, opts = {}) {
     if (typeof id === 'number') return stations.views[id] || null;
     return stations.views.find((v) => v.id === id) || null;
   }
-  function anchor(kind, id) {
-    const out = { x: 0, y: 0, visible: false };
+  // anchor(kind, id, out?) -> { x, y, visible } in CSS px; pass `out` to reuse an object
+  function anchor(kind, id, out = { x: 0, y: 0, visible: false }) {
+    out.x = 0; out.y = 0; out.visible = false;
     if (kind === 'coins') {
       out.x = SCREEN.coins.x * view.width; out.y = SCREEN.coins.y * view.height + safe.top; out.visible = true;
       return out;
@@ -302,7 +330,8 @@ export async function createScene(canvas, opts = {}) {
       }
       case 'hire': {
         const v = crowd.cooks.get(p.cook);
-        const n = v ? null : layout.graph.nodes[layout.cookHomes[0]];
+        const k = lastState && lastState.cooks && lastState.cooks.find((c) => c.id === p.cook);
+        const n = v ? null : layout.graph.nodes[(k && k.home) || layout.cookHomes[0]];
         if (v) fx.burst(_p3.set(v.x, 0.8, v.z), 0.6);
         else if (n) fx.burst(_p3.set(n[0], 0.8, n[1]), 0.6);
         break;
@@ -334,6 +363,21 @@ export async function createScene(canvas, opts = {}) {
 
   setLocation(opts.location || 'inn');
 
+  // compile every shader variant now (opaque + fading heroes, instanced dishes, particles), so
+  // the first guest at the door or the first coin burst does not stall a frame on the phone
+  try {
+    const warmHero = heroLib.acquire('knight', 0);
+    warmHero.setOpacity(0.5);
+    dynamic.add(warmHero.root);
+    dishes.begin(); dishes.add('mug_juice', 0, -5, 0); dishes.end();
+    fx.sparkle(_p3.set(0, -5, 0), 0.2); fx.coins(_p3, 1); fx.confettiAt(_p3, 1); fx.steam(_p3);
+    fx.update(0.016, camera);
+    renderer.compile(scene, camera);
+    heroLib.release(warmHero);
+    fx.clear();
+    dishes.begin(); dishes.end();
+  } catch (e) { /* warm-up is only an optimisation */ }
+
   return {
     setLocation,
     update,
@@ -353,6 +397,8 @@ export async function createScene(canvas, opts = {}) {
     resize: () => resize(true),
     dispose() { disposeLocation(); renderer.dispose(); },
     debug: {
+      setCloseUp(v) { closeUp = v; frame(); },
+      project(x, y, z) { return project(new THREE.Vector3(x, y, z), { x: 0, y: 0, visible: false }); },
       renderer, scene, camera, cam, kit, heroLib, crowd, fx, perf,
       get layout() { return layout; }, get stations() { return stations; }, get tables() { return tables; },
       get pxPerUnit() { return pxPerUnit; }, get view() { return view; }, get state() { return lastState; }, SCREEN,

@@ -8,12 +8,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const DEG = Math.PI / 180;
-export const TAU = Math.PI * 2;
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const lerp = (a, b, t) => a + (b - a) * t;
-export const damp = (a, b, k, dt) => b + (a - b) * Math.exp(-k * dt);
 export function easeOutBack(t, s = 1.70158) { const u = t - 1; return 1 + (s + 1) * u * u * u + s * u * u; }
-export function easeOutCubic(t) { const u = 1 - t; return 1 - u * u * u; }
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -139,11 +135,11 @@ export function createKit(propsGltf) {
    * Static batcher: add(name, x, y, z, ry, s, material) many times, then build() -> Group
    * with one merged mesh per material. Pass a `group` of { name, x, y, z, ry, s } too.
    */
-  function batch() {
+  function batch(defaultMaterial = materials.base) {
     const lists = new Map(); // material -> geometries
     let tris = 0;
     const api = {
-      add(name, x = 0, y = 0, z = 0, ry = 0, s = 1, material = materials.base) {
+      add(name, x = 0, y = 0, z = 0, ry = 0, s = 1, material = defaultMaterial) {
         if (!templates.has(name)) { console.warn('kit: no prop ' + name); return api; }
         const g = geo(name).clone();
         g.applyMatrix4(placeMatrix(x, y, z, ry, s, _m));
@@ -153,7 +149,7 @@ export function createKit(propsGltf) {
         return api;
       },
       /** Add an arbitrary geometry (already in world space). */
-      addGeometry(g, material = materials.base) {
+      addGeometry(g, material = defaultMaterial) {
         if (!lists.has(material)) lists.set(material, []);
         lists.get(material).push(g);
         return api;
@@ -180,12 +176,4 @@ export function createKit(propsGltf) {
   }
 
   return { templates, materials, atlas, themed, has, geo, box, mesh, batch, placeMatrix };
-}
-
-/** Dispose geometries of meshes under obj (materials are shared and kept). */
-export function disposeTree(obj, { materials = false } = {}) {
-  obj.traverse((o) => {
-    if (o.isMesh && o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
-    if (materials && o.material && !o.material.userData.shared) o.material.dispose();
-  });
 }

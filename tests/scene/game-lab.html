@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Heroes' Diner - real game on the real scene (no UI)</title>
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three/build/three.module.min.js", "three/addons/": "../../vendor/three/addons/" } }
+</script>
+<style>html, body { margin: 0; height: 100%; overflow: hidden; background: #9fc98f; } #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<script type="module">
+// Integration check for the scene builder: the real game logic (js/game) drives the real scene
+// (js/scene) exactly as main.js will (events forwarded to scene.fx). No UI, no saving.
+// URL: t=<seconds to fast-forward with a simple greedy player>, manual=1, quality=high|low
+// Hooks: window.diner = { game, scene, step(dt, render), autoplay(seconds) }
+import { createGame, EVENTS } from '../../js/game/index.js';
+import { createScene } from '../../js/scene/scene.js';
+const q = new URLSearchParams(location.search);
+let clock = 0;
+const game = createGame({ save: null, now: () => clock, lang: 'en', seed: 7 });
+const scene = await createScene(document.getElementById('scene'), {
+  quality: q.get('quality') || 'high', preserveDrawingBuffer: true, autoQuality: false, location: game.state.location,
+});
+const errors = [];
+for (const ev of EVENTS) game.on(ev, (p) => { try { scene.fx(ev, p); } catch (e) { errors.push(String(e)); } });
+
+function step(dt, render = true, h = 1 / 30) {
+  for (let left = dt; left > 1e-6; left -= h) {
+    const d = Math.min(h, left);
+    clock += d * 1000;
+    game.tick(d);
+    scene.update(game.state, d, false);
+  }
+  if (render) { scene.update(game.state, 0, false); scene.draw(); }
+}
+// greedy player: claim goals, open stations, buy tables / cooks, upgrade the cheapest station
+function play() {
+  const s = game.state;
+  for (const g of s.goals) if (g.done && !g.claimed) game.act({ type: 'claimGoal', id: g.id });
+  for (let i = 0; i < s.stations.length; i++) if (!s.stations[i].open) { game.act({ type: 'open', station: i }); break; }
+  game.act({ type: 'buyTable' });
+  game.act({ type: 'hire' });
+  for (let n = 0; n < 5; n++) {
+    let best = -1, bl = Infinity;
+    s.stations.forEach((st, i) => { if (st.open && st.level < bl) { bl = st.level; best = i; } });
+    if (best < 0 || !game.act({ type: 'upgrade', station: best }).ok) break;
+  }
+  if (s.complete) game.act({ type: 'nextLocation' });
+}
+function autoplay(seconds) { for (let t = 0; t < seconds; t += 1) { play(); step(1, false); } step(0, true); }
+
+if (q.has('t')) autoplay(Number(q.get('t')));
+else step(0.1, true);
+window.diner = { game, scene, step, autoplay, errors, ready: true };
+if (q.get('manual') !== '1') {
+  let last = performance.now();
+  const loop = (now) => { const dt = Math.min(0.1, (now - last) / 1000); last = now; clock += dt * 1000; game.tick(dt); scene.update(game.state, dt, true); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+window.__ready = true;
+</script>
+</body>
+</html>

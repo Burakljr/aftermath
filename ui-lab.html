@@ -3,258 +3,245 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#9fdcff">
-<title>Toy Factory UI lab</title>
+<meta name="theme-color" content="#F3E3C8">
+<title>Heroes' Diner UI lab</title>
 <link rel="stylesheet" href="css/app.css">
 <style>
-  /* Static placeholder where the 3D canvas will be (UI lab only). */
-  #stage {
-    position: fixed; inset: 0; overflow: hidden; touch-action: none;
-    background:
-      repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 2px, transparent 2px 46px),
-      repeating-linear-gradient(0deg, rgba(255,255,255,.18) 0 2px, transparent 2px 46px),
-      linear-gradient(180deg, #7FCBFF 0%, #A9DDFF 21%, #FFB35C 21.2%, #FFB35C 22.6%, #FFD98E 22.8%, #FFC870 100%);
-  }
-  #stage svg.belt { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .blob {
-    position: absolute; width: 96px; height: 80px; margin: -40px 0 0 -48px;
-    border-radius: 22px; display: grid; place-items: center; color: #fff;
-    border: 4px solid #2A1E3B; box-sizing: border-box;
-    background-image: linear-gradient(rgba(255,255,255,.3), rgba(255,255,255,0) 50%) !important;
-    box-shadow: inset 0 -9px 0 rgba(0,0,0,.18), 0 8px 0 rgba(42,30,59,.25);
-    transition: filter .2s, transform .12s;
-  }
-  .blob .ico { width: 44px; height: 44px; }
-  .blob.locked { background: repeating-linear-gradient(45deg, #fff4dcdd 0 10px, #ffd59add 10px 20px) !important; box-shadow: none; border: 4px dashed #C98A3A; color: #C98A3A; }
-  .blob.locked .ico { opacity: .35; }
-  .blob.boost { filter: brightness(1.18) saturate(1.2); }
-  .blob.flash { transform: scale(1.12); }
-  .blob .worker { position: absolute; right: -16px; bottom: -8px; width: 32px; height: 32px; border-radius: 50%; background: #FFD7B0; border: 3px solid #2A1E3B; box-shadow: inset 0 -4px 0 #F2B98A; }
-  .blob .worker::before { content: ''; position: absolute; left: -3px; right: -3px; top: -6px; height: 13px; border-radius: 12px 12px 3px 3px; background: #FFC82E; border: 3px solid #2A1E3B; }
-  .blob.locked .worker { display: none; }
-  .blob .prog { position: absolute; left: 12px; right: 12px; bottom: 9px; height: 7px; border-radius: 9px; background: rgba(42,30,59,.35); overflow: hidden; }
-  .blob .prog i { display: block; height: 100%; background: #fff; transform-origin: left; }
-  .blob .tray { position: absolute; left: -28px; top: 50%; display: flex; flex-direction: column; gap: 3px; margin-top: -26px; }
-  .blob .tray b { width: 15px; height: 15px; border-radius: 4px; background: #FFB24D; border: 2.5px solid #2A1E3B; }
-  .truck { position: absolute; width: 124px; height: 68px; margin: -34px 0 0 -62px; border-radius: 16px; background: #FF4F7E; border: 4px solid #2A1E3B; box-sizing: border-box; box-shadow: inset 0 -9px 0 rgba(0,0,0,.18); }
-  .truck::before { content: ''; position: absolute; right: -38px; top: 14px; width: 40px; height: 48px; border-radius: 0 14px 10px 0; background: #FFC82E; border: 4px solid #2A1E3B; border-left: 0; }
-  .truck::after { content: ''; position: absolute; left: 12px; bottom: -16px; width: 22px; height: 22px; border-radius: 50%; background: #2A1E3B; box-shadow: 72px 0 0 #2A1E3B; }
-  .lab-tag { position: fixed; left: 6px; bottom: 2px; font: 600 10px system-ui; color: #a2702a; z-index: 1; }
+  /* Static placeholder where the 3D restaurant will be (UI lab only). */
+  #stage { position: fixed; inset: 0; overflow: hidden; touch-action: none; background: #E9D2AE; }
+  #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .dot { position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; will-change: transform; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+  .dot::after { content: ''; position: absolute; left: 4px; top: -9px; width: 12px; height: 12px; border-radius: 50%; background: #F6CFA8; }
+  .dot.cook { background: #fff; }
+  .dot.cook::before { content: ''; position: absolute; left: 2px; top: -17px; width: 16px; height: 10px; border-radius: 6px 6px 2px 2px; background: #fff; z-index: 1; }
+  .lab-tag { position: fixed; left: 6px; bottom: 2px; font: 600 10px system-ui; color: #a2702a; z-index: 1; opacity: .7; }
 </style>
 </head>
 <body>
-<div id="stage"></div>
+<div id="stage"><canvas id="bg"></canvas></div>
 <div id="ui"></div>
 <div class="lab-tag">UI lab: placeholder scene</div>
 <script type="module">
 import { createGame, EVENTS } from './js/game/index.js';
+import { getLayout } from './js/game/layout.js';
 import { createUI } from './js/ui/index.js';
 import { createAudio } from './js/audio.js';
-import { SCREEN } from './js/scene/layout.js';
-import { ICONS } from './js/ui/dom.js';
-import { GLYPH, STATION_COLORS } from './js/ui/dom.js';
 
-const params = new URLSearchParams(location.search);
+let params;
+try { params = new URLSearchParams(location.search); } catch { params = new URLSearchParams(''); }
 
-// ---- fake scene implementing the scene API with fixed positions ----
-function createFakeScene(stage) {
-  const W = () => window.innerWidth;
-  const H = () => window.innerHeight;
-  let cfg = null;
-  let blobs = [];
-  let truck = null;
-  let belt = null;
+// ---------------------------------------------------------------- fake scene (scene API)
+// A flat top-down drawing of js/game/layout.js with dots for guests and cooks, so every
+// anchor the UI needs exists and moves like in the real game.
+function createFakeScene(stage, game) {
+  const canvas = stage.querySelector('canvas');
+  const g2 = canvas.getContext('2d');
+  let layout = getLayout(game.state.location);
   let quality = 'high';
-  function pos(i) { const p = SCREEN.stations[i]; return { x: p.x * W(), y: p.y * H() }; }
-  function build() {
-    stage.innerHTML = '';
-    belt = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    belt.setAttribute('class', 'belt');
-    stage.appendChild(belt);
-    blobs = cfg.stations.map((s, i) => {
-      const b = document.createElement('div');
-      b.className = 'blob';
-      b.style.background = STATION_COLORS[i];
-      b.innerHTML = `<span class="ico">${ICONS[GLYPH[s.id]] || ''}</span><span class="worker"></span><span class="prog"><i></i></span><span class="tray"></span>`;
-      stage.appendChild(b);
-      return { b, prog: b.querySelector('.prog i'), tray: b.querySelector('.tray'), trayN: -1 };
+  const dots = new Map();
+  const tmp = [0, 0];
+  let W = 0, H = 0, sx = 1, ox = 0, oy = 0, sz = 1;
+  const COLORS = ['#5B8DEF', '#B06BE0', '#4BAE7A', '#E0884B'];
+
+  function fit() {
+    W = window.innerWidth; H = window.innerHeight;
+    const b = layout.bounds;
+    const top = 104, bottom = 178;
+    sx = Math.min((W - 24) / (b.maxX - b.minX), 40);
+    sz = (H - top - bottom) / (b.maxZ - b.minZ);
+    ox = W / 2 - ((b.minX + b.maxX) / 2) * sx;
+    oy = top - b.minZ * sz;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  const px = (x) => ox + x * sx;
+  const py = (z) => oy + z * sz;
+  function rr(x, y, w, h, r, fill) { g2.beginPath(); g2.roundRect(x, y, w, h, r); g2.fillStyle = fill; g2.fill(); }
+  function draw() {
+    const harbor = layout.id === 'harbor';
+    g2.fillStyle = harbor ? '#BFD9E2' : '#E9D2AE';
+    g2.fillRect(0, 0, W, H);
+    const b = layout.bounds;
+    // floor
+    rr(px(b.minX), py(b.minZ), (b.maxX - b.minX) * sx, (b.maxZ - b.minZ) * sz, 10, harbor ? '#D7E7EC' : '#F2DDBA');
+    // kitchen tiles
+    const kitchen = layout.kitchen || { maxZ: -5, pass: [] };
+    g2.fillStyle = harbor ? '#C5DCE4' : '#E8D3B2';
+    g2.fillRect(px(b.minX), py(b.minZ), (b.maxX - b.minX) * sx, (kitchen.maxZ - b.minZ) * sz);
+    // back wall
+    rr(px(b.minX), py(b.minZ) - 26, (b.maxX - b.minX) * sx, 30, 6, harbor ? '#7FA9BC' : '#C99A6A');
+    // pass counters
+    for (const p of kitchen.pass) rr(px(p.x0), py(p.z) - 6, (p.x1 - p.x0) * sx, 12, 4, '#B07A4E');
+    // stations
+    for (const st of layout.stations) rr(px(st.pos[0]) - 0.9 * sx, py(st.pos[1]) - 0.9 * sz, 1.8 * sx, 1.8 * sz, 8, '#9C9AA6');
+    // tables
+    layout.tables.forEach((t, i) => {
+      const owned = game.state.tables[i] && game.state.tables[i].owned;
+      g2.globalAlpha = owned ? 1 : 0.28;
+      for (const s of t.seats) { g2.beginPath(); g2.arc(px(s.pos[0]), py(s.pos[1]), 0.36 * sx, 0, 7); g2.fillStyle = '#B07A4E'; g2.fill(); }
+      g2.beginPath(); g2.ellipse(px(t.pos[0]), py(t.pos[1]), 0.75 * sx, 0.75 * sz, 0, 0, 7); g2.fillStyle = '#D9A36E'; g2.fill();
+      g2.globalAlpha = 1;
     });
-    truck = document.createElement('div');
-    truck.className = 'truck';
-    stage.appendChild(truck);
-    layout();
+    // door
+    rr(px(layout.door.pos[0]) - 1.1 * sx, py(b.maxZ) - 4, 2.2 * sx, 8, 3, '#8A5A36');
   }
-  function layout() {
-    if (!cfg) return;
-    const pts = cfg.stations.map((_, i) => pos(i));
-    const t = { x: SCREEN.truck.x * W(), y: SCREEN.truck.y * H() };
-    blobs.forEach((o, i) => { o.b.style.left = pts[i].x + 'px'; o.b.style.top = pts[i].y + 'px'; });
-    truck.style.left = t.x + 'px';
-    truck.style.top = t.y + 'px';
-    const all = [{ x: pts[0].x, y: pts[0].y - 90 }, ...pts, t];
-    belt.innerHTML = `<polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#2A1E3B" stroke-width="30" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#5B5F7A" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${all.map((p) => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#8E93B0" stroke-width="10" stroke-dasharray="6 10" stroke-linejoin="round"/>`;
+
+  function dotFor(id, cls, color) {
+    let d = dots.get(id);
+    if (!d) {
+      d = document.createElement('div');
+      d.className = 'dot ' + cls;
+      if (color) d.style.background = color;
+      stage.appendChild(d);
+      dots.set(id, d);
+    }
+    d._seen = frame;
+    return d;
   }
-  window.addEventListener('resize', layout);
-  return {
-    setFactory(c) { cfg = c; build(); },
+  // world position of an entity (walk progress t / dur along the path)
+  function pos(e) {
+    if (e.from === e.to || !(e.dur > 0)) {
+      const n = layout.graph.nodes[e.to];
+      tmp[0] = n[0]; tmp[1] = n[1];
+      return tmp;
+    }
+    return layout.pointAt(e.from, e.to, (e.t / e.dur) * layout.pathLength(e.from, e.to), tmp);
+  }
+  let frame = 0;
+  const api = {
+    setLocation(id) { layout = getLayout(id); for (const d of dots.values()) d.remove(); dots.clear(); fit(); },
     update(state) {
-      state.factory.stations.forEach((s, i) => {
-        const o = blobs[i];
-        if (!o) return;
-        o.b.classList.toggle('locked', !s.open);
-        o.b.classList.toggle('boost', s.boostT > 0);
-        o.prog.style.transform = `scaleX(${s.progress.toFixed(3)})`;
-        if (o.trayN !== s.tray) { o.trayN = s.tray; o.tray.innerHTML = '<b></b>'.repeat(s.tray); }
-      });
+      frame++;
+      for (const c of state.customers) {
+        const p = pos(c);
+        dotFor(c.id, 'guest', COLORS[c.look.tint % 4]).style.transform = `translate(${px(p[0])}px, ${py(p[1])}px)`;
+      }
+      for (const k of state.cooks) {
+        const p = pos(k);
+        dotFor(k.id, 'cook').style.transform = `translate(${px(p[0])}px, ${py(p[1])}px)`;
+      }
+      for (const [id, d] of dots) if (d._seen !== frame) { d.remove(); dots.delete(id); }
     },
-    fx(ev, p) {
-      if (!p || !p.station) return;
-      const i = cfg.stations.findIndex((s) => s.id === p.station);
-      if (i < 0 || (ev !== 'boost' && ev !== 'upgrade' && ev !== 'open')) return;
-      const b = blobs[i].b;
-      b.classList.add('flash');
-      setTimeout(() => b.classList.remove('flash'), 120);
-    },
+    fx(ev) { if (ev === 'buyTable' || ev === 'locationStart') draw(); },
     pick(x, y) {
-      let best = null;
-      let bd = 60 * 60;
-      cfg.stations.forEach((s, i) => {
-        const p = pos(i);
-        const d = (p.x - x) ** 2 + (p.y - y) ** 2;
-        if (d < bd) { bd = d; best = { type: 'station', id: s.id }; }
-      });
-      if (best) return best;
-      const t = { x: SCREEN.truck.x * W(), y: SCREEN.truck.y * H() };
-      if (Math.abs(t.x - x) < 70 && Math.abs(t.y - y) < 40) return { type: 'truck' };
+      let best = null; let bd = Infinity;
+      const test = (type, id, X, Y, r) => { const d = Math.hypot(X - x, Y - y); if (d < r && d < bd) { bd = d; best = { type, id }; } };
+      for (const st of layout.stations) test('station', st.id, px(st.pos[0]), py(st.pos[1]), 46);
+      for (const c of game.state.customers) { const p = pos(c); test('customer', c.id, px(p[0]), py(p[1]) - 8, 20); }
+      for (const k of game.state.cooks) { const p = pos(k); test('cook', k.id, px(p[0]), py(p[1]) - 8, 20); }
+      for (const t of layout.tables) test('table', t.id, px(t.pos[0]), py(t.pos[1]), 34);
+      return best;
+    },
+    anchor(kind, id) {
+      // like the real scene: above an open station, lower (just above the plot) for closed ones
+      if (kind === 'station') {
+        const i = layout.stations.findIndex((s) => s.id === id);
+        const st = layout.stations[i];
+        if (!st) return null;
+        const open = game.state.stations[i] && game.state.stations[i].open;
+        return { x: px(st.pos[0]), y: py(st.pos[1]) + (open ? -0.9 * sz - 4 : 0.5 * sz), visible: true };
+      }
+      if (kind === 'table') { const t = layout.tables.find((s) => s.id === id); return t ? { x: px(t.pos[0]), y: py(t.pos[1]), visible: true } : null; }
+      if (kind === 'customer' || kind === 'cook') {
+        const e = (kind === 'customer' ? game.state.customers : game.state.cooks).find((c) => c.id === id);
+        if (!e) return null;
+        const p = pos(e);
+        return { x: px(p[0]), y: py(p[1]) - 22, visible: true };
+      }
+      if (kind === 'coins') return { x: px(layout.door.pos[0]), y: py(layout.bounds.maxZ) - 20, visible: true };
       return null;
     },
-    anchor(id) {
-      if (id === 'truck') return { x: SCREEN.truck.x * W(), y: SCREEN.truck.y * H() - 30, visible: true };
-      if (id === 'coins') return { x: SCREEN.coins.x * W(), y: SCREEN.coins.y * H(), visible: true };
-      const i = typeof id === 'number' ? id : cfg.stations.findIndex((s) => s.id === id);
-      if (i < 0) return null;
-      const p = pos(i);
-      return { x: p.x, y: p.y - 46, visible: true };
-    },
     setQuality(q) { quality = q; },
-    stats() { return { fps: 60, calls: 41, tris: 36800, quality }; },
-    resize() { layout(); },
-    setInsets() {},
+    stats() { return { fps: 60, calls: 42, tris: 61234, quality }; },
+    resize: fit,
   };
+  window.addEventListener('resize', fit);
+  fit();
+  return api;
 }
 
-// ---- game + ui ----
-let ms = Date.now();
-const lang = params.get('lang') || 'en';
-const now = () => ms;
-let save = null;
-const preset = params.get('state') || 'fresh';
-
-if (preset === 'offline') {
-  const g0 = createGame({ now: () => ms - 80 * 60 * 1000, lang });
-  g0.state.money = 1e6;
-  for (let i = 0; i < 12; i++) g0.act({ type: 'upgrade', station: i % 2 });
-  g0.act({ type: 'open', station: 'paint' });
-  for (let i = 0; i < 9; i++) g0.act({ type: 'upgrade', station: 'paint' });
-  g0.state.money = 850;
-  g0.state.tutorial = 'done';
-  save = g0.save();
-}
-
-const game = createGame({ save, now, lang });
-const scene = createFakeScene(document.getElementById('stage'));
-scene.setFactory(game.config());
+// ---------------------------------------------------------------- game + UI
+const lang = params.get('lang') === 'tr' ? 'tr' : 'en';
+let simMs = 1_000_000;
+const game = createGame({ save: null, lang, now: () => simMs, seed: 7 });
+const scene = createFakeScene(document.getElementById('stage'), game);
 const audio = createAudio();
 const ui = createUI({ root: document.getElementById('ui'), game, scene, audio, canvas: document.getElementById('stage') });
 for (const ev of EVENTS) game.on(ev, (p) => scene.fx(ev, p));
-game.on('factoryStart', () => scene.setFactory(game.config()));
+game.on('locationStart', (p) => scene.setLocation(p.id));
 
-function step(dt) {
-  let left = dt;
-  while (left > 1e-9) {
-    const h = Math.min(left, 1 / 60);
-    ms += h * 1000;
-    game.tick(h);
-    scene.update(game.state, h);
-    ui.update(h);
-    left -= h;
-  }
+const paused = params.get('paused') === '1';
+function frame(dt) {
+  simMs += dt * 1000;
+  game.tick(dt);
+  scene.update(game.state, dt);
+  ui.update(dt);
 }
-
+function step(dt, h = 1 / 30) {
+  let left = dt;
+  while (left > 1e-9) { const d = Math.min(h, left); frame(d); left -= d; }
+}
 function buy(station, n) { for (let i = 0; i < n; i++) game.act({ type: 'upgrade', station }); }
+function rich(fn) { game.state.money = 1e12; fn(); }
 
-// presets for screenshots
+// presets for screenshots and tests
 function applyPreset(p) {
   const s = game.state;
-  if (p === 'fresh') return;
-  s.tutorial = 'done';
-  if (['card', 'poor', 'locked', 'goals', 'settings', 'tut1', 'milestone', 'sales', 'upgrades', 'goalspanel', 'factories', 'collect'].includes(p)) {
-    s.money = 5000;
-    buy('saw', 6); buy('assembly', 8);
-    s.money = 120;
+  const openAll = (k) => { for (let i = 0; i < k; i++) game.act({ type: 'open', station: i }); };
+  switch (p) {
+    case 'fresh': break;
+    case 'card': step(3); ui.openCard('juice'); break;
+    case 'poor': step(3); s.money = 2; ui.openCard('juice'); break;
+    case 'milestone': rich(() => buy('juice', 8)); s.money = 400; step(2); ui.openCard('juice'); break;
+    case 'tut1': step(2); ui.tapStation('juice'); break;
+    case 'open': rich(() => buy('juice', 6)); s.money = 120; game.act({ type: 'tutorial', step: 2 }); step(6); break;
+    case 'opencard': rich(() => buy('juice', 6)); s.money = 120; game.act({ type: 'tutorial', step: 2 }); step(4); ui.openCard('grill'); break;
+    case 'busy':
+      rich(() => { openAll(3); buy('juice', 14); buy('grill', 9); buy('stew', 4); game.act({ type: 'buyTable' }); game.act({ type: 'buyTable' }); game.act({ type: 'hire' }); game.act({ type: 'hire' }); });
+      game.act({ type: 'tutorial', step: 'done' }); s.money = 2400; step(40); break;
+    case 'collect': rich(() => buy('juice', 4)); s.money = 30; game.act({ type: 'tutorial', step: 'done' }); step(4); break;
+    case 'upgrades':
+      rich(() => { openAll(2); buy('juice', 11); buy('grill', 4); game.act({ type: 'buyTable' }); game.act({ type: 'hire' }); });
+      game.act({ type: 'tutorial', step: 'done' }); s.money = 900; step(8); ui.openMenu('upgrades'); break;
+    case 'goals': rich(() => { buy('juice', 4); game.act({ type: 'hire' }); }); s.money = 60; game.act({ type: 'tutorial', step: 'done' }); step(25); ui.openMenu('goals'); break;
+    case 'places': game.act({ type: 'tutorial', step: 'done' }); step(3); ui.openMenu('places'); break;
+    case 'complete': case 'placesdone': {
+      rich(() => { openAll(4); for (let i = 0; i < 4; i++) buy(i, 25); for (let i = 0; i < 4; i++) game.act({ type: 'buyTable' }); while (s.cooks.length < 4) game.act({ type: 'hire' }); for (let i = 0; i < 4; i++) game.act({ type: 'cookSpeed' }); });
+      s.served = Math.max(s.served, 400); game.act({ type: 'tutorial', step: 'done' }); step(1);
+      for (let k = 0; k < 40; k++) { const v = game.select.goalViews().find((x) => x.done && !x.claimed); if (!v) break; game.act({ type: 'claimGoal', id: v.id }); }
+      s.money = 123456; step(1);
+      if (p === 'placesdone') { ui.debug.complete.dismiss(); ui.openMenu('places'); }
+      break;
+    }
+    case 'harbor':
+      game.state.complete = true; game.act({ type: 'nextLocation' }); game.act({ type: 'tutorial', step: 'done' });
+      rich(() => { buy('cocoa', 9); game.act({ type: 'hire' }); game.act({ type: 'buyTable' }); }); s.money = 3200; step(20); break;
+    case 'offline': {
+      rich(() => { openAll(2); buy('juice', 12); buy('grill', 8); game.act({ type: 'hire' }); });
+      game.act({ type: 'tutorial', step: 'done' }); s.money = 500; step(30);
+      simMs += 95 * 60 * 1000; step(0.1); break;
+    }
+    case 'settings': step(2); ui.openSettings(); break;
+    default: break;
   }
-  if (p === 'card') { s.money = 2400; step(0.5); ui.openCard('assembly'); }
-  if (p === 'sales') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 12); s.money = 40; step(3); game.act({ type: 'boost', station: 'paint' }); }
-  if (p === 'poor') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 7); s.money = 260; step(0.5); ui.openCard('paint'); }
-  if (p === 'locked') { s.money = 820; step(0.5); ui.openCard('paint'); }
-  if (p === 'goals') { s.money = 1e4; buy('saw', 2); game.act({ type: 'claimGoal', id: 'w1' }); s.factory.sold = 25; s.money = 300; }
-  if (p === 'tut1') { s.tutorial = 1; s.money = 760; }
-  if (p === 'settings') { step(0.3); ui.openSettings(); }
-  if (p === 'upgrades') { s.money = 1e5; game.act({ type: 'open', station: 'paint' }); buy('paint', 7); s.money = 2600; step(0.3); ui.openMenu('upgrades'); }
-  if (p === 'goalspanel') { s.money = 1e4; buy('saw', 2); s.factory.sold = 21; s.money = 300; step(0.3); ui.openMenu('goals'); }
-  if (p === 'collect') { s.money = 1e4; buy('saw', 2); s.money = 300; step(0.3); }
-  if (p === 'factories') { s.money = 1e4; buy('saw', 2); for (const g of game.config().goals.slice(0, 5)) { game.state.goals.find((x) => x.id === g.id).done = true; game.act({ type: 'claimGoal', id: g.id }); } s.money = 300; step(0.3); ui.openMenu('factories'); }
-  if (p === 'milestone') { s.money = 1e4; step(0.2); ui.openCard('assembly'); buy('assembly', 1); }
-  if (p === 'complete') {
-    s.money = 1e13;
-    game.act({ type: 'open', station: 'paint' });
-    game.act({ type: 'open', station: 'wrap' });
-    for (let i = 0; i < 4; i++) buy(i, 60);
-    s.factory.sold = 1240;
-    step(0.1);
-    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
-  }
-  if (p === 'late') {
-    s.money = 1e9;
-    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
-    buy(0, 30); buy(1, 30); buy(2, 22); buy(3, 12);
-    s.factory.sold = 800; step(0.1);
-    for (const g of game.config().goals.slice(0, 12)) game.act({ type: 'claimGoal', id: g.id });
-    s.money = 2.5e6;
-  }
-  if (p === 'teddyfac') {
-    s.money = 1e13;
-    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
-    for (let i = 0; i < 4; i++) buy(i, 60);
-    s.factory.sold = 1240; step(0.1);
-    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
-    game.act({ type: 'nextFactory' });
-    step(0.2); ui.openMenu('factories');
-  }
-  if (p === 'teddy') {
-    s.money = 1e13;
-    game.act({ type: 'open', station: 'paint' }); game.act({ type: 'open', station: 'wrap' });
-    for (let i = 0; i < 4; i++) buy(i, 60);
-    s.factory.sold = 1240; step(0.1);
-    for (const g of game.config().goals) game.act({ type: 'claimGoal', id: g.id });
-    game.act({ type: 'nextFactory' });
-  }
+  ui.update(0);
 }
-applyPreset(preset);
-step(1 / 60);
 
-window.toy = { game, ui, scene, audio, step, buy, applyPreset };
+window.diner = { game, ui, scene, audio, step, buy, applyPreset, ready: false };
+applyPreset(params.get('state') || 'fresh');
 
-if (!params.has('paused')) {
-  let last = performance.now();
-  const loop = (t) => {
-    const dt = Math.min(0.1, (t - last) / 1000);
-    last = t;
-    step(dt);
-    requestAnimationFrame(loop);
-  };
+let last = 0;
+function loop(t) {
   requestAnimationFrame(loop);
+  const dt = last ? Math.min(0.1, (t - last) / 1000) : 1 / 60;
+  last = t;
+  if (!paused) frame(dt);
 }
+if (paused) { scene.update(game.state, 0); ui.update(0); }
+requestAnimationFrame(loop);
+window.diner.ready = true;
 </script>
 </body>
 </html>

@@ -33,7 +33,7 @@ function recipe(kind, tier, alt) {
     add(alt ? 'jar_D_large' : 'jar_C_large', -0.6, 1.0, -0.55, 0, 1.0);
     if (tier >= 1) { add(alt ? 'jar_B_large' : 'jar_A_large', -0.05, 1.0, -0.6, 0, 1.0); add(mugFull, 0.55, 1.0, 0.5, 2.2, 1.0); }
     if (tier >= 2) { add(alt ? 'crate_potatoes' : 'crate_carrots', 0.45, 1.0, -0.45, 0.1, 0.36); }
-    if (tier >= 3) { add('kitchencabinet_half', 0, 0, -1, 0, 1); add('jar_C_medium', -0.65, 1.0, -0.1, 0, 0.8); }
+    if (tier >= 3) { add('jar_C_medium', -0.65, 1.0, -0.1, 0, 0.8); add(alt ? 'jar_D_small' : 'jar_A_small', 0.75, 1.0, -0.15, 0, 0.8); }
     if (tier >= 4) { add('jar_D_large', 0.35, 1.0, -0.05, 0, 0.8); add(mugFull, 0.1, 1.0, 0.05, 0.9, 1.0); }
   } else if (kind === 'grill') {
     if (tier < 2) {
@@ -48,7 +48,7 @@ function recipe(kind, tier, alt) {
       add('pan_B', 0.42, 1.2, 0.3, Math.PI * 0.15, 0.7);
       add(alt ? 'food_ingredient_vegetableburger_cooked' : 'food_ingredient_burger_cooked', 0.42, 1.25, 0.3, 0, 0.6);
     }
-    if (tier >= 4) add('extractorhood', 0, 0, -1, 0, 1);
+    if (tier >= 4) { add('food_ingredient_bun', 0.75, 1.2, 0.62, 0, 0.45); add('food_ingredient_tomato', -0.78, 1.2, 0.6, 0, 0.4); }
   } else if (kind === 'pot') {
     add('kitchencounter_straight_A_backsplash', 0, 0, 0);
     if (tier < 2) {
@@ -56,12 +56,11 @@ function recipe(kind, tier, alt) {
       add('pot_A_stew', 0, 1.2, -0.05, 0, 0.8);
       if (tier >= 1) { add('bowl_small', 0.68, 1.0, 0.5, 0, 0.6); add('bowl_small', 0.68, 1.12, 0.5, 0, 0.6); }
     } else {
-      add('stove_multi_countertop', 0, 0.01, 0, 0, 0.98);
-      add('pot_large', 0, 1.2, -0.1, 0, 0.7);
-      add('stew_pot', 0, 1.2 + 0.0, -0.1, 0, 1.15);
-      add('bowl_small', 0.68, 1.0, 0.55, 0, 0.55);
-      if (tier >= 3) { add('lid_A', -0.62, 1.0, 0.55, 0.4, 0.55); add('food_ingredient_carrot', 0.55, 1.0, -0.6, 1.2, 0.5); }
-      if (tier >= 4) add('extractorhood', 0, 0, -1, 0, 1);
+      add('stove_multi_countertop', 0, 0.01, 0, 0, 0.9);
+      add('pot_A_stew', -0.38, 1.2, -0.35, 0.2, 0.6);
+      add('pot_B_stew', 0.38, 1.2, 0.3, -0.3, 0.6);
+      if (tier >= 3) { add('bowl_small', -0.62, 1.0, 0.55, 0, 0.55); add('bowl_small', -0.62, 1.12, 0.55, 0, 0.55); }
+      if (tier >= 4) { add('food_ingredient_carrot', 0.62, 1.0, -0.62, 1.2, 0.45); add('lid_A', 0.7, 1.0, 0.62, 0.4, 0.5); }
     }
   } else { // oven
     add('oven', 0, 0, 0);
@@ -74,6 +73,7 @@ function recipe(kind, tier, alt) {
 }
 
 export function createStations(kit, layout, mats = {}) {
+  const base = mats.base || kit.materials.base;
   const group = new THREE.Group();
   group.name = 'stations';
   const alt = layout.id === 'harbor';
@@ -99,7 +99,7 @@ export function createStations(kit, layout, mats = {}) {
   function build(v, key) {
     let g = v.cache.get(key);
     if (g) return g;
-    const b = kit.batch();
+    const b = kit.batch(base);
     if (key === 'locked') {
       b.add('kitchencounter_straight_B', 0, 0, 0);
     } else {

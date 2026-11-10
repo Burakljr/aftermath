@@ -61,7 +61,7 @@ const PROPS = [
   'food_vegetableburger', 'food_stew', 'food_dinner', 'ketchup', 'mustard',
   'food_ingredient_burger_uncooked', 'food_ingredient_burger_cooked', 'food_ingredient_tomato', 'food_ingredient_carrot',
   'food_ingredient_bun', 'food_ingredient_lettuce', 'food_ingredient_onion', 'food_ingredient_potato', 'food_ingredient_cheese',
-  'food_ingredient_steak', 'food_ingredient_ham_cooked',
+  'food_ingredient_steak', 'food_ingredient_ham_cooked', 'food_ingredient_vegetableburger_cooked',
   // decor
   'crate', 'crate_lid', 'crate_tomatoes', 'crate_carrots', 'crate_lettuce', 'crate_onions', 'crate_potatoes', 'crate_buns',
   'crate_cheese', 'crate_steak',
@@ -81,7 +81,7 @@ const MUGS = { mug_juice: { from: 'mug_full', liquid: [4, 2] }, mug_cocoa: { fro
 // Mages and hooded Rogues.
 const HEROES = {
   knight: { file: 'Knight', keep: ['Knight_Helmet', 'Knight_Cape'] },
-  mage: { file: 'Mage', keep: ['Mage_Hat', 'Mage_Cape'] },
+  mage: { file: 'Mage', keep: ['Mage_Hat', 'Mage_Cape'], scale: { Mage_Hat: 0.7 } },
   barbarian: { file: 'Barbarian', keep: [] },
   rogue_hooded: { file: 'Rogue_Hooded', keep: ['Rogue_Cape'] },
 };
@@ -250,7 +250,10 @@ async function buildHero(key, def) {
       const parent = node.getParentNode();
       const ji = joints.indexOf(parent);
       if (ji < 0) throw new Error(key + ': accessory ' + node.getName() + ' not under a joint');
-      const m = mat4Mul(bindWorld[ji], localMatrix(node));
+      let local = localMatrix(node);
+      const k = def.scale && def.scale[node.getName()];
+      if (k) local = mat4Mul(local, mat4FromTRS([0, 0, 0], [0, 0, 0, 1], [k, k, k])); // smaller hat (readability from above)
+      const m = mat4Mul(bindWorld[ji], local);
       for (const p of mesh.listPrimitives()) parts.push({ prim: p, matrix: m, joint: ji });
     }
   }

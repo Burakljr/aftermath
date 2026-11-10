@@ -79,6 +79,10 @@ function findById(list, id) {
   for (let i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
   return null;
 }
+function indexById(list, id) {
+  for (let i = 0; i < list.length; i++) if (list[i].id === id) return i;
+  return -1;
+}
 
 function stationBusy(state, stationId, except) {
   const cs = state.cooks;
@@ -91,7 +95,7 @@ function stationBusy(state, stationId, except) {
 
 // ctx = { cfg, layout, emit(ev, payload), addMoney(value) }
 export function step(state, ctx, dt) {
-  const { cfg, layout } = ctx;
+  const { layout } = ctx;
   // boosts run down
   for (let i = 0; i < state.stations.length; i++) {
     const s = state.stations[i];
@@ -119,7 +123,6 @@ export function step(state, ctx, dt) {
       if (c.dur === 0) c.state = 'idle';
     }
   }
-  void cfg;
 }
 
 function spawn(state, ctx, dt) {
@@ -177,7 +180,7 @@ function stepCustomer(state, ctx, c, dt) {
         return;
       }
       case 'eating': {
-        const si = state.stations.findIndex((s) => s.id === c.station);
+        const si = indexById(state.stations, c.station);
         const value = si >= 0 ? price(cfg.stations[si], state.stations[si].level) : 0;
         c.state = 'paying';
         stay(c, c.seat, RULES.payTime);
@@ -216,7 +219,7 @@ function stepCook(state, ctx, c, dt, speed) {
     c.t = c.dur;
     switch (c.state) {
       case 'toStation': {
-        const si = state.stations.findIndex((s) => s.id === c.station);
+        const si = indexById(state.stations, c.station);
         c.state = 'cooking';
         stay(c, layout.stations[si].node, cookTime(cfg.stations[si], state.stations[si].level));
         ctx.emit('cookStart', { cook: c.id, station: c.station, customer: c.order.customer, dish: c.order.dish });
@@ -227,7 +230,8 @@ function stepCook(state, ctx, c, dt, speed) {
         ctx.emit('cookDone', { cook: c.id, station: c.station, customer: c.order.customer, dish: c.order.dish });
         c.state = 'toTable';
         c.station = null;
-        const front = cust ? layout.tables.find((t) => t.id === cust.table).front : c.home;
+        const tb = cust ? findById(layout.tables, cust.table) : null;
+        const front = tb ? tb.front : c.home;
         walk(c, layout, c.to, front, speed);
         break;
       }
@@ -264,7 +268,7 @@ function dispatch(state, ctx, speed) {
   for (let i = 0; i < orders.length; i++) {
     const o = orders[i];
     if (stationBusy(state, o.station, null)) continue;
-    const si = state.stations.findIndex((s) => s.id === o.station);
+    const si = indexById(state.stations, o.station);
     if (si < 0) continue;
     const target = layout.stations[si].node;
     let best = null;

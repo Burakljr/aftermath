@@ -1,16 +1,12 @@
-// Interaction test of the DOM UI in the UI lab (fake scene, real game).
+// Interaction test of the DOM UI in the UI lab (fake scene, real game logic).
 //   timeout 600 node tests/ui/lab-play.cjs
-// Starts tools/serve.mjs on PORT (default 5301), emulates an iPhone 13 (390 x 844, 1x) and checks:
-// station card (tap, upgrade, hold to repeat, not enough coins, close), next-goal pill collect,
-// Open sign -> Open, settings (language, sound, quality, FPS), Upgrades list (buy, hold, open),
-// Goals panel (collect, Go hint), Factories panel, offline card, factory complete -> next
-// factory, touch target sizes, bottom bar height and safe-area padding.
+// Starts tools/serve.mjs on PORT (default 5402), emulates an iPhone 13 (390 x 844, 1x).
 const { chromium, devices } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../..');
-const PORT = Number(process.env.PORT) || 5301;
+const PORT = Number(process.env.PORT) || 5402;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
 function check(cond, msg) {
@@ -20,24 +16,27 @@ function check(cond, msg) {
 
 async function main() {
   const server = spawn(process.execPath, [path.join(ROOT, 'tools/serve.mjs')], { env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
+  let browser;
   try {
     await wait(400);
-    const browser = await chromium.launch();
+    browser = await chromium.launch();
     const ctx = await browser.newContext({ ...devices['iPhone 13'], deviceScaleFactor: 1, viewport: { width: 390, height: 844 } });
     const errors = [];
-    const open = async (q, c = ctx) => {
-      const page = await c.newPage();
+    const open = async (q) => {
+      const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
       await page.goto(`http://localhost:${PORT}/ui-lab.html?paused=1&${q}`);
-      await page.waitForFunction(() => window.toy && document.fonts && document.fonts.status === 'loaded');
-      await page.evaluate(() => window.toy.step(0.1));
+      await page.waitForFunction(() => window.diner && window.diner.ready && document.fonts.status === 'loaded');
+      await page.evaluate(() => window.diner.step(0.1));
+      await wait(350); // panels slide in with CSS transitions (wall clock)
       return page;
     };
-    // taps wait for CSS slide-in animations (they run on wall-clock time) to settle
-    const tapAt = async (page, x, y) => { await page.touchscreen.tap(x, y); await page.evaluate(() => window.toy.step(0.05)); await wait(320); };
+    // taps wait for CSS transitions (wall-clock) to settle
+    const tapAt = async (page, x, y) => { await page.touchscreen.tap(x, y); await page.evaluate(() => window.diner.step(0.05)); await wait(300); };
     const tapSel = async (page, sel) => {
-      const b = await page.locator(sel).first().boundingBox();
+      const loc = page.locator(sel).first();
+      const b = await loc.boundingBox();
       if (!b) throw new Error('no element ' + sel);
       await tapAt(page, b.x + b.width / 2, b.y + b.height / 2);
     };
@@ -45,233 +44,213 @@ async function main() {
       const b = await page.locator(sel).first().boundingBox();
       await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
       await page.mouse.down();
-      await page.evaluate((s) => window.toy.step(s), seconds);
+      await page.evaluate((s) => window.diner.step(s), seconds);
       await page.mouse.up();
     };
     const S = (page, fn, arg) => page.evaluate(fn, arg);
-    const vis = async (page, sel) => (await page.locator(sel).count()) > 0 && page.locator(sel).first().isVisible();
+    const visible = async (page, sel) => (await page.locator(sel).count()) > 0 && page.locator(sel).first().isVisible();
+    const text = async (page, sel) => ((await page.locator(sel).first().textContent()) || '').trim();
+    const stationXY = (page, id) => S(page, (sid) => window.diner.scene.anchor('station', sid), id);
 
-    // ------------------------------------------------------------ fresh game: tap the saw, upgrade, hold, close
+    // ------------------------------------------------------------ fresh start: HUD, tutorial, bottom bar size
     let page = await open('state=fresh&lang=en');
-    check(await page.locator('.tut:not(.is-hidden)').count() === 1, 'tutorial hand visible on a fresh start');
-    check(/Tap the Saw/.test(await page.locator('.tut-bubble').textContent()), 'tutorial says "Tap the Saw"');
-    // HUD pieces
-    check(await vis(page, '.hud-coins') && await vis(page, '.hud-inc') && await vis(page, '.hud-badge') && await vis(page, '.hud-gear'), 'HUD: coin pill, income chip, factory badge, gear');
-    check(await page.locator('.hud-star').count() === 3, 'factory badge has a 3-star goal bar');
-    check(await page.locator('.mbtn').count() === 3, 'menu bar has 3 buttons');
-    check(/Upgrade the Saw/.test(await page.locator('.ngp-text').textContent()), 'next-goal pill shows the first goal');
-    // sizes: touch targets >= 44 px, bottom bar + pill <= 22% of the screen, nothing off screen
-    const sizes = await S(page, () => {
-      const out = [];
-      for (const sel of ['.hud-gear', '.hud-badge', '.mbtn', '.ngp']) {
-        for (const e of document.querySelectorAll(sel)) { const r = e.getBoundingClientRect(); out.push({ sel, w: r.width, h: r.height, l: r.left, r: r.right }); }
-      }
-      const b = document.querySelector('.bottom').getBoundingClientRect();
-      return { out, bottomShare: (innerHeight - b.top) / innerHeight };
-    });
-    const small = sizes.out.filter((x) => x.w < 44 || x.h < 44);
-    check(small.length === 0, 'HUD and menu touch targets are at least 44 px' + (small.length ? ': ' + JSON.stringify(small) : ''));
-    const off = sizes.out.filter((x) => x.l < 0 || x.r > 390);
-    check(off.length === 0, 'HUD and menu stay inside the screen');
-    check(sizes.bottomShare <= 0.22, `bottom bar + goal pill use ${(sizes.bottomShare * 100).toFixed(1)}% of the screen height (<= 22%)`);
+    check(await visible(page, '.coin-pill') && await visible(page, '.income') && await visible(page, '.hud-loc') && await visible(page, '.gear'), 'HUD: coins, income, location badge, gear');
+    check(await page.locator('.hud-loc .stars .ico').count() === 3, 'location badge has 3 goal stars');
+    check(/25/.test(await text(page, '.coin-pill .val')), 'coin pill shows the start money');
+    check(await visible(page, '.tut-bubble') && /Tap the Juice Bar/.test(await text(page, '.tut-bubble')), 'tutorial: "Tap the Juice Bar"');
+    const bottomTop = await S(page, () => document.querySelector('.bottom').getBoundingClientRect().top);
+    check((844 - bottomTop) / 844 <= 0.2, `bottom UI uses ${(100 * (844 - bottomTop) / 844).toFixed(1)} % of the height (<= 20 %)`);
+    const hudBottom = await S(page, () => document.querySelector('.hud').getBoundingClientRect().bottom);
+    check(hudBottom <= 80, 'HUD is compact (' + Math.round(hudBottom) + ' px)');
+    check(await page.locator('.bubble').count() === 1, 'the first guest shows an order bubble');
+    check(await page.locator('.mark .lvl:not(.is-hidden)').count() === 1, 'one level badge (Juice Bar)');
+    check(await page.locator('.mark .sign:not(.is-hidden)').count() === 1, 'one Open sign (Grill)');
 
-    const saw = await S(page, () => { const a = window.toy.scene.anchor('saw'); return { x: a.x, y: a.y + 46 }; });
-    await tapAt(page, saw.x, saw.y);
-    check(await page.locator('.card:not(.is-hidden)').count() === 1, 'tapping the saw opens its card');
-    check(await S(page, () => window.toy.game.state.factory.stations[0].boostT > 0), 'tapping the saw boosts it');
-    check(/Saw/.test(await page.locator('.card-title').textContent()), 'card ribbon shows the station name');
-    check(await S(page, () => document.querySelector('.ui-root').classList.contains('card-open')), 'menu bar slides away while the card is open');
-    check(await page.locator('.card .cbtn.is-ready').count() === 1, 'affordable Upgrade button pulses (is-ready)');
-    const m0 = await S(page, () => window.toy.game.state.money);
-    await tapSel(page, '.card .cbtn');
-    check(await S(page, () => window.toy.game.state.factory.stations[0].level) === 2, 'Upgrade button raises the level');
-    check(await S(page, () => window.toy.game.state.money) < m0, 'Upgrade costs coins');
-    check(await S(page, () => window.toy.game.state.tutorial) === 1, 'tutorial moves on after the first upgrade');
+    // ------------------------------------------------------------ tap the Juice Bar -> card, tutorial step 1, upgrade
+    let a = await stationXY(page, 'juice');
+    await tapAt(page, a.x, a.y + 20);
+    check(await S(page, () => document.querySelector('.card').classList.contains('open')), 'tapping the station opens its card');
+    check(await S(page, () => window.diner.game.state.stations[0].boostT > 0), 'tapping the station boosts it');
+    check(await S(page, () => window.diner.game.state.tutorial) === 1, 'tutorial moves to step 1');
+    check(/Upgrade/.test(await text(page, '.tut-bubble')), 'tutorial: "Upgrade ..."');
+    check(/Juice Bar/.test(await text(page, '.card .name')) && /Level 1/.test(await text(page, '.card .sub')), 'card: name + level');
+    check(/7/.test(await text(page, '.card .stat')) && /10/.test(await text(page, '.card .stat')), 'card: price per dish now -> next (7 -> 10)');
+    let m0 = await S(page, () => window.diner.game.state.money);
+    await tapSel(page, '.card .big');
+    check(await S(page, () => window.diner.game.state.stations[0].level) === 2, 'Upgrade raises the level');
+    check(await S(page, () => window.diner.game.state.money) === m0 - 8, 'Upgrade costs 8 coins');
+    check(await S(page, () => window.diner.game.state.tutorial) === 2, 'tutorial moves to step 2 after the first upgrade');
+    check(/Level 2/.test(await text(page, '.card .sub')), 'card shows level 2');
     // hold to repeat
-    await S(page, () => { window.toy.game.state.money = 5000; });
-    await holdSel(page, '.card .cbtn', 1.2);
-    const lvl = await S(page, () => window.toy.game.state.factory.stations[0].level);
-    check(lvl >= 6, `holding Upgrade repeats (level ${lvl})`);
-    check(await page.locator('.card-stars .star').count() === 4, 'card shows 4 milestone stars');
-    // unaffordable
-    await S(page, () => { window.toy.game.state.money = 0; window.toy.step(0.05); });
-    check(await page.locator('.card .cbtn.is-disabled').count() === 1, 'button is disabled (grey) when unaffordable');
-    check(await page.locator('.card-need:not(.is-hidden)').count() === 1, 'card says how many coins are missing');
-    const needText = await page.locator('.card-need').textContent();
-    check(/Need .+ more coins/.test(needText), `missing text: "${needText}"`);
-    await tapSel(page, '.card-close');
-    await S(page, () => window.toy.step(0.3));
-    check(await page.locator('.card:not(.is-hidden)').count() === 0, 'close button hides the card');
-    // tap empty space closes the card
-    await tapAt(page, saw.x, saw.y);
-    await tapAt(page, 360, 420);
-    await S(page, () => window.toy.step(0.3));
-    check(await page.locator('.card:not(.is-hidden)').count() === 0, 'tapping empty space closes the card');
-    await wait(300);
+    await S(page, () => { window.diner.game.state.money = 5000; });
+    await holdSel(page, '.card .big', 2.5);
+    const lvHeld = await S(page, () => window.diner.game.state.stations[0].level);
+    check(lvHeld >= 10, 'holding Upgrade repeats (level ' + lvHeld + ')');
+    // not enough coins
+    await S(page, () => { window.diner.game.state.money = 0; window.diner.step(0.2); });
+    check(await S(page, () => document.querySelector('.card .big').classList.contains('is-off')), 'Upgrade button greys out without coins');
+    check(/Need/.test(await text(page, '.card .need')), 'card says how many coins are missing');
+    await tapSel(page, '.card .x');
+    check(!(await S(page, () => document.querySelector('.card').classList.contains('open'))), 'X closes the card');
+    await tapAt(page, a.x, a.y + 20);
+    await tapAt(page, 195, 480);
+    check(!(await S(page, () => document.querySelector('.card').classList.contains('open'))), 'tapping the floor closes the card');
 
-    // goals: complete w1 and collect it from the next-goal pill
-    await S(page, () => { const g = window.toy.game; g.state.money = 1e5; for (let i = 0; i < 6; i++) g.act({ type: 'upgrade', station: 'saw' }); window.toy.step(0.2); });
-    check(await page.locator('.goal.is-done').count() === 1, 'a finished goal turns the pill into Collect');
-    check(await page.locator('.ngp-dot.is-on').count() === 1 && await page.locator('.mbtn[data-menu="goals"] .mbtn-dot.is-on').count() === 1, 'red notification dots on the pill and the Goals button');
-    const before = await S(page, () => window.toy.game.state.money);
-    await tapSel(page, '.goal.is-done');
-    check(await S(page, () => window.toy.game.state.goals[0].claimed), 'tapping Collect claims the goal');
-    check(await S(page, () => window.toy.game.state.money) > before, 'goal reward is paid');
+    // ------------------------------------------------------------ order bubble life cycle + pay float
+    page = await open('state=fresh&lang=en');
+    const bubbleId = await S(page, () => window.diner.game.state.customers[0].id);
+    let sawRing = false;
+    let sawFloat = false;
+    let gone = false;
+    for (let i = 0; i < 60 && !gone; i++) {
+      await S(page, () => window.diner.step(0.25));
+      if (await S(page, () => { const r = document.querySelector('.bubble svg.ring'); return !!r && !r.classList.contains('is-hidden'); })) sawRing = true;
+      if (await page.locator('.float').count()) sawFloat = true;
+      gone = await S(page, (id) => !window.diner.game.state.customers.some((c) => c.id === id && c.state === 'waiting'), bubbleId);
+    }
+    check(sawRing, 'bubble shows a progress ring while the dish cooks');
+    await S(page, () => window.diner.step(0.5));
+    check(await S(page, () => document.querySelectorAll('.bubble:not(.out)').length) <= await S(page, () => window.diner.game.state.customers.filter((c) => c.state === 'waiting').length), 'served guests lose their bubble');
+    for (let i = 0; i < 20 && !sawFloat; i++) { await S(page, () => window.diner.step(0.25)); if (await page.locator('.float').count()) sawFloat = true; }
+    check(sawFloat, 'paying guests pop a "+coins" float');
 
-    // locked station: open via sign
-    await S(page, () => { window.toy.game.state.money = 1000; window.toy.step(0.2); });
-    const sign = await page.locator('.mark.is-next .mark-sign').boundingBox();
-    await tapAt(page, sign.x + sign.width / 2, sign.y + sign.height / 2);
-    check(await page.locator('.card.is-locked:not(.is-hidden)').count() === 1, 'tapping the Open sign shows the station card');
-    check(await page.locator('.card .cbtn.is-open-btn').count() === 1, 'locked card has a yellow Open button');
-    await tapSel(page, '.card .cbtn');
-    check(await S(page, () => window.toy.game.state.factory.stations[2].open), 'Open button opens the station');
-    await S(page, () => window.toy.step(0.3));
-    await wait(300);
+    // ------------------------------------------------------------ goal pill collect
+    page = await open('state=collect&lang=en');
+    check(await S(page, () => document.querySelector('.goal-pill').classList.contains('done')), 'goal pill highlights a done goal');
+    m0 = await S(page, () => window.diner.game.state.money);
+    await tapSel(page, '.goal-pill .btn');
+    check(await S(page, () => window.diner.game.state.goals[0].claimed), 'Collect in the pill claims the goal');
+    check(await S(page, () => window.diner.game.state.money) === m0 + 15, 'goal reward added (15)');
 
-    // ------------------------------------------------------------ Upgrades list
-    await S(page, () => { window.toy.game.state.money = 3000; window.toy.step(0.3); });
-    check(await page.locator('.mbtn[data-menu="upgrades"] .mbtn-dot.is-on').count() === 1, 'Upgrades button shows how many upgrades are ready');
-    await tapSel(page, '.mbtn[data-menu="upgrades"]');
-    check(await vis(page, '.up-card'), 'Upgrades button opens the Upgrades list');
-    check(await page.locator('.up-row').count() === 4, 'Upgrades list has every station');
-    check(await vis(page, '.hud-coins') && await S(page, () => getComputedStyle(document.querySelector('.hud')).zIndex === '6'), 'coins stay visible above the dimmed screen');
-    let l0 = await S(page, () => window.toy.game.state.factory.stations[1].level);
-    await tapSel(page, '.up-btn[data-station="assembly"]');
-    check(await S(page, () => window.toy.game.state.factory.stations[1].level) === l0 + 1, 'list button buys one Assembly level');
-    l0 = await S(page, () => window.toy.game.state.factory.stations[2].level);
-    await S(page, () => { window.toy.game.state.money = 1e5; window.toy.step(0.15); });
-    await holdSel(page, '.up-btn[data-station="paint"]', 1.2);
-    const l1 = await S(page, () => window.toy.game.state.factory.stations[2].level);
-    check(l1 >= l0 + 5, `holding a list button repeats (Paint ${l0} -> ${l1})`);
-    check(/Lv \d+/.test(await page.locator('.up-row[data-station="paint"] .up-lv').textContent()), 'list rows show the level');
-    check(/\+\d[^ ]*\s*per toy/.test(await page.locator('.up-row[data-station="paint"] .up-gain').textContent()), 'list rows show the gain per toy');
-    await S(page, () => { window.toy.game.state.money = 100; window.toy.step(0.15); });
-    check(await page.locator('.up-btn[data-station="wrap"].is-disabled').count() === 1, 'Gift Wrap row: Open button is grey until affordable');
-    await S(page, () => { window.toy.game.state.money = 1e6; window.toy.step(0.15); });
-    await tapSel(page, '.up-btn[data-station="wrap"]');
-    check(await S(page, () => window.toy.game.state.factory.stations[3].open), 'Open from the Upgrades list opens Gift Wrap');
-    await S(page, () => window.toy.step(0.3));
-    await wait(250);
-    check(!(await vis(page, '.up-card')), 'the list closes so the new machine can be seen');
-    await tapSel(page, '.mbtn[data-menu="upgrades"]');
-    await tapSel(page, '.up-card .modal-x');
-    await wait(250);
-    check(!(await vis(page, '.up-card')), 'red X closes the Upgrades list');
+    // ------------------------------------------------------------ Open sign -> card -> Open
+    page = await open('state=open&lang=en');
+    check(await S(page, () => document.querySelector('.mark .sign.can') !== null), 'Open sign turns into a button when affordable');
+    check(/Open the Grill/.test(await text(page, '.tut-bubble')), 'tutorial step 2 points at the Grill');
+    await tapSel(page, '.mark .sign.can');
+    check(/Grill/.test(await text(page, '.card .name')) && /Open/.test(await text(page, '.card .big')), 'sign opens the Grill card with an Open button');
+    check(/Tap Open/.test(await text(page, '.tut-bubble')), 'tutorial: "Tap Open"');
+    await tapSel(page, '.card .big');
+    check(await S(page, () => window.diner.game.state.stations[1].open), 'Open button opens the Grill');
+    check(await S(page, () => window.diner.game.state.tutorial) === 'done', 'tutorial done after opening the Grill');
+    check(/Grill is open/.test(await S(page, () => window.diner.ui.debug.floats.toastText())), 'toast: "Grill is open"');
+    await S(page, () => window.diner.step(0.2));
+    check(!(await visible(page, '.tut:not(.is-hidden) .tut-bubble')), 'tutorial hand gone');
+
+    // ------------------------------------------------------------ Upgrades panel
+    page = await open('state=upgrades&lang=en');
+    check(await S(page, () => document.querySelector('.upgrades-sheet').parentElement.classList.contains('open')), 'Upgrades panel opens');
+    check(await page.locator('.upgrades-sheet .row').count() === 7, 'Upgrades: 4 stations + cook + table + speed');
+    let lv = await S(page, () => window.diner.game.state.stations[0].level);
+    await tapSel(page, '.upgrades-sheet .row[data-row="juice"] .btn');
+    check(await S(page, () => window.diner.game.state.stations[0].level) === lv + 1, 'row button upgrades the Juice Bar');
+    await S(page, () => { window.diner.game.state.money = 1e6; });
+    await tapSel(page, '.upgrades-sheet .row[data-row="hire"] .btn');
+    check(await S(page, () => window.diner.game.state.cooks.length) === 3, 'Hire a cook');
+    await tapSel(page, '.upgrades-sheet .row[data-row="table"] .btn');
+    check(await S(page, () => window.diner.game.state.tables.filter((t) => t.owned).length) === 4, 'Buy a table');
+    await tapSel(page, '.upgrades-sheet .row[data-row="speed"] .btn');
+    check(await S(page, () => window.diner.game.state.cookSpeed) === 2, 'Cook speed');
+    await tapSel(page, '.upgrades-sheet .row[data-row="stew"] .btn');
+    check(await S(page, () => window.diner.game.state.stations[2].open), 'Open the Stew Pot from the list');
+    lv = await S(page, () => window.diner.game.state.stations[1].level);
+    await holdSel(page, '.upgrades-sheet .row[data-row="grill"] .btn', 2);
+    check(await S(page, () => window.diner.game.state.stations[1].level) >= lv + 5, 'holding a row button repeats');
+    check(await page.locator('.upgrades-sheet .row[data-row="oven"] .btn:not(.is-hidden)').count() === 1, 'Oven row offers Open once the Stew Pot is open');
+    check(/Hold/.test(await text(page, '.upgrades-sheet .tip')), 'hold tip shown');
+    await tapSel(page, '.upgrades-sheet .close-btn');
+    check(!(await S(page, () => document.querySelector('.upgrades-sheet').parentElement.classList.contains('open'))), 'X closes the panel');
 
     // ------------------------------------------------------------ Goals panel
-    await S(page, () => { window.toy.game.state.money = 300; window.toy.step(0.3); });
-    await tapSel(page, '.mbtn[data-menu="goals"]');
-    check(await vis(page, '.gp-card'), 'Goals button opens the Goals panel');
-    check(await page.locator('.gp-row:not(.is-hidden)').count() === 3, 'Goals panel lists 3 goals');
-    check(/Wooden Toys/.test(await page.locator('.goals-name').textContent()), 'Goals panel shows the factory name');
-    check(/\d+\/15/.test(await page.locator('.gp-count').textContent()), 'Goals panel shows collected/total');
-    let done = await page.locator('.gp-row.is-done').count();
-    check(done >= 1, `finished goals show Collect in the panel (${done})`);
-    const cl0 = await S(page, () => window.toy.game.state.goals.filter((g) => g.claimed).length);
-    await tapSel(page, '.gp-row.is-done .gp-btn');
-    await S(page, () => window.toy.step(0.2));
-    check(await S(page, () => window.toy.game.state.goals.filter((g) => g.claimed).length) === cl0 + 1, 'Collect in the Goals panel claims the goal');
-    // Go on an unfinished goal closes the panel and points at the station
-    while (await page.locator('.gp-row.is-done').count()) { await tapSel(page, '.gp-row.is-done .gp-btn'); await S(page, () => window.toy.step(0.2)); }
-    await tapSel(page, '.gp-row:not(.is-done) .gp-btn');
-    await wait(250);
-    check(!(await vis(page, '.gp-card')), 'Go closes the Goals panel');
-    check(await page.locator('.tut:not(.is-hidden)').count() === 1, 'Go points at the place to work on');
-    await S(page, () => window.toy.step(2.5));
-    // tapping the pill when its goal is not done opens the panel
-    await S(page, () => window.toy.step(0.2));
-    if (await page.locator('.goal.is-done').count() === 0) {
-      await tapSel(page, '.ngp');
-      check(await vis(page, '.gp-card'), 'tapping an unfinished goal pill opens the Goals panel');
-      await tapAt(page, 195, 60); // backdrop
-      await wait(250);
-      check(!(await vis(page, '.gp-card')), 'tapping outside closes the Goals panel');
+    page = await open('state=goals&lang=en');
+    check(await page.locator('.goals-sheet .row.goal:not(.is-hidden)').count() === 3, 'Goals panel lists 3 goals');
+    check(/0\/18/.test(await text(page, '.goals-sheet .count')), 'Goals panel shows 0/18');
+    m0 = await S(page, () => window.diner.game.state.money);
+    await tapSel(page, '.goals-sheet .row.goal.done .btn');
+    check(await S(page, () => window.diner.game.state.money) > m0, 'Collect in the panel pays the reward');
+    check(/1\/18/.test(await text(page, '.goals-sheet .count')), 'count goes to 1/18');
+    const goBtn = page.locator('.goals-sheet .row.goal:not(.done) .btn').first();
+    if (await goBtn.count()) {
+      await tapSel(page, '.goals-sheet .row.goal:not(.done) .btn');
+      await S(page, () => window.diner.step(0.1));
+      check(!(await S(page, () => document.querySelector('.goals-sheet').parentElement.classList.contains('open'))) || await S(page, () => document.querySelector('.upgrades-sheet').parentElement.classList.contains('open')), 'Go closes the Goals panel (and points at the target)');
     }
 
-    // ------------------------------------------------------------ Factories panel
-    await tapSel(page, '.mbtn[data-menu="factories"]');
-    check(await vis(page, '.fp-card'), 'Factories button opens the Factories panel');
-    check(await page.locator('.fp-node').count() === 4, 'Factories map has 2 factories and 2 coming-soon spots');
-    check(await page.locator('.fp-node.is-here').count() === 1 && await page.locator('.fp-node.is-locked').count() === 1 && await page.locator('.fp-node.is-soon').count() === 2, 'current, locked and coming-soon factories are marked');
-    await tapSel(page, '.fp-card .modal-x');
-    await wait(250);
-    check(!(await vis(page, '.fp-card')), 'red X closes the Factories panel');
-    await tapSel(page, '.hud-badge');
-    check(await vis(page, '.fp-card'), 'the factory badge also opens the Factories panel');
-    await tapSel(page, '.fp-card .modal-x');
-    await wait(250);
-
-    // ------------------------------------------------------------ settings
-    await S(page, () => window.toy.step(0.3));
-    await tapSel(page, '.hud-gear');
-    check(await page.locator('.set-card').isVisible(), 'gear opens settings');
-    await tapSel(page, '.set-row[data-key="lang"] .seg-btn[data-value="tr"]');
-    check(await S(page, () => document.documentElement.lang) === 'tr', 'language switches to Turkish');
-    check((await page.locator('.set-card .modal-title').textContent()) === 'Ayarlar', 'settings title is Turkish');
-    await tapSel(page, '.set-row[data-key="sound"] .seg-btn[data-value="false"]');
-    check(await S(page, () => window.toy.game.state.settings.sound) === false, 'sound can be turned off');
-    await tapSel(page, '.set-row[data-key="quality"] .seg-btn[data-value="low"]');
-    check(await S(page, () => window.toy.scene.stats().quality) === 'low', 'quality setting reaches the scene');
-    await tapSel(page, '.set-row[data-key="fps"] .seg-btn[data-value="true"]');
-    await S(page, () => window.toy.step(0.6));
-    check(await page.locator('.hud-fps:not(.is-hidden)').count() === 1, 'FPS meter shows');
-    const segSmall = await S(page, () => [...document.querySelectorAll('.seg-btn, .set-card .cbtn, .set-card .modal-x')].map((e) => e.getBoundingClientRect()).filter((r) => r.width < 44 || r.height < 44).length);
-    check(segSmall === 0, 'settings buttons are at least 44 px');
-    await tapSel(page, '.set-card .cbtn');
-    await S(page, () => window.toy.step(0.3));
-    await wait(250);
-    check(await page.locator('.set-card').isVisible() === false, 'Done closes settings');
-    check(/Ahşap/.test(await page.locator('.goals-name').textContent()), 'factory name in Turkish');
-    check(/^Sv\. \d+$/.test(await page.locator('.mark.is-open .mark-lvl').first().textContent()), 'Turkish level badge reads "Sv. N"');
-    check(/Yükselt/.test(await page.locator('.mbtn[data-menu="upgrades"] .mbtn-label').textContent()), 'menu labels in Turkish');
-    await page.close();
+    // ------------------------------------------------------------ Places panel + complete -> next location
+    page = await open('state=places&lang=en');
+    check(await page.locator('.places-sheet .row.place').count() === 4, 'Places: 4 entries');
+    check(await S(page, () => [...document.querySelectorAll('.places-sheet .row.place')].map((r) => r.className.split(' ').pop()).join(',')) === 'current,locked,soon,soon', 'Places: current, locked, soon, soon');
+    page = await open('state=placesdone&lang=en');
+    check(await visible(page, '.places-sheet .row.place .btn.ready:not(.is-hidden)'), 'Places offers "Go" once the place is complete');
+    await tapSel(page, '.places-sheet .row.place .btn.ready:not(.is-hidden)');
+    check(await S(page, () => window.diner.game.state.location) === 'harbor', 'Go in Places starts the next place');
+    page = await open('state=complete&lang=en');
+    check(await visible(page, '.modal.open .stars-big'), 'Restaurant complete screen appears');
+    check(/Harbor Tavern/.test(await text(page, '.modal.open .modal-card')), 'complete screen names the next place');
+    await tapSel(page, '.modal.open .btn-wide');
+    check(await S(page, () => window.diner.game.state.location) === 'harbor', 'Next place starts the Harbor Tavern');
+    await S(page, () => window.diner.step(0.2));
+    check(/Harbor Tavern/.test(await text(page, '.hud-loc .name')), 'HUD shows the new place');
+    check(await page.locator('.mark').count() === 4 && await page.locator('.mark .lvl:not(.is-hidden)').count() === 1, 'station marks rebuilt for the new place');
+    check(!(await visible(page, '.modal.open')), 'complete screen closed');
 
     // ------------------------------------------------------------ offline card
     page = await open('state=offline&lang=en');
-    check(await page.locator('.off-card').isVisible(), 'offline card shows on return');
-    const offAmt = await S(page, () => window.toy.game.select.offline().amount);
-    const m1 = await S(page, () => window.toy.game.state.money);
-    await tapAt(page, 195, 60); // backdrop does not close it
-    check(await page.locator('.off-card').isVisible(), 'offline card stays until collected');
-    await tapSel(page, '.off-card .cbtn');
-    check(Math.abs((await S(page, () => window.toy.game.state.money)) - (m1 + offAmt)) < 1, 'Collect adds the offline coins');
-    await page.close();
+    check(await visible(page, '.modal.open .big-amount'), 'offline card shows the earnings');
+    check(/1 h 35 min/.test(await text(page, '.modal.open p')), 'offline card: time away (1 h 35 min)');
+    m0 = await S(page, () => window.diner.game.state.money);
+    const off = await S(page, () => window.diner.game.select.offline().amount);
+    await tapSel(page, '.modal.open .btn-wide');
+    check(await S(page, () => window.diner.game.state.money) === m0 + off, 'Collect adds the offline earnings');
+    check(!(await visible(page, '.modal.open')), 'offline card closes');
 
-    // ------------------------------------------------------------ factory complete -> next factory
-    page = await open('state=complete&lang=en');
-    await S(page, () => window.toy.step(0.2));
-    check(await page.locator('.cmp-card').isVisible(), 'factory complete screen shows');
-    check(/Factory complete/.test(await page.locator('.cmp-title').textContent()), 'complete screen ribbon title');
-    check(await page.locator('.cmp-star').count() === 3 && await page.locator('.cmp-confetti i').count() > 20, 'complete screen has 3 stars and confetti');
-    await tapSel(page, '.cmp-card .cbtn');
-    await S(page, () => window.toy.step(0.3));
-    check(await S(page, () => window.toy.game.state.factory.id) === 'teddy', 'Next factory starts the Teddy Bears factory');
-    check(await page.locator('.mark').count() === 4, 'station marks rebuilt for the new factory');
-    await wait(300);
-    await tapSel(page, '.mbtn[data-menu="factories"]');
-    check(await page.locator('.fp-node.is-done').count() === 1 && await page.locator('.fp-node.is-here .fp-name').textContent().then((t) => /Teddy/.test(t)), 'Factories map: Wooden Toys done, Teddy Bears current');
-    await page.close();
-
-    // ------------------------------------------------------------ safe areas (notch + home bar)
+    // ------------------------------------------------------------ settings
     page = await open('state=fresh&lang=en');
-    await page.addStyleTag({ content: ':root { --safe-t: 47px; --safe-b: 34px; }' });
-    await S(page, () => window.toy.step(0.1));
-    const safe = await S(page, () => ({
-      hud: document.querySelector('.hud').getBoundingClientRect().top,
-      bottom: innerHeight - document.querySelector('.bottom').getBoundingClientRect().bottom,
-      share: (innerHeight - document.querySelector('.bottom').getBoundingClientRect().top) / innerHeight,
-    }));
-    check(safe.hud >= 47 && safe.bottom >= 34, `HUD and menu respect safe areas (top ${safe.hud}, bottom gap ${safe.bottom})`);
-    check(safe.share <= 0.22, `with a home bar the bottom UI uses ${(safe.share * 100).toFixed(1)}% (<= 22%)`);
-    await page.close();
+    await tapSel(page, '.gear');
+    check(await visible(page, '.modal.open .seg'), 'gear opens settings');
+    await tapSel(page, '.seg[data-setting="lang"] button[data-value="tr"]');
+    check(await S(page, () => window.diner.game.state.settings.lang) === 'tr', 'language -> Türkçe');
+    check(await text(page, '.modal.open h2') === 'Ayarlar' && /Geliştir/.test(await text(page, '.menu')), 'texts switch to Turkish at once');
+    await tapSel(page, '.seg[data-setting="sound"] button[data-value="false"]');
+    check(await S(page, () => window.diner.game.state.settings.sound) === false, 'sound off');
+    await tapSel(page, '.seg[data-setting="quality"] button[data-value="low"]');
+    check(await S(page, () => window.diner.game.state.settings.quality) === 'low', 'graphics Low');
+    await tapSel(page, '.seg[data-setting="fps"] button[data-value="true"]');
+    await tapSel(page, '.modal.open .btn-wide');
+    await S(page, () => window.diner.step(0.6));
+    check(await visible(page, '.fps') && /FPS/.test(await text(page, '.fps')), 'FPS meter shows scene stats');
+    check(!(await visible(page, '.modal.open')), 'Done closes settings');
+    const visibleTr = await S(page, () => document.body.innerText);
+    check(!visibleTr.includes('!'), 'no "!" in the Turkish screen');
 
-    check(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
-    await browser.close();
+    // ------------------------------------------------------------ touch targets and safe areas
+    page = await open('state=upgrades&lang=en');
+    const small = await S(page, () => [...document.querySelectorAll('button')].filter((b) => b.offsetParent && b.getBoundingClientRect().width > 0 && !b.closest('.modal:not(.open), .sheet-wrap:not(.open), .card:not(.open)')).map((b) => {
+      const r = b.getBoundingClientRect();
+      const hit = getComputedStyle(b, '::before').content !== 'none' ? 10 : 0; // ::before hit slop
+      return { cls: b.className, w: r.width + hit, h: r.height + hit };
+    }).filter((x) => x.w < 44 || x.h < 40).map((x) => x.cls + ' ' + Math.round(x.w) + 'x' + Math.round(x.h)));
+    check(small.length === 0, 'touch targets are large enough ' + (small.length ? JSON.stringify(small) : ''));
+    page = await open('state=fresh&lang=en');
+    await S(page, () => { document.documentElement.style.setProperty('--safe-t', '47px'); document.documentElement.style.setProperty('--safe-b', '34px'); window.diner.step(0.1); });
+    await wait(300);
+    const hudTop = await S(page, () => document.querySelector('.coin-pill').getBoundingClientRect().top);
+    const barBottom = await S(page, () => document.querySelector('.menu').getBoundingClientRect().bottom);
+    check(hudTop >= 47 && 844 - barBottom >= 34, 'HUD and bottom bar respect safe areas');
+    const bt2 = await S(page, () => document.querySelector('.bottom').getBoundingClientRect().top);
+    check((844 - bt2 - 34) / 844 <= 0.2, 'bottom UI (without the home bar) stays under 20 %');
+
+    // ------------------------------------------------------------ Turkish lab: no missing keys
+    page = await open('state=busy&lang=tr');
+    const body = await S(page, () => document.body.innerText);
+    check(!/\b[a-z]+\.[a-z]+(\.[a-z]+)?\b/.test(body.replace(/\d+[.,]\d+/g, '')), 'no raw i18n keys on screen (tr)');
+    check(/Görev|Geliştir/.test(body), 'Turkish UI text present');
+
+    check(errors.length === 0, 'no console errors ' + (errors.length ? errors.slice(0, 3).join(' | ') : ''));
   } finally {
+    if (browser) await browser.close();
     server.kill();
   }
-  console.log(failures ? `\n${failures} FAILED` : '\nall UI checks passed');
+  console.log(failures ? `\n${failures} FAILED` : '\nall passed');
   process.exit(failures ? 1 : 0);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

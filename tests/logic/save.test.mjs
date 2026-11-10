@@ -94,3 +94,28 @@ test('settings and tutorial survive a save', () => {
   eq(st.settings, { lang: 'tr', sound: false, quality: 'low', fps: true });
   eq(st.tutorial, 'done');
 });
+
+import { createStorage, SAVE_KEY } from '../../js/game/storage.js';
+
+test('storage helper: key, roundtrip, and no crash when storage is blocked', () => {
+  eq(SAVE_KEY, 'heroesdiner.save.v1');
+  const mem = {};
+  const fake = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } };
+  const st = createStorage(SAVE_KEY, () => fake);
+  const g = createGame({ now: () => 1, lang: 'en', seed: 1 });
+  eq(st.save(g.save()), true);
+  assert(mem[SAVE_KEY].length > 100, 'saved under the key');
+  eq(createGame({ save: st.load(), now: () => 1 }).state.money, g.state.money);
+  st.clear();
+  eq(st.load(), null);
+  // sandboxed iframe: touching localStorage throws
+  const blocked = createStorage(SAVE_KEY, () => { throw new Error('SecurityError'); });
+  eq(blocked.load(), null);
+  eq(blocked.save('x'), false);
+  eq(blocked.clear(), false);
+  const throwing = createStorage(SAVE_KEY, () => ({ getItem() { throw new Error('no'); }, setItem() { throw new Error('quota'); }, removeItem() { throw new Error('no'); } }));
+  eq(throwing.load(), null);
+  eq(throwing.save('x'), false);
+  // no window at all (node)
+  eq(createStorage().load(), null);
+});

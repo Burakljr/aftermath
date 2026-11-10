@@ -2,7 +2,24 @@
 // cabinets), pass counters and decor, all KayKit pieces merged by material (kit.batch).
 // Stations and tables are dynamic and live in stations.js / tables.js.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL } from './kit.js';
+
+let softTex = null;
+function softTexture() {
+  if (softTex) return softTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, '#fff');
+  g.addColorStop(0.45, 'rgba(255,255,255,0.8)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  softTex = new THREE.CanvasTexture(c);
+  return softTex;
+}
 
 const H = Math.PI / 2;
 
@@ -14,14 +31,17 @@ export const THEMES = {
     path: '#d9c39a',
     // lower wainscot ([2,1]) warm wood, upper wall ([4,1]) cream plaster
     wall: [{ cell: CELL.wall, top: '#b77649', bottom: '#8f5434' }, { cell: CELL.trim, top: '#fbf0dc', bottom: '#efdcbc' }],
-    dining: [{ cell: CELL.tileDark, top: '#d29d68', bottom: '#c99460' }, { cell: CELL.tileLight, top: '#e7c08e', bottom: '#dfb684' }],
+    dining: [{ cell: CELL.tileDark, top: '#b98a5e', bottom: '#b08257' }, { cell: CELL.tileLight, top: '#c99a6c', bottom: '#c09163' }],
     kitchen: [{ cell: CELL.tileDark, top: '#c5ccd1', bottom: '#bcc4ca' }, { cell: CELL.tileLight, top: '#f6f3ec', bottom: '#efebe2' }],
     windowLight: '#fff1c9',
+    // warmer, slightly softer wood for counters, tables and chairs than the stock orange
+    base: [{ cell: CELL.wood, top: '#e29a58', bottom: '#b4652f' }],
   },
   harbor: {
     background: '#7fc4dd',
-    ground: '#e8d2a2',
-    path: '#c8a873',
+    ground: '#d9bf8f',
+    path: '#b8935f',
+    sea: '#6fb9d6',
     wall: [{ cell: CELL.wall, top: '#4f8fb0', bottom: '#3f7896' }, { cell: CELL.trim, top: '#eef7fa', bottom: '#d8eaf1' }],
     dining: [{ cell: CELL.tileDark, top: '#5e9dbb', bottom: '#548fab' }, { cell: CELL.tileLight, top: '#eef4f2', bottom: '#e2ebe9' }],
     kitchen: [{ cell: CELL.tileDark, top: '#c97d5d', bottom: '#b86e50' }, { cell: CELL.tileLight, top: '#f3e6d3', bottom: '#e9dac4' }],
@@ -38,12 +58,12 @@ export function themeFor(id) { return THEMES[id] || THEMES.inn; }
 export function buildRoom(kit, layout, quality = 'high') {
   const theme = themeFor(layout.id);
   const mats = {
-    base: kit.materials.base,
+    base: theme.base ? kit.themed(layout.id + ':base', theme.base) : kit.materials.base,
     wall: kit.themed(layout.id + ':wall', theme.wall),
     dining: kit.themed(layout.id + ':dining', theme.dining),
     kitchen: kit.themed(layout.id + ':kitchen', theme.kitchen),
   };
-  const b = kit.batch();
+  const b = kit.batch(mats.base);
   const { minX, maxX, minZ, maxZ } = layout.bounds;
   const decor = quality !== 'low';
   const harbor = layout.id === 'harbor';
@@ -59,7 +79,7 @@ export function buildRoom(kit, layout, quality = 'high') {
 
   // ---- back wall (z = minZ): plain, plain with cabinets / hood, window
   const bw = minZ - 0.25;
-  const backPieces = harbor ? ['wall_window_open', 'wall', 'wall_window_open'] : ['wall', 'wall', 'wall_window_open'];
+  const backPieces = harbor ? ['wall_window_open', 'wall', 'wall'] : ['wall', 'wall', 'wall_window_open'];
   backPieces.forEach((p, i) => b.add(p, minX + 2 + i * 4, 0, bw, 0, 1, mats.wall));
   // side walls (edge-on from the camera, they frame the room)
   for (let z = minZ + 2; z < maxZ; z += 4) {
@@ -90,6 +110,7 @@ export function buildRoom(kit, layout, quality = 'high') {
   } else {
     b.add('kitchencabinet', minX + 7, 0, minZ);
     b.add('kitchencabinet', minX + 9, 0, minZ);
+    b.add('kitchencabinet_half', minX + 11, 0, minZ);
     b.add('shelf_papertowel_decorated', minX + 5, 2.75, minZ);
   }
   if (decor) {
@@ -136,11 +157,45 @@ export function buildRoom(kit, layout, quality = 'high') {
       b.add(crateR, sideR, 0.4, cz, 0.12, 0.42);
       b.add('crate_cheese', sideR - 1.05, 0, cz + 0.1, -0.2, 0.42);
     }
+    // a small host desk with a menu and a mug by the door
+    const hx = harbor ? dx + 3.0 : dx - 3.0, hz = maxZ - 0.75;
+    b.add('kitchentable_A', hx, 0, hz, 0, [0.62, 0.95, 0.5]);
+    b.add('menu', hx - 0.25, 0.95, hz, 0.25, 1.0);
+    b.add(harbor ? 'mug_cocoa' : 'mug_juice', hx + 0.3, 0.95, hz + 0.05, 2.4, 0.9);
     // jars on the cabinet line / sink
     b.add('jar_A_large', maxX - 0.4, 1.0, sz + 0.55, 0, 0.8);
   }
 
   const group = b.build('room:' + layout.id);
+
+  // ---- soft contact shadows along walls and counters + warm window light (2 draw calls)
+  const shade = new THREE.MeshBasicMaterial({ color: 0x3a2414, alphaMap: softTexture(), transparent: true, opacity: 0.32, depthWrite: false });
+  const light = new THREE.MeshBasicMaterial({ color: theme.windowLight, map: softTexture(), transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending });
+  const sb = [], lb = [];
+  const quad = (list, x, z, w, d, y = 0.012, ry = 0) => {
+    const g = new THREE.PlaneGeometry(w, d).rotateX(-H);
+    if (ry) g.rotateY(ry);
+    g.translate(x, y, z);
+    list.push(g);
+  };
+  const sw = maxX - minX;
+  quad(sb, (minX + maxX) / 2, sz + 1.25, sw + 1, 1.1);                 // under the kitchen row
+  for (const seg of layout.kitchen.pass) {
+    quad(sb, (seg.x0 + seg.x1) / 2, seg.z + 1.2, seg.x1 - seg.x0 + 0.8, 1.0);    // in front of the pass
+    quad(sb, (seg.x0 + seg.x1) / 2, seg.z - 1.15, seg.x1 - seg.x0 + 0.6, 0.8);   // behind it
+  }
+  quad(sb, minX + 0.25, (minZ + maxZ) / 2, 1.0, maxZ - minZ + 1);      // along the side walls
+  quad(sb, maxX - 0.25, (minZ + maxZ) / 2, 1.0, maxZ - minZ + 1);
+  quad(sb, (minX + maxX) / 2, maxZ - 0.2, sw + 1, 0.7);                 // along the front wall
+  for (const z of [-4, 0]) {                                             // sun through the side windows
+    quad(lb, minX + 1.7, z + 0.6, 3.2, 2.2, 0.02, -0.35);
+  }
+  quad(lb, harbor ? minX + 2.6 : maxX - 2.6, minZ + 2.4, 2.4, 2.0, 0.02, harbor ? -0.25 : 0.25); // and the kitchen window
+  const sm = new THREE.Mesh(mergeGeometries(sb), shade);
+  sm.renderOrder = 1;
+  const lm = new THREE.Mesh(mergeGeometries(lb), light);
+  lm.renderOrder = 1;
+  group.add(sm, lm);
 
   // ---- outside ground (plain colour) + a path to the door
   const ground = new THREE.Mesh(
@@ -160,11 +215,19 @@ export function buildRoom(kit, layout, quality = 'high') {
   pathMesh.matrixAutoUpdate = false;
   pathMesh.updateMatrix();
   group.add(pathMesh);
+  if (theme.sea) {
+    // the harbour: water behind the tavern
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(200, 60).rotateX(-H), new THREE.MeshLambertMaterial({ color: theme.sea }));
+    sea.position.set(0, -0.51, minZ - 33);
+    sea.matrixAutoUpdate = false;
+    sea.updateMatrix();
+    group.add(sea);
+  }
 
   // points the camera keeps in view: the floor corners, the station tops, the door
   const focus = [
-    new THREE.Vector3(minX - 0.5, 0, maxZ + 0.6), new THREE.Vector3(maxX + 0.5, 0, maxZ + 0.6),
-    new THREE.Vector3(minX - 0.5, 2.4, minZ + 0.6), new THREE.Vector3(maxX + 0.5, 2.4, minZ + 0.6),
+    new THREE.Vector3(minX - 0.1, 0, maxZ + 0.5), new THREE.Vector3(maxX + 0.1, 0, maxZ + 0.5),
+    new THREE.Vector3(minX - 0.1, 2.6, minZ + 0.4), new THREE.Vector3(maxX + 0.1, 2.6, minZ + 0.4),
   ];
   return { group, tris: b.tris, focus, theme, mats };
 }

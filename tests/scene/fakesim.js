@@ -145,14 +145,13 @@ export function createFakeSim(opts = {}) {
       const target = L.stations[si].node;
       let best = null, bd = Infinity;
       for (const k of s.cooks) {
-        if (k.state !== 'idle' && k.state !== 'return') continue;
-        const from = k.state === 'return' ? k.home : k.to;
-        const d = L.pathLength(from, target);
+        if (k.state !== 'idle') continue;
+        const d = L.pathLength(k.to, target);
         if (d < bd) { bd = d; best = k; }
       }
       if (!best) break;
       s.orders.splice(i--, 1);
-      const from = best.state === 'return' ? nearestNode(best) : best.to;
+      const from = best.to;
       best.state = 'toStation';
       best.station = o.station;
       best.order = o;
@@ -160,9 +159,6 @@ export function createFakeSim(opts = {}) {
       if (best.dur === 0) best.dur = 1e-6;
     }
   }
-  // a returning cook taking a new order starts from its home node (keeps the fake simple)
-  function nearestNode(k) { return k.home; }
-
   /** Run until `n` customers are seated or eating (or t runs out). */
   function warm(seconds, h = 1 / 30) { for (let t = 0; t < seconds; t += h) step(h); }
 

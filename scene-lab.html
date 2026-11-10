@@ -8,23 +8,177 @@
 { "imports": { "three": "./vendor/three/build/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
 </script>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #9fc98f; touch-action: manipulation; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #9fc98f; touch-action: manipulation; font-family: system-ui, sans-serif; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  /* mock UI bands (where the real HUD and bottom menu sit) */
+  .band { position: fixed; left: 0; right: 0; pointer-events: none; background: rgba(40, 30, 20, 0.18); }
+  #topband { top: 0; height: 92px; } #botband { bottom: 0; height: 150px; }
+  .nobands .band, .nolabels .tag { display: none; }
+  .tag { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: none; font: 700 11px system-ui; color: #fff;
+    background: rgba(40, 30, 60, 0.75); border-radius: 8px; padding: 2px 6px; white-space: nowrap; }
+  .tag.bubble { background: #fff; color: #333; border-radius: 10px; padding: 3px 7px; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  #panel { position: fixed; right: 6px; top: 96px; z-index: 5; width: 210px; background: rgba(30, 24, 40, 0.88); color: #fff; font-size: 11px;
+    border-radius: 10px; padding: 6px; display: none; }
+  #panel.on { display: block; }
+  #panel button { font-size: 11px; margin: 2px; padding: 3px 6px; border-radius: 6px; border: 0; background: #6a5aa8; color: #fff; }
+  #toggle { position: fixed; right: 6px; top: 66px; z-index: 6; font-size: 11px; padding: 4px 8px; border-radius: 8px; border: 0; background: #3b3355; color: #fff; opacity: 0.8; }
+  #stats { white-space: pre; font: 10px ui-monospace, monospace; color: #b8ffcf; }
 </style>
 </head>
 <body>
 <canvas id="scene"></canvas>
+<div class="band" id="topband"></div><div class="band" id="botband"></div>
+<div id="tags"></div>
+<button id="toggle">lab</button>
+<div id="panel">
+  <div>
+    <button data-p="start">start</button><button data-p="busy">busy</button><button data-p="harbor">harbor</button>
+    <button data-p="eat">eat</button><button data-p="carry">carry</button>
+  </div>
+  <div>
+    <button data-a="open">open next</button><button data-a="up">upgrade x10</button><button data-a="table">buy table</button>
+    <button data-a="cook">hire</button><button data-a="boost">boost</button><button data-a="cust">+guest</button>
+    <button data-a="complete">complete</button><button data-a="quality">quality</button>
+  </div>
+  <div id="stats"></div>
+</div>
 <script type="module">
+// Scene lab: the real scene driven by a fake restaurant (tests/scene/fakesim.js).
+// URL: preset=start|flow|busy|harbor|eat|carry, loc=inn|harbor, quality=high|low, t=<seconds warm-up>,
+// manual=1 (no rAF loop, time moves only through lab.step), bands=0, labels=0, auto=0, el=<deg>, yaw=<deg>
+// Hooks: window.lab = { scene, sim, state, step(dt, render), preset(name), fx(ev, p) }, window.diner (same step/game/scene).
 import { createScene } from './js/scene/scene.js';
+import { createFakeSim } from './tests/scene/fakesim.js';
 const q = new URLSearchParams(location.search);
-const scene = await createScene(document.getElementById('scene'), {
-  quality: q.get('quality') || 'high', preserveDrawingBuffer: true,
+if (q.get('bands') === '0') document.body.classList.add('nobands');
+if (q.get('labels') === '0') document.body.classList.add('nolabels');
+const manual = q.get('manual') === '1';
+const canvas = document.getElementById('scene');
+const sim = createFakeSim({ location: q.get('loc') || 'inn' });
+const scene = await createScene(canvas, {
+  quality: q.get('quality') || 'high', preserveDrawingBuffer: true, autoQuality: q.get('auto') !== '0',
   elevation: q.has('el') ? Number(q.get('el')) : undefined, yaw: q.has('yaw') ? Number(q.get('yaw')) : undefined,
-  location: q.get('loc') || 'inn',
+  location: sim.state.location,
 });
-const state = { location: q.get('loc') || 'inn' };
-scene.update(state, 0);
-window.lab = { scene, state };
+sim.onEvent = (ev, p) => scene.fx(ev, p);
+
+function step(dt, render = true, h = 1 / 30) {
+  let left = dt;
+  while (left > 1e-6) {
+    const d = Math.min(h, left);
+    sim.step(d);
+    scene.update(sim.state, d, false);
+    left -= d;
+  }
+  if (render) { scene.update(sim.state, 0, false); scene.draw(); tags(); }
+}
+
+function seatedCount() { return sim.state.customers.filter((c) => c.state === 'waiting' || c.state === 'eating').length; }
+
+function preset(name) {
+  scene.debug.setCloseUp(null);
+  const loc = q.get('loc') || (name === 'harbor' ? 'harbor' : 'inn');
+  if (name === 'start') {
+    sim.setup({ location: loc, open: 1, tables: 2, cooks: 1, spawn: false });
+    step(0.5, false);
+  } else if (name === 'lineup') {
+    // every guest look (3 characters x 4 tints) and the cook, standing on the 12 seat spots
+    sim.setup({ location: loc, open: 1, tables: 0, cooks: 1, spawn: false });
+    const chars = ['Knight', 'Mage', 'Rogue_Hooded'];
+    const spots = sim.layout.tables.flatMap((t) => t.seats.map((x) => x.id));
+    chars.forEach((ch, r) => {
+      for (let t = 0; t < 4; t++) {
+        const id = spots[r * 4 + t];
+        sim.state.customers.push({ id: 'L' + r + t, look: { char: ch, tint: t }, state: 'queue', seat: null, from: id, to: id, t: 0, dur: 0 });
+      }
+    });
+    sim.step = () => {};
+    step(1.0, false);
+    scene.debug.setCloseUp({ x: 0, z: 2.2, r: 6.2 });
+  } else if (name === 'flow') {
+    sim.setup({ location: loc, open: 2, tables: 2, cooks: 1, spawn: true, seed: 21 });
+  } else if (name === 'busy' || name === 'harbor') {
+    sim.setup({ location: loc, open: 4, tables: 6, cooks: 4, levels: [52, 26, 10, 1], maxCustomers: 8, seed: 11 });
+    // fill the room: 8 guests, most of them seated, cooks busy
+    for (let i = 0; i < 6; i++) sim.spawnOne();
+    sim.state.spawnT = 0.3;
+    for (let t = 0; t < 40 && seatedCount() < 6; t += 0.5) step(0.5, false);
+    step(1.2, false);
+  } else if (name === 'eat') {
+    sim.setup({ location: loc, open: 2, tables: 2, cooks: 1, spawn: false, seed: 3 });
+    const c = sim.spawnOne('t1b');
+    c.look = { char: 'Knight', tint: 0 };
+    const c2 = sim.spawnOne('t1a');
+    c2.look = { char: 'Mage', tint: 0 };
+    for (let t = 0; t < 40 && !(c.state === 'eating' && c.t > 0.8); t += 0.1) step(0.1, false);
+    const tb = sim.layout.tables[0];
+    scene.debug.setCloseUp({ x: tb.pos[0], z: tb.pos[1] + 0.2, r: 2.6 });
+  } else if (name === 'carry') {
+    sim.setup({ location: loc, open: 2, tables: 2, cooks: 1, spawn: false, seed: 5 });
+    const c = sim.spawnOne('t1b');
+    const k = sim.state.cooks[0];
+    for (let t = 0; t < 40 && !(k.state === 'toTable' && k.t > k.dur * 0.55); t += 0.05) step(0.05, false);
+    scene.debug.setCloseUp({ x: scene.debug.crowd.cooks.get(k.id).x, z: scene.debug.crowd.cooks.get(k.id).z, r: 2.4 });
+  }
+  if (q.has('t')) step(Number(q.get('t')), false);
+  step(0, true);
+}
+
+const tagEls = new Map();
+function tags() {
+  if (q.get('labels') === '0') return;
+  const want = new Map();
+  for (const s of sim.state.stations) want.set('s:' + s.id, { a: scene.anchor('station', s.id), text: s.open ? 'Lv ' + s.level : 'Open' });
+  sim.state.tables.forEach((t) => { if (!t.owned) want.set('t:' + t.id, { a: scene.anchor('table', t.id), text: 'Buy' }); });
+  for (const c of sim.state.customers) if (c.state === 'waiting') want.set('c:' + c.id, { a: scene.anchor('customer', c.id), text: c.dish, bubble: true });
+  const root = document.getElementById('tags');
+  for (const [k, el] of tagEls) if (!want.has(k)) { el.remove(); tagEls.delete(k); }
+  for (const [k, w] of want) {
+    let el = tagEls.get(k);
+    if (!el) { el = document.createElement('div'); el.className = 'tag' + (w.bubble ? ' bubble' : ''); root.appendChild(el); tagEls.set(k, el); }
+    el.textContent = w.text;
+    el.style.display = w.a.visible ? '' : 'none';
+    el.style.transform = `translate(${w.a.x}px, ${w.a.y}px) translate(-50%, -100%)`;
+  }
+}
+
+const actions = {
+  open() { const s = sim.state.stations.find((x) => !x.open); if (s) { s.open = true; scene.fx('open', { station: s.id }); } },
+  up() { for (const s of sim.state.stations) if (s.open) { s.level += 10; scene.fx('upgrade', { station: s.id, level: s.level, milestone: [10, 25, 50, 100].some((m) => s.level - 10 < m && s.level >= m) }); break; } },
+  table() { const t = sim.state.tables.find((x) => !x.owned); if (t) { t.owned = true; scene.fx('buyTable', { table: t.id }); } },
+  cook() { if (sim.state.cooks.length < 4) { const c = sim.addCook(); scene.fx('hire', { cook: c.id }); } },
+  boost() { const s = sim.state.stations[0]; s.boostT = 5; scene.fx('boost', { station: s.id }); },
+  cust() { sim.spawnOne(); },
+  complete() { scene.fx('locationComplete', {}); },
+  quality() { const s = scene.stats(); scene.setQuality(s.quality === 'high' ? 'low' : 'high'); },
+};
+document.getElementById('toggle').onclick = () => document.getElementById('panel').classList.toggle('on');
+for (const b of document.querySelectorAll('[data-p]')) b.onclick = () => preset(b.dataset.p);
+for (const b of document.querySelectorAll('[data-a]')) b.onclick = () => actions[b.dataset.a]();
+canvas.addEventListener('pointerdown', (e) => {
+  const hit = scene.pick(e.clientX, e.clientY);
+  if (hit && hit.type === 'station') { const s = sim.state.stations.find((x) => x.id === hit.id); if (s && s.open) { s.boostT = Math.min(5, s.boostT + 1.5); scene.fx('boost', { station: s.id }); } }
+  window.__lastPick = hit;
+});
+
+preset(q.get('preset') || 'start');
+window.lab = { scene, sim, get state() { return sim.state; }, step, preset, fx: (e, p) => scene.fx(e, p), actions, tags };
+window.diner = { scene, step, get game() { return { state: sim.state }; } };
+
+if (!manual) {
+  let last = performance.now();
+  const loop = (now) => {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    sim.step(dt);
+    scene.update(sim.state, dt, true);
+    tags();
+    const st = scene.stats();
+    document.getElementById('stats').textContent = `fps ${st.fps}  ${st.frameMs} ms\ncalls ${st.calls}  tris ${st.tris}\nchars ${st.characters} dishes ${st.dishes} fx ${st.particles}\nquality ${st.quality}`;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
 window.__ready = true;
 </script>
 </body>

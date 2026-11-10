@@ -5,8 +5,8 @@ import * as THREE from 'three';
 
 // dish id (game config) -> KayKit model, scale on the table, empty dish after eating
 export const DISH = {
-  juice: { model: 'mug_juice', s: 0.95, empty: 'mug' },
-  cocoa: { model: 'mug_cocoa', s: 0.95, empty: 'mug' },
+  juice: { model: 'mug_juice', s: 1.1, empty: 'mug' },
+  cocoa: { model: 'mug_cocoa', s: 1.1, empty: 'mug' },
   burger: { model: 'food_burger', s: 0.6, empty: 'plate_dirty' },
   veggieburger: { model: 'food_vegetableburger', s: 0.6, empty: 'plate_dirty' },
   stew: { model: 'food_stew', s: 0.68, empty: 'bowl_dirty' },
@@ -14,7 +14,7 @@ export const DISH = {
   dinner: { model: 'food_dinner', s: 0.6, empty: 'plate_dirty' },
 };
 export function dishInfo(id) { return DISH[id] || DISH.burger; }
-const EMPTY_SCALE = { mug: 0.95, plate_dirty: 0.62, bowl_dirty: 0.66 };
+const EMPTY_SCALE = { mug: 1.1, plate_dirty: 0.62, bowl_dirty: 0.66 };
 export function emptyScale(model) { return EMPTY_SCALE[model] || 0.62; }
 
 const _m = new THREE.Matrix4();

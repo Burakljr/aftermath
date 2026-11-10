@@ -12,8 +12,9 @@ export const HERO_MODELS = ['knight', 'mage', 'rogue_hooded', 'barbarian'];
 
 // hue ranges (degrees) of each outfit's signature colour and the shifts of tints 1..3
 const TINTS = {
-  knight: { h0: 335, h1: 12, smin: 0.42, shifts: [0, 215, 130, 275] },
-  mage: { h0: 228, h1: 335, smin: 0.18, shifts: [0, 155, 95, 205] },
+  // knights also get bronze / gold armour on two tints (grey metal pixels colourised)
+  knight: { h0: 335, h1: 12, smin: 0.42, shifts: [0, 215, 130, 275], metal: [null, null, { h: 28, s: 0.32 }, { h: 44, s: 0.55 }] },
+  mage: { h0: 228, h1: 335, smin: 0.18, shifts: [0, 320, 100, 262] },
   rogue_hooded: { h0: 95, h1: 190, smin: 0.25, shifts: [0, 215, 95, 265] },
   barbarian: { h0: 190, h1: 230, smin: 0.15, shifts: [0, 0, 0, 0] },
 };
@@ -52,7 +53,7 @@ function hsl2rgb(h, s, l, out) {
   return out;
 }
 
-function tintTexture(base, def, shift) {
+function tintTexture(base, def, shift, metal) {
   const img = base.image;
   const c = document.createElement('canvas');
   c.width = img.width; c.height = img.height;
@@ -65,6 +66,11 @@ function tintTexture(base, def, shift) {
   for (let i = 0; i < d.length; i += 4) {
     rgb2hsl(d[i] / 255, d[i + 1] / 255, d[i + 2] / 255, hsl);
     const h = hsl[0];
+    if (metal && hsl[1] < 0.14 && hsl[2] > 0.22 && hsl[2] < 0.9) {
+      hsl2rgb(metal.h, metal.s, hsl[2] * 0.95 + 0.03, rgb);
+      d[i] = rgb[0] * 255; d[i + 1] = rgb[1] * 255; d[i + 2] = rgb[2] * 255;
+      continue;
+    }
     const inside = wrap ? (h >= def.h0 || h <= def.h1) : (h >= def.h0 && h <= def.h1);
     if (!inside || hsl[1] < def.smin) continue;
     hsl2rgb(h + shift, hsl[1], hsl[2], rgb);
@@ -97,8 +103,10 @@ export function createHeroLib(models, animsGltf) {
     let m = maps.get(key);
     if (!m) {
       const def = TINTS[name];
-      const shift = def ? def.shifts[tint % def.shifts.length] : 0;
-      m = shift ? tintTexture(templates[name].map, def, shift) : templates[name].map;
+      const k = def ? tint % def.shifts.length : 0;
+      const shift = def ? def.shifts[k] : 0;
+      const metal = def && def.metal ? def.metal[k] : null;
+      m = shift || metal ? tintTexture(templates[name].map, def, shift, metal) : templates[name].map;
       maps.set(key, m);
     }
     return m;
@@ -132,7 +140,8 @@ export function createHeroLib(models, animsGltf) {
       handR: bones['handslotr'] || bones['handslot.r'] || bones['handr'],
       head: bones['head'],
       cur: null, curAction: null, tint: -1, opacity: 1,
-      play(clip, { fade = 0.2, loop = true, speed = 1, restart = false, at = 0 } = {}) {
+      // play(clip, fade seconds, speed, loop): crossfade from the current clip (no allocation)
+      play(clip, fade = 0.2, speed = 1, loop = true, restart = false) {
         const a = actions[clip];
         if (!a) return null;
         if (hero.cur === clip && !restart) { a.timeScale = speed; return a; }
@@ -142,7 +151,7 @@ export function createHeroLib(models, animsGltf) {
         a.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
         a.clampWhenFinished = !loop;
         a.timeScale = speed;
-        a.time = at;
+        a.time = 0;
         a.setEffectiveWeight(1);
         if (prev && prev !== a && fade > 0) {
           a.play();
