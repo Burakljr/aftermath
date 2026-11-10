@@ -1,212 +1,273 @@
-// End-to-end play test of the real game (index.html: real game, real 3D scene, real UI).
+// End-to-end play test of the real game (index.html: real game logic, real 3D scene, real UI).
 //   timeout 600 node tests/e2e/play.cjs
-// Starts its own static server on PORT (default 5303), emulates an iPhone 13 and plays:
-// fresh start -> tutorial with real taps -> upgrade -> open stations 3 and 4 with real taps
-// -> all goals (fast-forward through window.toy.step) -> factory complete -> next factory
-// (Teddy Bears) -> reload keeps progress -> offline earnings card -> Turkish and back ->
-// no console errors.
+// Starts its own static server on PORT (default 5403), emulates an iPhone 13 and plays:
+// real frame loop + loading screen -> tutorial with real taps (Juice Bar, Upgrade, Open the
+// Grill) -> hire a cook -> buy a table by tapping it in the restaurant -> fast-forward (attentive
+// player, window.diner.step) until every goal is collected -> Restaurant complete -> Harbor
+// Tavern -> reload keeps progress -> offline earnings -> Türkçe and back -> settings survive a
+// reload -> sandboxed iframe (no storage) -> scene budgets -> no console errors.
 const { chromium, devices } = require('playwright');
-const { spawn } = require('child_process');
-const path = require('path');
-const { definePlayer } = require('../helpers.cjs');
+const { wait, LAUNCH, startServer, definePlayer } = require('../helpers.cjs');
 
-const ROOT = path.resolve(__dirname, '../..');
-const PORT = Number(process.env.PORT) || 5303;
+const PORT = Number(process.env.PORT) || 5403;
 const URL = `http://localhost:${PORT}/`;
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const BUDGET = { calls: 120, tris: 150000 };
+const SAVE_KEY = 'heroesdiner.save.v1';
 let failures = 0;
 function check(cond, msg) {
   if (cond) console.log('ok  ', msg);
   else { failures++; console.log('FAIL', msg); }
 }
-const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const mmss = (s) => (s === undefined ? '-' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
 
 async function main() {
-  const server = spawn(process.execPath, [path.join(ROOT, 'tools/serve.mjs')], { env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
+  const server = await startServer(PORT);
   let browser;
+  const t0 = Date.now();
   try {
-    await wait(400);
-    browser = await chromium.launch();
+    browser = await chromium.launch(LAUNCH);
     const ctx = await browser.newContext({ ...devices['iPhone 13'], locale: 'en-US' });
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + String(e)));
     page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-    page.on('requestfailed', (r) => errors.push('request failed: ' + r.url()));
+    page.on('requestfailed', (r) => errors.push('request failed: ' + r.url() + ' (' + (r.failure() && r.failure().errorText) + ', ' + Math.round((Date.now() - t0) / 1000) + ' s)'));
 
     const S = (fn, arg) => page.evaluate(fn, arg);
-    const settle = async (ms = 250) => { await wait(ms); };
-    const tapAt = async (x, y) => { await page.touchscreen.tap(x, y); await settle(); };
+    const step = (s) => S((x) => window.diner.step(x), s);
+    // taps: CSS transitions run on the wall clock, so give them a moment
+    const tapAt = async (x, y) => { await page.touchscreen.tap(x, y); await step(0.05); await wait(280); };
     const visible = async (sel) => (await page.locator(sel).count()) > 0 && page.locator(sel).first().isVisible();
+    const text = async (sel) => ((await page.locator(sel).first().textContent()) || '').trim();
     const tapSel = async (sel) => {
-      const loc = page.locator(sel).first();
-      const b = await loc.boundingBox();
+      const b = await page.locator(sel).first().boundingBox();
       if (!b) throw new Error('no element ' + sel);
       await tapAt(b.x + b.width / 2, b.y + b.height / 2);
     };
     const boot = async () => {
-      await page.waitForFunction(() => window.toy && window.toy.ready, null, { timeout: 60000 });
-      await S(definePlayer);
+      await page.waitForFunction(() => window.diner && window.diner.ready, null, { timeout: 120000 });
+      await page.waitForFunction(() => document.fonts.status === 'loaded', null, { timeout: 20000 });
     };
-    // where to tap a machine: a little below its anchor (the anchor is above the machine)
-    const machinePoint = (id) => S((sid) => { const a = window.toy.scene.anchor(sid); return { x: a.x, y: a.y + 34 }; }, id);
+    const cardOpen = () => S(() => document.querySelector('.card').classList.contains('open'));
+    // a point on the station itself (its anchor is above the appliance)
+    const stationPoint = (id) => S((sid) => { const a = window.diner.scene.anchor('station', sid); return { x: a.x, y: a.y + 30 }; }, id);
+    const budget = (st, what) => check(st.calls > 0 && st.calls <= BUDGET.calls && st.tris <= BUDGET.tris,
+      `${what}: ${st.calls} draw calls, ${Math.round(st.tris / 1000)}k triangles (budget ${BUDGET.calls} / ${BUDGET.tris / 1000}k)`);
 
-    // ------------------------------------------------------------ fresh start
-    const t0 = Date.now();
+    // ------------------------------------------------------------ real frame loop, loading screen
     await page.goto(URL);
     await boot();
-    console.log(`     loaded in ${Date.now() - t0} ms`);
-    check(await S(() => { try { return localStorage.getItem('toyfactory.save.v1') === null || true; } catch { return true; } }), 'page runs with localStorage');
-    await settle(600);
-    check(await page.locator('#loader').count() === 0, 'loading screen is gone after the first frame');
-    check(await S(() => window.toy.game.state.tutorial) === 0, 'fresh game starts at tutorial step 0');
-    check(await visible('.tut:not(.is-hidden)'), 'tutorial hand is visible');
-    check(/Tap the Saw/.test(await page.locator('.tut-bubble').textContent()), 'tutorial says "Tap the Saw"');
-    check(await S(() => document.documentElement.lang) === 'en', 'English by default (en-US phone)');
-    const st0 = await S(() => window.toy.scene.stats());
-    check(st0.calls > 0 && st0.calls < 60 && st0.tris < 100000, `scene within budget at start (${st0.calls} draws, ${Math.round(st0.tris / 1000)}k tris)`);
+    console.log(`     ready (models loaded, first frame) after ${Date.now() - t0} ms`);
+    await wait(700);
+    check(await page.locator('#loader').count() === 0, 'loading screen is removed after the first frame');
+    check(await page.locator('#fatal').isHidden(), 'no "could not start the 3D view" message');
+    check(await S(() => document.title) === "Heroes' Diner" && await S(() => document.documentElement.lang) === 'en', 'English title and language on an en-US phone');
+    const pt0 = await S(() => window.diner.game.state.playTime);
+    await wait(1500);
+    const pt1 = await S(() => window.diner.game.state.playTime);
+    check(pt1 > pt0 + 0.3, `the frame loop runs the restaurant (${(pt1 - pt0).toFixed(2)} s of game time in 1.5 s)`);
+    check(await S(() => window.diner.game.state.customers.length) >= 1, 'a guest is already in the restaurant');
+    const st0 = await S(() => window.diner.scene.stats());
+    budget(st0, 'start, High');
+    check(st0.quality === 'high', 'High quality by default');
+    // leaving saves (pagehide); continue with a deterministic clock
+    await page.goto(URL + '?manual=1');
+    await boot();
+    check(await S((k) => { try { return !!localStorage.getItem(k); } catch { return false; } }, SAVE_KEY), 'leaving the page saved the game');
+    await S(definePlayer);
 
-    // ------------------------------------------------------------ tutorial 1: tap the saw, upgrade
-    let p = await machinePoint('saw');
+    // ------------------------------------------------------------ tutorial 1: tap the Juice Bar
+    check(await S(() => window.diner.game.state.tutorial) === 0, 'tutorial starts at step 0');
+    check(await visible('.tut-bubble') && /Tap the Juice Bar/.test(await text('.tut-bubble')), 'tutorial: "Tap the Juice Bar"');
+    let p = await stationPoint('juice');
     await tapAt(p.x, p.y);
-    check(await visible('.card:not(.is-hidden)'), 'tapping the saw machine opens its card');
-    check(await S(() => window.toy.game.state.factory.stations[0].boostT > 0), 'tapping the saw machine boosts it');
-    const cost1 = await S(() => window.toy.game.select.stationView('saw').cost);
-    if (await S(() => window.toy.game.state.money) < cost1) await S(() => window.toy.step(3));
-    await tapSel('.card .cbtn');
-    check(await S(() => window.toy.game.state.factory.stations[0].level) === 2, 'Upgrade button raises the Saw to level 2');
-    check(await S(() => window.toy.game.state.tutorial) === 1, 'tutorial moves to step 1 after the first upgrade');
-    await tapSel('.card-close');
-    await settle(300);
-    check(!(await visible('.card:not(.is-hidden)')), 'close button hides the card');
+    check(await cardOpen(), 'tapping the Juice Bar in the 3D view opens its card');
+    check(await S(() => window.diner.game.state.stations[0].boostT > 0), 'tapping the Juice Bar boosts it');
+    check(await S(() => window.diner.game.state.tutorial) === 1, 'tutorial moves to step 1');
+    check(/Juice Bar/.test(await text('.card .name')) && /Level 1/.test(await text('.card .sub')), 'card shows "Juice Bar, Level 1"');
 
-    // truck info
-    p = await S(() => window.toy.scene.anchor('truck'));
-    await tapAt(p.x, p.y + 30);
-    check(/sells for/.test(await page.locator('.toast').textContent()), 'tapping the truck shows what a toy sells for');
+    // ------------------------------------------------------------ tutorial 2: upgrade
+    const cost1 = await S(() => window.diner.game.select.stationView('juice').cost);
+    if (await S(() => window.diner.game.state.money) < cost1) await step(3);
+    const firstUpgradeAt = await S(() => window.diner.game.state.playTime);
+    await tapSel('.card .big');
+    check(await S(() => window.diner.game.state.stations[0].level) === 2, 'Upgrade raises the Juice Bar to level 2');
+    check(firstUpgradeAt < 5, `the first upgrade is possible after ${firstUpgradeAt.toFixed(1)} s (target: within 5 s)`);
+    check(await S(() => window.diner.game.state.tutorial) === 2, 'tutorial moves to step 2');
+    await tapSel('.card .x');
+    check(!(await cardOpen()), 'X closes the card');
 
-    // ------------------------------------------------------------ tutorial 2: open the Paint Booth
+    // ------------------------------------------------------------ guest info + order bubble
+    check(await page.locator('.bubble').count() >= 1, 'waiting guests show an order bubble');
+    p = await S(() => {
+      const c = window.diner.game.state.customers.find((x) => x.state === 'waiting');
+      return c ? window.diner.scene.anchor('customer', c.id) : null;
+    });
+    if (p) {
+      await tapAt(p.x, p.y + 35);
+      check(/please/.test(await S(() => window.diner.ui.debug.floats.toastText() || '')), 'tapping a guest shows his order ("..., please")');
+    }
+
+    // ------------------------------------------------------------ tutorial 3: open the Grill
     let r = await S(() => window.__play({ seconds: 300, open: false, until: 'money>=open' }));
-    console.log(`     saved up for the Paint Booth after ${mmss(r.t)} of play (${r.upgrades} upgrades)`);
-    await S(() => window.toy.step(0.3));
-    check(await S(() => window.toy.game.state.money >= window.toy.game.config().stations[2].openCost), 'Paint Booth is affordable');
-    check(/new station/.test(await page.locator('.tut-bubble').textContent()), 'tutorial says "You can open a new station"');
-    await tapSel('.mark.is-next .mark-sign');
-    check(await visible('.card .cbtn.is-open-btn'), 'tapping the Open sign shows the card with an Open button');
-    await tapSel('.card .cbtn.is-open-btn');
-    check(await S(() => window.toy.game.state.factory.stations[2].open), 'Open button opens the Paint Booth (station 3)');
-    check(await S(() => window.toy.game.state.tutorial) === 2, 'tutorial moves to step 2 (goals)');
-    await settle(300);
-    check(!(await visible('.card:not(.is-hidden)')), 'the card closes so the new machine can be seen');
-
-    // ------------------------------------------------------------ tutorial 3: collect a goal
-    r = await S(() => window.__play({ seconds: 120, claim: false, until: 'goalDone' }));
-    await S(() => window.toy.step(0.2));
-    check(await visible('.goal.is-done'), 'a finished goal shows Collect');
-    const m1 = await S(() => window.toy.game.state.money);
-    await tapSel('.goal.is-done');
-    check(await S(() => window.toy.game.state.money) > m1, 'tapping Collect gives coins');
-    check(await S(() => window.toy.game.state.tutorial) === 'done', 'tutorial is done after the first goal');
-
-    // ------------------------------------------------------------ open Gift Wrap with real taps
-    r = await S(() => window.__play({ seconds: 600, open: false, until: 'money>=open' }));
-    await S(() => window.toy.step(0.3));
-    await tapSel('.mark.is-next .mark-sign');
-    await tapSel('.card .cbtn.is-open-btn');
-    check(await S(() => window.toy.game.state.factory.stations[3].open), 'Gift Wrap (station 4) opens with real taps');
-    const st1 = await S(() => window.toy.scene.stats());
-    check(st1.calls < 60 && st1.tris < 100000, `scene within budget with all stations open (${st1.calls} draws, ${Math.round(st1.tris / 1000)}k tris)`);
-
-    // ------------------------------------------------------------ all goals -> factory complete
-    r = await S(() => window.__play({ seconds: 2400, until: 'complete' }));
-    const t1 = await S(() => window.__gameTime);
-    console.log(`     factory 1 complete after ${mmss(t1)} of fast-forwarded play`);
-    await S(() => window.toy.step(0.3));
-    await settle(400);
-    check(await S(() => window.toy.game.state.factory.complete), 'every goal collected: factory complete');
-    check(await visible('.cmp:not(.is-hidden)'), 'the Factory complete screen is shown');
-    check(/Factory complete/.test(await page.locator('.cmp-title').textContent()), 'complete screen title');
-    check(t1 > 300 && t1 < 1500, `factory 1 took ${mmss(t1)} of game time (expected ~10 min)`);
-
-    // ------------------------------------------------------------ next factory
-    await tapSel('.cmp .cbtn');
-    await S(() => window.toy.step(0.5));
-    await settle(300);
-    check(await S(() => window.toy.game.state.factory.id) === 'teddy', 'Next factory loads the Teddy Bears factory');
-    check(await S(() => window.toy.game.state.factory.stations.map((s) => s.id).join(',')) === 'cutter,stuffing,stitching,ribbon', 'teddy station ids');
-    check(/Teddy Bears/.test(await page.locator('.goals-name').textContent()), 'goal strip shows the new factory name');
-    check(!(await visible('.cmp:not(.is-hidden)')), 'complete screen closed');
-    // play the new factory a bit, with a real tap on the first machine
-    p = await machinePoint('cutter');
+    await step(0.3);
+    const grillReady = await S(() => window.__gameTime);
+    console.log(`     saved up for the Grill after ${mmss(grillReady)} of play (${r.actions} purchases)`);
+    check(/Open the Grill/.test(await text('.tut-bubble')), 'tutorial: "Open the Grill"');
+    check(await visible('.mark .sign.can'), 'the Grill plot shows an Open sign');
+    await tapSel('.mark .sign.can');
+    check(/Grill/.test(await text('.card .name')) && /Open/.test(await text('.card .big')), 'the Open sign shows the Grill card with an Open button');
+    await tapSel('.card .big');
+    check(await S(() => window.diner.game.state.stations[1].open), 'Open opens the Grill');
+    check(await S(() => window.diner.game.state.tutorial) === 'done', 'tutorial is done');
+    check(await cardOpen() && /Grill/.test(await text('.card .name')) && /Upgrade/.test(await text('.card .big')), 'the card now offers the Grill upgrade');
+    // tap the floor of the aisle between the kitchen pass and the tables to close the card
+    p = await S(() => window.diner.scene.debug.project(0, 0, -3.5));
     await tapAt(p.x, p.y);
-    check(await visible('.card:not(.is-hidden)') && /Fabric Cutter/.test(await page.locator('.card-title').textContent()), 'tapping the Fabric Cutter opens its card');
-    await tapSel('.card-close');
-    await S(() => window.__play({ seconds: 40 }));
-    const st2 = await S(() => window.toy.scene.stats());
-    check(st2.calls < 60 && st2.tris < 100000, `teddy scene within budget (${st2.calls} draws, ${Math.round(st2.tris / 1000)}k tris)`);
+    check(!(await cardOpen()), 'tapping the floor closes the card');
+    await step(0.3);
+    check(!(await visible('.tut:not(.is-hidden) .tut-bubble')), 'tutorial hand is gone');
+
+    // ------------------------------------------------------------ hire a cook (Upgrades panel)
+    if (await S(() => window.diner.game.state.cooks.length) < 2) {
+      for (let i = 0; i < 40 && !(await S(() => window.diner.game.select.cookView().canAfford)); i++) await step(1);
+      await tapSel('.menu-btn[data-menu="upgrades"]');
+      check(await S(() => document.querySelector('.upgrades-sheet').parentElement.classList.contains('open')), 'Upgrades opens from the bottom bar');
+      await tapSel('.upgrades-sheet .row[data-row="hire"] .btn');
+      check(await S(() => window.diner.game.state.cooks.length) === 2, 'Hire a cook: 2 cooks');
+      await tapSel('.upgrades-sheet .close-btn');
+    } else check(true, 'a second cook was already hired by the player');
+    await step(2);
+    check(await S(() => window.diner.scene.stats().characters) >= 3, 'the new cook is in the kitchen');
+
+    // ------------------------------------------------------------ buy a table by tapping it
+    const tv = await S(() => window.diner.game.select.tableView());
+    for (let i = 0; i < 80 && !(await S(() => window.diner.game.select.tableView().canAfford)); i++) await step(1);
+    p = await S((id) => window.diner.scene.anchor('table', id), tv.next);
+    const owned0 = tv.owned;
+    await tapAt(p.x, p.y + 20);
+    check(await S(() => window.diner.game.select.tableView().owned) === owned0 + 1, `tapping the faded table ${tv.next} buys it (${owned0 + 1} tables)`);
+
+    // ------------------------------------------------------------ every goal -> Restaurant complete
+    r = await S(() => window.__play({ seconds: 2400, until: 'allOpen', stats: true }));
+    let maxCalls = r.maxCalls;
+    let maxTris = r.maxTris;
+    r = await S(() => window.__play({ seconds: 2400, until: 'complete', stats: true }));
+    maxCalls = Math.max(maxCalls, r.maxCalls);
+    maxTris = Math.max(maxTris, r.maxTris);
+    const marks = await S(() => window.__marks);
+    const tEnd = marks['complete:inn'];
+    console.log(`     Grill ${mmss(marks['open:grill'])}, Stew ${mmss(marks['open:stew'])}, Oven ${mmss(marks['open:oven'])}, Village Inn complete ${mmss(tEnd)}`);
+    const gaps = await S((end) => { let prev = 0, max = 0; for (const t of window.__rewards) { if (t > end) break; max = Math.max(max, t - prev); prev = t; } return max; }, tEnd || 1e9);
+    console.log(`     longest gap between reward moments: ${gaps.toFixed(1)} s`);
+    check(await S(() => window.diner.game.state.complete), 'every goal collected: the Village Inn is complete');
+    check(tEnd > 7 * 60 && tEnd < 15 * 60, `Village Inn took ${mmss(tEnd)} of game time (target about 10-12 min)`);
+    check(marks['open:stew'] > 120 && marks['open:stew'] < 300 && marks['open:oven'] > 240 && marks['open:oven'] < 480, 'Stew about 3 min, Oven about 6 min');
+    check(gaps <= 30, 'a reward moment at least every 30 s');
+    budget({ calls: maxCalls, tris: maxTris }, 'busiest frame of the Village Inn, High');
+    await step(0.3);
+    await wait(400);
+    check(await visible('.modal.open .stars-big'), 'the Restaurant complete screen is shown');
+    check(/Restaurant complete/.test(await text('.modal.open h2')) && /Harbor Tavern/.test(await text('.modal.open .modal-card')), 'it says "Restaurant complete" and names the Harbor Tavern');
+
+    // ------------------------------------------------------------ Harbor Tavern
+    await tapSel('.modal.open .btn-wide');
+    await step(0.5);
+    await wait(300);
+    check(await S(() => window.diner.game.state.location) === 'harbor', 'Next place starts the Harbor Tavern');
+    check(await S(() => window.diner.scene.debug.layout.id) === 'harbor', 'the scene shows the Harbor Tavern');
+    check(/Harbor Tavern/.test(await text('.hud-loc .name')), 'HUD shows "Harbor Tavern"');
+    check(!(await visible('.modal.open')), 'the complete screen closed');
+    p = await stationPoint('cocoa');
+    await tapAt(p.x, p.y);
+    check(await cardOpen() && /Cocoa Stand/.test(await text('.card .name')), 'tapping the Cocoa Stand opens its card');
+    await tapSel('.card .x');
+    // the Harbor Tavern is the last place: stop well before its goals are all done
+    await S(() => window.__play({ seconds: 2400, until: 'allOpen', renderEvery: 30 }));
+    await S(() => window.__play({ seconds: 90, claim: false, renderEvery: 10 }));
+    check(!(await S(() => window.diner.game.state.complete)), 'the Harbor Tavern is not complete yet');
+    const hc = await S(() => ({ g: window.diner.game.state.customers.length, k: window.diner.game.state.cooks.length }));
+    budget(await S(() => { window.diner.step(1 / 30); return window.diner.scene.stats(); }), `Harbor Tavern with ${hc.g} guests and ${hc.k} cooks, High`);
 
     // ------------------------------------------------------------ reload keeps progress
-    const before = await S(() => { const g = window.toy.game; window.toy.save(); return { f: g.state.factoryIndex, levels: g.state.factory.stations.map((s) => s.level).join(','), money: g.state.money, sold: g.state.factory.sold }; });
-    check(await S(() => { try { return !!localStorage.getItem('toyfactory.save.v1'); } catch { return false; } }), 'the game is saved in localStorage');
+    const before = await S(() => { const g = window.diner.game; window.diner.save(); return { loc: g.state.location, levels: g.state.stations.map((s) => s.level).join(','), money: g.state.money, served: g.state.served, tables: g.select.tableView().owned, cooks: g.state.cooks.length }; });
     await page.reload();
     await boot();
-    const after = await S(() => { const g = window.toy.game; return { f: g.state.factoryIndex, levels: g.state.factory.stations.map((s) => s.level).join(','), money: g.state.money, sold: g.state.factory.sold, tut: g.state.tutorial }; });
-    check(after.f === 1 && after.levels === before.levels, `reload keeps the factory and levels (${after.levels})`);
-    check(after.money >= before.money * 0.98 && after.sold >= before.sold, 'reload keeps money and toys sold');
-    check(after.tut === 'done', 'tutorial does not come back after a reload');
+    const after = await S(() => { const g = window.diner.game; return { loc: g.state.location, levels: g.state.stations.map((s) => s.level).join(','), money: g.state.money, served: g.state.served, tables: g.select.tableView().owned, cooks: g.state.cooks.length, tut: g.state.tutorial }; });
+    check(after.loc === 'harbor' && after.levels === before.levels, `reload keeps the place and the station levels (${after.levels})`);
+    check(after.money >= before.money * 0.99 && after.served === before.served && after.tables === before.tables && after.cooks === before.cooks, 'reload keeps coins, guests served, tables and cooks');
+    check(after.tut === 'done', 'the tutorial does not come back');
+    check(await S(() => window.diner.scene.debug.layout.id) === 'harbor', 'the scene starts in the Harbor Tavern');
 
     // ------------------------------------------------------------ offline earnings
-    // leave the game (it saves on the way out), move the saved clock back 90 minutes on a
-    // plain page of the same origin, then come back
     await page.goto(URL + 'assets/fonts/OFL.txt');
-    await S(() => {
-      const raw = JSON.parse(localStorage.getItem('toyfactory.save.v1'));
-      raw.lastSeen -= 90 * 60 * 1000;
-      localStorage.setItem('toyfactory.save.v1', JSON.stringify(raw));
-    });
-    await page.goto(URL);
+    await S((k) => {
+      const raw = JSON.parse(localStorage.getItem(k));
+      raw.lastSeen -= 3 * 60 * 60 * 1000;
+      localStorage.setItem(k, JSON.stringify(raw));
+    }, SAVE_KEY);
+    await page.goto(URL + '?manual=1');
     await boot();
-    await settle(400);
-    check(await visible('.off-card'), 'after 90 minutes away the "While you were away" card shows');
-    const off = await S(() => window.toy.game.select.offline());
-    check(off && Math.round(off.seconds / 60) >= 89 && off.amount > 0, `offline earnings for ${off ? Math.round(off.seconds / 60) : 0} min`);
-    const m2 = await S(() => window.toy.game.state.money);
-    await tapSel('.off-card .cbtn');
-    check(await S(() => window.toy.game.state.money) >= m2 + off.amount * 0.99, 'Collect adds the offline earnings');
+    await step(0.1);
+    await wait(400);
+    check(await visible('.modal.open .big-amount'), 'after 3 hours away the "Welcome back" card shows');
+    const off = await S(() => window.diner.game.select.offline());
+    check(off && off.seconds === 7200 && off.amount > 0, `offline earnings are capped at 2 h (${off ? off.seconds : 0} s, ${off ? off.amount : 0} coins)`);
+    const m2 = await S(() => window.diner.game.state.money);
+    await tapSel('.modal.open .btn-wide');
+    check(off && await S(() => window.diner.game.state.money) >= m2 + off.amount, 'Collect adds the offline earnings');
 
-    // ------------------------------------------------------------ language: Türkçe and back
-    await settle(300);
-    await tapSel('.hud-gear');
-    check(await visible('.set-card'), 'settings button opens the settings');
-    await tapSel('.seg-btn[data-value="tr"]');
-    check(await S(() => window.toy.game.state.settings.lang) === 'tr', 'language switches to Türkçe');
-    check(await S(() => document.documentElement.lang) === 'tr', 'document language is tr');
-    check(/Ayarlar/.test(await page.locator('.set-card .modal-title').textContent()), 'settings title is Turkish');
-    check(/\/sn/.test(await page.locator('.hud-inc-num').textContent()), 'income uses the Turkish unit (/sn)');
-    check(/Oyuncak Ayılar/.test(await page.locator('.goals-name').textContent()), 'factory name is Turkish (with ı)');
-    // FPS meter on, quality low then high
-    await tapSel('.set-row[data-key="fps"] .seg-btn[data-value="true"]');
-    await tapSel('.set-row[data-key="quality"] .seg-btn[data-value="low"]');
-    check(await S(() => window.toy.scene.stats().quality) === 'low', 'quality Low applies to the scene');
-    await tapSel('.set-row[data-key="quality"] .seg-btn[data-value="high"]');
-    check(await S(() => window.toy.scene.stats().quality) === 'high', 'quality High applies to the scene');
-    await tapSel('.set-row[data-key="sound"] .seg-btn[data-value="false"]');
-    check(await S(() => window.toy.game.state.settings.sound) === false, 'sound can be turned off');
-    await tapSel('.seg-btn[data-value="en"]');
-    check(await S(() => window.toy.game.state.settings.lang) === 'en', 'language switches back to English');
-    check(/Settings/.test(await page.locator('.set-card .modal-title').textContent()), 'settings title is English again');
-    await tapSel('.set-card .cbtn');
-    await S(() => window.toy.step(0.6));
-    await settle(700);
-    check(await visible('.hud-fps:not(.is-hidden)'), 'FPS meter is visible');
-    check(/FPS/.test(await page.locator('.hud-fps').textContent()), 'FPS meter shows the frame rate');
+    // ------------------------------------------------------------ Türkçe and back
+    await wait(300);
+    await tapSel('.gear');
+    check(await visible('.modal.open .seg'), 'the gear opens the settings');
+    await tapSel('.seg[data-setting="lang"] button[data-value="tr"]');
+    check(await S(() => window.diner.game.state.settings.lang) === 'tr' && await S(() => document.documentElement.lang) === 'tr', 'language switches to Türkçe');
+    check(await text('.modal.open h2') === 'Ayarlar', 'settings title is "Ayarlar"');
+    check(/Liman Tavernası/.test(await text('.hud-loc .name')), 'HUD shows "Liman Tavernası"');
+    check(await S(() => document.title) === 'Kahramanlar Lokantası', 'page title is "Kahramanlar Lokantası"');
+    check(!(await S(() => document.body.innerText)).includes('!'), 'no "!" on the Turkish screen');
+    await tapSel('.seg[data-setting="fps"] button[data-value="true"]');
+    await tapSel('.seg[data-setting="quality"] button[data-value="low"]');
+    check(await S(() => window.diner.scene.stats().quality) === 'low', 'graphics Low applies to the scene');
+    const lowStats = await S(() => { window.diner.step(1 / 30); return window.diner.scene.stats(); });
+    budget(lowStats, 'Harbor Tavern, Low');
+    check(await S(() => window.diner.scene.debug.renderer.getPixelRatio()) <= 1.25, 'Low caps the pixel ratio at 1.25');
+    await tapSel('.seg[data-setting="quality"] button[data-value="high"]');
+    check(await S(() => window.diner.scene.stats().quality) === 'high' && await S(() => window.diner.scene.debug.renderer.getPixelRatio()) <= 2, 'graphics High again (pixel ratio <= 2)');
+    await tapSel('.seg[data-setting="sound"] button[data-value="false"]');
+    check(await S(() => window.diner.game.state.settings.sound) === false, 'sound off');
+    await tapSel('.seg[data-setting="lang"] button[data-value="en"]');
+    check(await S(() => window.diner.game.state.settings.lang) === 'en' && await text('.modal.open h2') === 'Settings', 'language switches back to English');
+    await tapSel('.modal.open .btn-wide');
+    await step(0.6);
+    await wait(300);
+    check(await visible('.fps') && /FPS/.test(await text('.fps')), 'FPS meter shows the scene stats');
     await page.reload();
     await boot();
-    check(await S(() => { const s = window.toy.game.state.settings; return s.lang === 'en' && s.sound === false && s.fps === true; }), 'settings survive a reload');
+    check(await S(() => { const s = window.diner.game.state.settings; return s.lang === 'en' && s.sound === false && s.fps === true && s.quality === 'high'; }), 'settings survive a reload');
+
+    // ------------------------------------------------------------ automatic drop to Low is remembered
+    await S(() => window.diner.scene.debug.perf.onSlow()); // what the frame-time monitor calls on a slow phone
+    check(await S(() => window.diner.scene.stats().quality) === 'low' && await S(() => window.diner.game.state.settings.quality) === 'low', 'slow frames drop the graphics to Low and the setting follows');
+    await page.reload();
+    await boot();
+    check(await S(() => window.diner.game.state.settings.quality) === 'low' && await S(() => window.diner.scene.stats().quality) === 'low', 'the automatic Low is remembered after a reload');
+
+    // ------------------------------------------------------------ sandboxed iframe (no storage)
+    const fpage = await ctx.newPage();
+    fpage.on('pageerror', (e) => errors.push('iframe pageerror: ' + String(e)));
+    fpage.on('console', (m) => { if (m.type() === 'error') errors.push('iframe console: ' + m.text()); });
+    await fpage.setContent(`<iframe sandbox="allow-scripts" src="${URL}?manual=1" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`);
+    let frame = null;
+    for (let i = 0; i < 100 && !frame; i++) { frame = fpage.frames().find((f) => f.url().startsWith(URL)); if (!frame) await wait(100); }
+    await frame.waitForFunction(() => window.diner && window.diner.ready, null, { timeout: 120000 });
+    const fr = await frame.evaluate(() => { window.diner.step(2); return { saved: window.diner.save(), calls: window.diner.scene.stats().calls }; });
+    check(fr.saved === false && fr.calls > 0, 'runs inside a sandboxed iframe (no storage, 3D view drawn)');
+    await fpage.close();
 
     // ------------------------------------------------------------ no errors
-    const real = errors.filter((e) => !/GPU stall due to ReadPixels/.test(e));
-    check(real.length === 0, 'no console errors' + (real.length ? ':\n  ' + real.join('\n  ') : ''));
+    check(errors.length === 0, 'no console errors' + (errors.length ? ':\n  ' + errors.slice(0, 8).join('\n  ') : ''));
     console.log(`     total ${Math.round((Date.now() - t0) / 1000)} s`);
   } finally {
     if (browser) await browser.close().catch(() => {});

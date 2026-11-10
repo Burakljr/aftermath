@@ -13,12 +13,18 @@ own files with relative paths, so it works from a sub-path and inside a sandboxe
 Work split: the core builder owns `js/game/*` (except `layout.js`), `js/i18n/*`, `js/ui/*`,
 `css/*`, `js/audio.js`, `ui-lab.html`, `tests/logic/*`, `tests/ui/*`. The scene builder owns
 `js/scene/*`, `js/game/layout.js`, `assets/*`, `tools/assets/*`, `scene-lab.html`,
-`tests/scene/*`. `index.html` / `js/main.js` are the integration (see "Integration").
+`tests/scene/*`. The integration owns `index.html`, `js/main.js`, `tools/serve.mjs`,
+`tools/build-preview.mjs`, `tests/helpers.cjs`, `tests/e2e/*`, `tests/shots.cjs`,
+`tests/preview.cjs` (see "Integration").
 
 ## Run
 
 ```
-PORT=5402 node tools/serve.mjs      # then open http://localhost:5402/ui-lab.html (UI lab)
+PORT=5403 node tools/serve.mjs      # then open http://localhost:5403/  (the game)
+                                    # dev pages: /ui-lab.html (UI on a flat stand-in scene),
+                                    # /scene-lab.html (3D scene on a fake restaurant),
+                                    # /tests/scene/game-lab.html (real logic on the real scene, no UI)
+node tools/build-preview.mjs out/preview   # self-contained copy with the models as base64 JS
 ```
 
 ## File layout (core side)
@@ -197,22 +203,92 @@ detection; the only per-frame layout writes are transforms at scene anchors.
   (offline earnings, Collect), Settings (language, sound, graphics, FPS, credits).
 - Tutorial: pointing hand + ring + short bubble; bubbles for card buttons sit above the card.
 - Toasts (opened, new cook, new table, milestone, goal done) sit just above the bottom UI (or
-  under the HUD while a sheet is open), so they never cover the stations.
-- Canvas taps: `scene.pick()` -> station (boost + card), table (info, or Upgrades for an unowned
-  table), customer (his order), cook (info), nothing (closes the card).
+  under the HUD while a sheet is open; they follow when a card or sheet opens or closes), so
+  they never cover the stations or a sheet row.
+- Canvas taps: `scene.pick()` -> station (boost + card), table (info; an unowned table is bought
+  at once when it is the next one and affordable, otherwise Upgrades opens), customer (his
+  order), cook (info), nothing (closes the card).
 
-## Integration (`index.html`, `js/main.js`) - to do when wiring the real scene
+## Integration (`index.html`, `js/main.js`)
 
-main.js and index.html in the repo still come from the old prototype. They need to:
-create storage `createStorage()`; `createGame({ save: storage.load(), lang })`;
-`await createScene(canvas, { quality: game.state.settings.quality, location: game.state.location })`;
-`createUI({ root: #ui, game, scene, audio: createAudio(), canvas })`; forward
-`for (const ev of EVENTS) game.on(ev, p => scene.fx(ev, p))`; on `locationStart` call
-`scene.setLocation(id)`; save every few seconds, on `open`/`locationComplete`/`locationStart`/
-`setting` and on `visibilitychange` (hidden) / `pagehide`; frame loop `game.tick(dt)`,
-`scene.update(game.state, dt)`, `ui.update(dt)`; expose `window.diner = { game, scene, ui,
-step(dt), save(), ready }`; title/loader texts from i18n (`app.title`). The UI lab
-(`ui-lab.html`) shows the same wiring with a fake scene.
+`index.html`: viewport (`viewport-fit=cover`), theme colour, Fredoka 600/700 preload,
+`css/app.css`, the import map (`three` -> `vendor/three/build/three.module.min.js`,
+`three/addons/` -> `vendor/three/addons/`, which holds only GLTFLoader, SkeletonUtils and
+BufferGeometryUtils from three@0.187.0), `<canvas id="scene" class="scene">`, `<div id="ui">`,
+a loading screen (`#loader`: the inn icon, the game title in the player's language, a thin
+orange progress bar) and `#fatal` (shown only when WebGL cannot start).
+
+`js/main.js` (a module with top-level await), in order:
+
+1. URL options: `?manual=1` (no frame loop, a virtual clock: time moves only through
+   `window.diner.step()`, so slow test machines never look like the player was away),
+   `?autoq=0` (never drop to Low by itself), `?lang=en|tr` (language of a NEW game),
+   `?reset=1` (delete the save).
+2. `createStorage()` (guarded `localStorage`, key `heroesdiner.save.v1`) and
+   `createGame({ save, now, lang })`; a broken save falls back to a new game. The game's own
+   load runs `checkAway()`, so offline earnings (>= 60 s away, capped at 2 h) are ready for
+   the UI's Welcome back card on the first frame.
+3. Loader title + `document.title` / `<html lang>` from i18n (`app.title`).
+4. `await import('./scene/scene.js')` then `await createScene(canvas, { quality, location,
+   autoQuality, onAutoQuality, onProgress })`. The bar shows 12 % (code), 22 % (three.js),
+   then one step per loaded model. `autoQuality` is on only while the saved quality is High
+   (and not `?autoq=0`); `onAutoQuality('low')` stores the setting with
+   `game.act({ type: 'setting', key: 'quality', value: 'low' })`, so the next start is Low.
+   A quality the player picks by hand turns the automatic drop off for the session. If the
+   scene cannot start (no WebGL), a small fallback scene (screen positions from
+   `js/scene/layout.js SCREEN`) keeps the UI usable and `#fatal` says "This device could not
+   start the 3D view".
+5. `createUI({ root: #ui, game, scene, audio: createAudio(), canvas })`. The UI handles canvas
+   taps itself (`scene.pick`): station -> boost + card, guest -> "<dish>, please" toast, cook ->
+   info, faded table -> bought at once when it is the next table and affordable (otherwise the
+   Upgrades sheet opens), empty floor -> closes the card.
+6. Every game event is forwarded to `scene.fx(ev, payload)` (the UI and sounds subscribe to
+   the game themselves); `scene.fx('locationStart')` switches the restaurant (and
+   `scene.update` would also switch when `state.location` changes).
+7. Saving: every 4 s of play, on `open`, `buyTable`, `hire`, `claim`, `setting`,
+   `locationComplete`, `locationStart`, on `visibilitychange` (hidden) and `pagehide`.
+   Storage errors are swallowed (a sandboxed iframe simply does not save).
+8. Frame loop (`requestAnimationFrame`): `game.tick(dt)`, `scene.update(state, dt)`,
+   `ui.update(dt)`. A gap of 0.25-60 s (hitch, short tab switch) is caught up with 1 s game
+   ticks so the restaurant keeps working; a longer gap becomes offline earnings inside
+   `game.tick` (wall-clock check). The loader fades out after the first drawn frame.
+9. Test hook: `window.diner = { game, scene, ui, audio, storage, step(dt, h = 1/30,
+   render = true), save(), manual, ready }`. `step` advances game, scene and UI in sub-steps of
+   `h` without drawing, then draws once; `ready` turns true after the first frame.
+
+Changes to the contract made while integrating:
+
+- `js/scene/assets.js` loads models with `fetch` + `arrayBuffer` + `GLTFLoader.parse`
+  (not `GLTFLoader.load`, whose progress-stream wrapper made Chromium report finished
+  downloads as aborted). `window.__EMBED[name]` (base64) still wins when present.
+- Tapping a faded (unbought) table buys it when it is the next one and affordable.
+- Toasts follow the bottom UI each frame and move under the HUD while a menu sheet is open
+  (a goal finished just before opening Goals no longer covers a row).
+- `tools/serve.mjs` takes `SERVE_ROOT` to serve another folder (the preview).
+
+### Preview build (`tools/build-preview.mjs`)
+
+`node tools/build-preview.mjs [outDir]` (default `out/preview`, git-ignored) writes a copy for
+a preview host that only serves html, js, css, json, png, jpg, svg, woff2, txt and md files:
+index.html, css, the fonts css/app.css uses, the JS import graph of `js/main.js` (static and
+dynamic imports, resolved through the import map; labs and tests are not copied), the
+licences (`vendor/three/LICENSE` -> `LICENSE.txt`), README.md and LICENSES.md. Every
+`assets/models/*.glb` becomes `js/embed/<name>.js`
+(`(window.__EMBED || (window.__EMBED = {}))[name] = '<base64>'`), loaded by `<script type="module">` tags
+placed before main.js (module scripts run in document order). The script refuses any other
+file type. Size: about 4.6 MB (67 files). `tests/preview.cjs` checks it on
+`python3 -m http.server` from a sub-path with every .glb request blocked.
+
+### Download size and scene cost (measured)
+
+Everything index.html loads: models 2.56 MB (props 1.42 MB, four heroes 0.22-0.27 MB each,
+animations 0.17 MB), three.js + 3 addons 0.88 MB, game/UI/scene code 0.25 MB, fonts 55 KB,
+html/css 31 KB: about 3.8 MB in total (about 1.5 MB with gzip).
+
+Real game on SwiftShader (iPhone 13 viewport, High, pixel ratio 2): start 24-25 draw calls /
+46-51k triangles; busy Village Inn (all stations, 5-6 tables, 10-12 guests + 4 cooks)
+36-44 calls / 97-119k triangles; busy Harbor Tavern 40-44 calls / 96-115k; Low 40 calls /
+94k at pixel ratio 1.25. Budget: 120 calls / 150k triangles.
 
 ## Audio (`js/audio.js`)
 
@@ -228,6 +304,26 @@ time units (`num.*`, `time.*`). Station names in sentences use `station.<id>.acc
 "Izgarayı"). No emoji, no "!" in Turkish, numbers always with a unit or the coin icon.
 
 ## Tests
+
+Real game (integration), each starts its own server on PORT (default 5403):
+
+- `timeout 600 node tests/e2e/play.cjs` (~50 s): iPhone 13; real frame loop and loading
+  screen; tutorial with real taps (Juice Bar in the 3D view, Upgrade, Open sign -> Open the
+  Grill); floor tap closes the card; guest tap shows the order; hire a cook in Upgrades; tap a
+  faded table to buy it; attentive fast-forward player (`tests/helpers.cjs`, same decisions as
+  `tests/logic/bot.mjs`) until every goal is collected, with pacing checks (Village Inn 7-15
+  min, Stew 2-5 min, Oven 4-8 min, reward gaps <= 30 s) and the busiest frame within budget;
+  Restaurant complete -> Harbor Tavern (scene, HUD, Cocoa Stand card); reload keeps
+  progress; 3 h away -> Welcome back capped at 2 h; Türkçe and back (titles, HUD, no "!"),
+  Low / High (pixel ratio), sound, FPS meter, settings survive a reload; automatic Low is
+  stored; sandboxed iframe (no storage) runs; no console errors or failed requests.
+- `timeout 600 node tests/shots.cjs <outDir> [bestDir]`: 01-start-tutorial, 02-station-card,
+  03-busy-inn, 04-upgrades-panel, 05-goals, 06-location-complete, 07-harbor-tavern,
+  08-settings-tr at DPR 2 plus `@1x` copies, `stats.json`; bestDir gets 4 owner-facing shots.
+- `node tools/build-preview.mjs out/preview && timeout 300 node tests/preview.cjs out/preview`.
+
+Parts:
+
 
 - `node tests/logic/run.mjs` (~2 s): i18n parity/placeholders/emoji/"!"/leftovers/key use,
   pacing (4 seeds), softlock (careless bot, Harbor Tavern, never buying), save roundtrip and

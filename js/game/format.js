@@ -59,7 +59,7 @@ export function formatNumber(value, lang = 'en') {
   return neg ? '-' + out : out;
 }
 
-// Whole number with grouping (for counts like toys sold): 1,234 / 1.234
+// Whole number with grouping (for counts like guests served): 1,234 / 1.234
 export function formatInt(value, lang = 'en') {
   const d = dict(lang);
   return grouped(Math.floor(Math.max(0, value)), d['num.group']);

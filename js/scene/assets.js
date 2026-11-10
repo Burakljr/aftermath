@@ -42,15 +42,17 @@ export function loadModel(name) {
   if (cache.has(name)) return cache.get(name);
   if (!loader) loader = new GLTFLoader();
   const embed = typeof window !== 'undefined' && window.__EMBED && window.__EMBED[name];
-  const p = new Promise((resolve, reject) => {
-    if (embed) {
-      try {
-        loader.parse(base64ToBuffer(embed), BASE, (g) => resolve(setupTextures(g)), reject);
-      } catch (e) { reject(e); }
-    } else {
-      loader.load(BASE + name + '.glb', (g) => resolve(setupTextures(g)), undefined, reject);
-    }
-  });
+  // plain fetch + arrayBuffer (not GLTFLoader.load: its progress stream wrapper makes Chromium
+  // report finished downloads as aborted)
+  const bytes = embed
+    ? Promise.resolve().then(() => base64ToBuffer(embed))
+    : fetch(BASE + name + '.glb').then((r) => {
+      if (!r.ok) throw new Error(`${name}.glb: HTTP ${r.status}`);
+      return r.arrayBuffer();
+    });
+  const p = bytes.then((buf) => new Promise((resolve, reject) => {
+    loader.parse(buf, BASE, (g) => resolve(setupTextures(g)), reject);
+  }));
   cache.set(name, p);
   p.catch(() => cache.delete(name));
   return p;

@@ -1,12 +1,13 @@
 // Static file server for local development and tests.
 //   PORT=5301 node tools/serve.mjs
+//   PORT=5301 SERVE_ROOT=/some/dir node tools/serve.mjs   (serve another folder, e.g. the preview)
 // Serves the repository root with correct MIME types (incl. .mjs, .woff2), no caching.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.env.SERVE_ROOT ? resolve(process.env.SERVE_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 5300;
 const TYPES = {
   '.html': 'text/html; charset=utf-8',

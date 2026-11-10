@@ -78,10 +78,13 @@ export function createFloats(ctx) {
     toast,
     update(dt) {
       if (toastEl && ctx.blockingModal && ctx.blockingModal()) { toastEl.remove(); toastEl = null; }
-      // keep the toast above the bottom UI if a card opens or closes meanwhile
-      if (toastEl && !toastEl.classList.contains('at-top')) {
+      // keep the toast above the bottom UI if a card opens or closes meanwhile, and move it
+      // under the HUD while a menu sheet covers the bottom (and back when it closes)
+      if (toastEl) {
         const b = ctx.toastBottom();
-        if (b !== null) {
+        const top = b === null;
+        if (toastEl.classList.contains('at-top') !== top) toastEl.classList.toggle('at-top', top);
+        if (!top) {
           const v = Math.round(b) + 'px';
           if (toastEl._b !== v) { toastEl._b = v; toastEl.style.setProperty('--toast-b', v); }
         }
